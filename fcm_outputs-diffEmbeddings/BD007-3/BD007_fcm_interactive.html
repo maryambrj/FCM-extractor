@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"hypoxia": {"concepts": "hypoxia", "concept_list": ["hypoxia"], "type": "cluster", "label": "hypoxia"}, "human use": {"concepts": "human use", "concept_list": ["human use"], "type": "cluster", "label": "human use"}, "management approaches": {"concepts": "management approaches, management", "concept_list": ["management approaches", "management"], "type": "cluster", "label": "management approaches"}, "resource management": {"concepts": "resource management", "concept_list": ["resource management"], "type": "cluster", "label": "resource management"}, "shipping lanes": {"concepts": "shipping lanes", "concept_list": ["shipping lanes"], "type": "cluster", "label": "shipping lanes"}, "habitats": {"concepts": "habitats, recreational species", "concept_list": ["habitats", "recreational species"], "type": "cluster", "label": "habitats"}, "mpas": {"concepts": "mpas", "concept_list": ["mpas"], "type": "cluster", "label": "mpas"}, "stakeholder engagement": {"concepts": "stakeholder engagement", "concept_list": ["stakeholder engagement"], "type": "cluster", "label": "stakeholder engagement"}, "kelp": {"concepts": "kelp", "concept_list": ["kelp"], "type": "cluster", "label": "kelp"}, "marine mammals": {"concepts": "marine mammals", "concept_list": ["marine mammals"], "type": "cluster", "label": "marine mammals"}, "cetaceans": {"concepts": "cetaceans, invertebrates", "concept_list": ["cetaceans", "invertebrates"], "type": "cluster", "label": "cetaceans"}, "marine sanctuary": {"concepts": "marine sanctuary", "concept_list": ["marine sanctuary"], "type": "cluster", "label": "marine sanctuary"}, "sanctuaries": {"concepts": "sanctuaries", "concept_list": ["sanctuaries"], "type": "cluster", "label": "sanctuaries"}, "microplastics": {"concepts": "microplastics", "concept_list": ["microplastics"], "type": "cluster", "label": "microplastics"}, "national marine sanctuary": {"concepts": "national marine sanctuary", "concept_list": ["national marine sanctuary"], "type": "cluster", "label": "national marine sanctuary"}, "metrics": {"concepts": "metrics", "concept_list": ["metrics"], "type": "cluster", "label": "metrics"}, "outreach": {"concepts": "outreach", "concept_list": ["outreach"], "type": "cluster", "label": "outreach"}, "habitat forming species": {"concepts": "habitat forming species", "concept_list": ["habitat forming species"], "type": "cluster", "label": "habitat forming species"}, "storms": {"concepts": "storms, storm frequency", "concept_list": ["storms", "storm frequency"], "type": "cluster", "label": "storms"}, "coral reefs": {"concepts": "coral reefs, deep sea corals", "concept_list": ["coral reefs", "deep sea corals"], "type": "cluster", "label": "coral reefs"}, "policymakers": {"concepts": "policymakers", "concept_list": ["policymakers"], "type": "cluster", "label": "policymakers"}, "community groups": {"concepts": "community groups", "concept_list": ["community groups"], "type": "cluster", "label": "community groups"}, "vessels": {"concepts": "vessels", "concept_list": ["vessels"], "type": "cluster", "label": "vessels"}, "noaa": {"concepts": "noaa, noaa fisheries", "concept_list": ["noaa", "noaa fisheries"], "type": "cluster", "label": "noaa"}, "food web species": {"concepts": "food web species, food web", "concept_list": ["food web species", "food web"], "type": "cluster", "label": "food web species"}, "marine biodiversity": {"concepts": "marine biodiversity", "concept_list": ["marine biodiversity"], "type": "cluster", "label": "marine biodiversity"}, "renewable energy": {"concepts": "renewable energy", "concept_list": ["renewable energy"], "type": "cluster", "label": "renewable energy"}, "food web supporting": {"concepts": "food web supporting", "concept_list": ["food web supporting"], "type": "cluster", "label": "food web supporting"}, "protected areas": {"concepts": "protected areas", "concept_list": ["protected areas"], "type": "cluster", "label": "protected areas"}, "research": {"concepts": "research", "concept_list": ["research"], "type": "cluster", "label": "research"}, "shallow water": {"concepts": "shallow water", "concept_list": ["shallow water"], "type": "cluster", "label": "shallow water"}, "invasive species": {"concepts": "invasive species", "concept_list": ["invasive species"], "type": "cluster", "label": "invasive species"}, "conservation": {"concepts": "conservation", "concept_list": ["conservation"], "type": "cluster", "label": "conservation"}, "oa": {"concepts": "oa", "concept_list": ["oa"], "type": "cluster", "label": "oa"}, "benthic habitats": {"concepts": "benthic habitats, oceanographic habitats", "concept_list": ["benthic habitats", "oceanographic habitats"], "type": "cluster", "label": "benthic habitats"}, "whales": {"concepts": "whales", "concept_list": ["whales"], "type": "cluster", "label": "whales"}, "area based management": {"concepts": "area based management, area based tools", "concept_list": ["area based management", "area based tools"], "type": "cluster", "label": "area based management"}, "cultural species": {"concepts": "cultural species", "concept_list": ["cultural species"], "type": "cluster", "label": "cultural species"}, "species diversity": {"concepts": "species diversity, species richness", "concept_list": ["species diversity", "species richness"], "type": "cluster", "label": "species diversity"}, "ship strikes": {"concepts": "ship strikes", "concept_list": ["ship strikes"], "type": "cluster", "label": "ship strikes"}, "marine protected areas": {"concepts": "marine protected areas", "concept_list": ["marine protected areas"], "type": "cluster", "label": "marine protected areas"}, "harmful algal bloom": {"concepts": "harmful algal bloom", "concept_list": ["harmful algal bloom"], "type": "cluster", "label": "harmful algal bloom"}, "habitat use": {"concepts": "habitat use", "concept_list": ["habitat use"], "type": "cluster", "label": "habitat use"}, "species distribution": {"concepts": "species distribution, species of conservation", "concept_list": ["species distribution", "species of conservation"], "type": "cluster", "label": "species distribution"}, "recreational fishing": {"concepts": "recreational fishing, commercial fishing, fishery, fishing industry, fishing gear, derelict fishing gear", "concept_list": ["recreational fishing", "commercial fishing", "fishery", "fishing industry", "fishing gear", "derelict fishing gear"], "type": "cluster", "label": "recreational fishing"}, "species range": {"concepts": "species range", "concept_list": ["species range"], "type": "cluster", "label": "species range"}, "industry": {"concepts": "industry", "concept_list": ["industry"], "type": "cluster", "label": "industry"}, "shipping industry": {"concepts": "shipping industry", "concept_list": ["shipping industry"], "type": "cluster", "label": "shipping industry"}, "stakeholders": {"concepts": "stakeholders", "concept_list": ["stakeholders"], "type": "cluster", "label": "stakeholders"}, "oil and gas": {"concepts": "oil and gas", "concept_list": ["oil and gas"], "type": "cluster", "label": "oil and gas"}, "hotspots": {"concepts": "hotspots", "concept_list": ["hotspots"], "type": "cluster", "label": "hotspots"}, "decision making": {"concepts": "decision making", "concept_list": ["decision making"], "type": "cluster", "label": "decision making"}, "biogeographic break": {"concepts": "biogeographic break, biogeography", "concept_list": ["biogeographic break", "biogeography"], "type": "cluster", "label": "biogeographic break"}, "no take areas": {"concepts": "no take areas", "concept_list": ["no take areas"], "type": "cluster", "label": "no take areas"}, "increased temperatures": {"concepts": "increased temperatures", "concept_list": ["increased temperatures"], "type": "cluster", "label": "increased temperatures"}, "resistance": {"concepts": "resistance", "concept_list": ["resistance"], "type": "cluster", "label": "resistance"}, "ecosystem": {"concepts": "ecosystem", "concept_list": ["ecosystem"], "type": "cluster", "label": "ecosystem"}, "whale strikes": {"concepts": "whale strikes", "concept_list": ["whale strikes"], "type": "cluster", "label": "whale strikes"}, "resilience": {"concepts": "resilience", "concept_list": ["resilience"], "type": "cluster", "label": "resilience"}, "sanctuary": {"concepts": "sanctuary", "concept_list": ["sanctuary"], "type": "cluster", "label": "sanctuary"}, "shipping vessels": {"concepts": "shipping vessels", "concept_list": ["shipping vessels"], "type": "cluster", "label": "shipping vessels"}, "biodiversity": {"concepts": "biodiversity", "concept_list": ["biodiversity"], "type": "cluster", "label": "biodiversity"}, "ecosystem based management": {"concepts": "ecosystem based management", "concept_list": ["ecosystem based management"], "type": "cluster", "label": "ecosystem based management"}, "indigenous population": {"concepts": "indigenous population, indigenous communities", "concept_list": ["indigenous population", "indigenous communities"], "type": "cluster", "label": "indigenous population"}, "stressors": {"concepts": "stressors", "concept_list": ["stressors"], "type": "cluster", "label": "stressors"}, "kelp forest": {"concepts": "kelp forest", "concept_list": ["kelp forest"], "type": "cluster", "label": "kelp forest"}, "temperature": {"concepts": "temperature", "concept_list": ["temperature"], "type": "cluster", "label": "temperature"}, "services": {"concepts": "services", "concept_list": ["services"], "type": "cluster", "label": "services"}, "carbon sequestration": {"concepts": "carbon sequestration", "concept_list": ["carbon sequestration"], "type": "cluster", "label": "carbon sequestration"}, "species of cultural": {"concepts": "species of cultural", "concept_list": ["species of cultural"], "type": "cluster", "label": "species of cultural"}, "advisory council": {"concepts": "advisory council", "concept_list": ["advisory council"], "type": "cluster", "label": "advisory council"}, "seafloor mapping": {"concepts": "seafloor mapping", "concept_list": ["seafloor mapping"], "type": "cluster", "label": "seafloor mapping"}, "regulation": {"concepts": "regulation", "concept_list": ["regulation"], "type": "cluster", "label": "regulation"}, "climate": {"concepts": "climate, climate change", "concept_list": ["climate", "climate change"], "type": "cluster", "label": "climate"}, "ocean acidification": {"concepts": "ocean acidification", "concept_list": ["ocean acidification"], "type": "cluster", "label": "ocean acidification"}, "fishes": {"concepts": "fishes", "concept_list": ["fishes"], "type": "cluster", "label": "fishes"}, "place based management": {"concepts": "place based management", "concept_list": ["place based management"], "type": "cluster", "label": "place based management"}, "conservation concern": {"concepts": "conservation concern", "concept_list": ["conservation concern"], "type": "cluster", "label": "conservation concern"}, "marine science": {"concepts": "marine science", "concept_list": ["marine science"], "type": "cluster", "label": "marine science"}, "gas exploration": {"concepts": "gas exploration", "concept_list": ["gas exploration"], "type": "cluster", "label": "gas exploration"}, "california": {"concepts": "california", "concept_list": ["california"], "type": "cluster", "label": "california"}, "marine protected area": {"concepts": "marine protected area", "concept_list": ["marine protected area"], "type": "cluster", "label": "marine protected area"}, "diversity components": {"concepts": "diversity components", "concept_list": ["diversity components"], "type": "cluster", "label": "diversity components"}, "keystone species": {"concepts": "keystone species", "concept_list": ["keystone species"], "type": "cluster", "label": "keystone species"}, "ecosystem services": {"concepts": "ecosystem services", "concept_list": ["ecosystem services"], "type": "cluster", "label": "ecosystem services"}, "research community": {"concepts": "research community", "concept_list": ["research community"], "type": "cluster", "label": "research community"}, "species evenness": {"concepts": "species evenness", "concept_list": ["species evenness"], "type": "cluster", "label": "species evenness"}, "no take zone": {"concepts": "no take zone", "concept_list": ["no take zone"], "type": "cluster", "label": "no take zone"}, "upwelling": {"concepts": "upwelling", "concept_list": ["upwelling"], "type": "cluster", "label": "upwelling"}, "marine debris": {"concepts": "marine debris", "concept_list": ["marine debris"], "type": "cluster", "label": "marine debris"}, "runoff": {"concepts": "runoff", "concept_list": ["runoff"], "type": "cluster", "label": "runoff"}, "sponges": {"concepts": "sponges", "concept_list": ["sponges"], "type": "cluster", "label": "sponges"}, "commercial species": {"concepts": "commercial species", "concept_list": ["commercial species"], "type": "cluster", "label": "commercial species"}, "harmful organisms": {"concepts": "harmful organisms", "concept_list": ["harmful organisms"], "type": "cluster", "label": "harmful organisms"}, "species of commercial": {"concepts": "species of commercial", "concept_list": ["species of commercial"], "type": "cluster", "label": "species of commercial"}, "military": {"concepts": "military", "concept_list": ["military"], "type": "cluster", "label": "military"}, "mental modeling": {"concepts": "mental modeling", "concept_list": ["mental modeling"], "type": "cluster", "label": "mental modeling"}, "noise pollution": {"concepts": "noise pollution", "concept_list": ["noise pollution"], "type": "cluster", "label": "noise pollution"}, "education": {"concepts": "education", "concept_list": ["education"], "type": "cluster", "label": "education"}, "mexican government": {"concepts": "mexican government", "concept_list": ["mexican government"], "type": "cluster", "label": "mexican government"}, "channel islands": {"concepts": "channel islands", "concept_list": ["channel islands"], "type": "cluster", "label": "channel islands"}, "system components": {"concepts": "system components", "concept_list": ["system components"], "type": "cluster", "label": "system components"}, "tribal": {"concepts": "tribal", "concept_list": ["tribal"], "type": "cluster", "label": "tribal"}, "concept mapping": {"concepts": "concept mapping", "concept_list": ["concept mapping"], "type": "cluster", "label": "concept mapping"}, "nutrient inputs": {"concepts": "nutrient inputs", "concept_list": ["nutrient inputs"], "type": "cluster", "label": "nutrient inputs"}, "observation network": {"concepts": "observation network", "concept_list": ["observation network"], "type": "cluster", "label": "observation network"}};
+        const conceptData = {};
+        const interClusterEdges = [["hypoxia", "food web supporting", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster"}], ["hypoxia", "species diversity", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster"}], ["human use", "oil and gas", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster"}], ["human use", "hotspots", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster"}], ["management approaches", "whales", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster"}], ["resource management", "protected areas", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster"}], ["resource management", "research", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster"}], ["shipping lanes", "habitats", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster"}], ["shipping lanes", "coral reefs", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster"}], ["habitats", "species of cultural", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster"}], ["mpas", "species distribution", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster"}], ["mpas", "biodiversity", {"weight": 1.0, "confidence": 1.0, "type": "inter_cluster"}], ["stakeholder engagement", "industry", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster"}], ["kelp", "ecosystem services", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster"}], ["cetaceans", "biogeographic break", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster"}], ["marine sanctuary", "keystone species", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster"}], ["marine sanctuary", "policymakers", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster"}], ["sanctuaries", "decision making", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster"}], ["sanctuaries", "seafloor mapping", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster"}], ["microplastics", "cultural species", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster"}], ["metrics", "species evenness", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster"}], ["outreach", "national marine sanctuary", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster"}], ["habitat forming species", "temperature", {"weight": -1.0, "confidence": 0.9, "type": "inter_cluster"}], ["storms", "food web species", {"weight": -1.0, "confidence": 0.85, "type": "inter_cluster"}], ["coral reefs", "national marine sanctuary", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster"}], ["community groups", "decision making", {"weight": 1.0, "confidence": 0.875, "type": "inter_cluster"}], ["noaa", "food web species", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster"}], ["food web species", "whales", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster"}], ["food web species", "stakeholders", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster"}], ["food web species", "ecosystem services", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster"}], ["marine biodiversity", "decision making", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster"}], ["marine biodiversity", "whales", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster"}], ["renewable energy", "ecosystem", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster"}], ["food web supporting", "climate", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster"}], ["protected areas", "indigenous population", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster"}], ["research", "services", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster"}], ["research", "ecosystem services", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster"}], ["shallow water", "ecosystem services", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster"}], ["benthic habitats", "no take areas", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster"}], ["cultural species", "increased temperatures", {"weight": -1.0, "confidence": 0.925, "type": "inter_cluster"}], ["ship strikes", "services", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster"}], ["marine protected areas", "biodiversity", {"weight": 1.0, "confidence": 1.0, "type": "inter_cluster"}], ["marine protected areas", "stakeholder engagement", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster"}], ["marine protected areas", "climate", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster"}], ["harmful algal bloom", "diversity components", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster"}], ["species distribution", "mpas", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster"}], ["species distribution", "policymakers", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster"}], ["recreational fishing", "marine mammals", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster"}], ["recreational fishing", "invasive species", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster"}], ["recreational fishing", "species distribution", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster"}], ["industry", "sanctuaries", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster"}], ["shipping industry", "indigenous population", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster"}], ["oil and gas", "ecosystem based management", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster"}], ["oil and gas", "conservation concern", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster"}], ["decision making", "marine science", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster"}], ["biogeographic break", "services", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster"}], ["increased temperatures", "marine sanctuary", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster"}], ["ecosystem", "species range", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster"}], ["whale strikes", "vessels", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster"}], ["whale strikes", "resistance", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster"}], ["resilience", "kelp forest", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster"}], ["shipping vessels", "habitats", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster"}], ["shipping vessels", "habitat use", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster"}], ["shipping vessels", "conservation concern", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster"}], ["biodiversity", "marine biodiversity", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster"}], ["ecosystem based management", "oil and gas", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster"}], ["ecosystem based management", "community groups", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster"}], ["ecosystem based management", "stakeholder engagement", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster"}], ["stressors", "oa", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster"}], ["kelp forest", "no take areas", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster"}], ["kelp forest", "fishes", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster"}], ["kelp forest", "whales", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster"}], ["services", "research", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster"}], ["carbon sequestration", "marine biodiversity", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster"}], ["carbon sequestration", "decision making", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster"}], ["advisory council", "shipping vessels", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster"}], ["regulation", "oil and gas", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster"}], ["regulation", "species evenness", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster"}], ["climate", "conservation", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster"}], ["ocean acidification", "habitat forming species", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster"}], ["place based management", "kelp forest", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster"}], ["marine science", "species range", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster"}], ["gas exploration", "marine mammals", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster"}], ["california", "sanctuary", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster"}], ["diversity components", "marine protected area", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster"}], ["keystone species", "coral reefs", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster"}], ["research community", "cetaceans", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster"}], ["no take zone", "area based management", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster"}], ["no take zone", "ship strikes", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

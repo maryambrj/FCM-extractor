@@ -7,10 +7,7 @@ import os
 import sys
 import warnings
 
-# Suppress numerical computation logs first
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from utils.suppress_numba_logs import setup_clean_logging
-setup_clean_logging()
+
 
 import numpy as np
 from typing import List, Dict, Tuple, Optional

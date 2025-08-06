@@ -17,9 +17,7 @@ import sys
 import os
 from pathlib import Path
 
-# Suppress noisy numerical computation logs BEFORE any other imports
-from utils.suppress_numba_logs import setup_clean_logging
-setup_clean_logging()
+
 
 # Add fcm_extractor to Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

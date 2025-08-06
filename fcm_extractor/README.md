@@ -29,8 +29,7 @@ fcm_extractor/
 │       └── resume_processing.py  # Resume processing
 ├── utils/                # Utilities
 │   ├── logging_utils.py  # Logging helpers
-│   ├── visualize_fcm.py  # FCM visualization
-│   └── suppress_numba_logs.py # Clean numerical logging
+│   └── visualize_fcm.py  # FCM visualization
 └── tests/               # Unit tests
 ```
 

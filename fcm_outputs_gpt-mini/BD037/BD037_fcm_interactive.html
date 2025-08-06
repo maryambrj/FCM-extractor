@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"noaa fisheries": {"concepts": "noaa fisheries", "concept_list": ["noaa fisheries"], "type": "cluster", "label": "noaa fisheries"}, "harmful organisms": {"concepts": "harmful organisms", "concept_list": ["harmful organisms"], "type": "cluster", "label": "harmful organisms"}, "fishing industry": {"concepts": "fishing industry", "concept_list": ["fishing industry"], "type": "cluster", "label": "fishing industry"}, "stakeholders": {"concepts": "stakeholders", "concept_list": ["stakeholders"], "type": "cluster", "label": "stakeholders"}, "workshops": {"concepts": "workshops", "concept_list": ["workshops"], "type": "cluster", "label": "workshops"}, "fishermen": {"concepts": "fishermen", "concept_list": ["fishermen"], "type": "cluster", "label": "fishermen"}, "human-wildlife conflict": {"concepts": "human-wildlife conflict", "concept_list": ["human-wildlife conflict"], "type": "cluster", "label": "human-wildlife conflict"}, "resource managers": {"concepts": "resource managers", "concept_list": ["resource managers"], "type": "cluster", "label": "resource managers"}, "key food web": {"concepts": "key food web", "concept_list": ["key food web"], "type": "cluster", "label": "key food web"}, "species conservation concern": {"concepts": "species conservation concern", "concept_list": ["species conservation concern"], "type": "cluster", "label": "species conservation concern"}, "stock assessment": {"concepts": "stock assessment", "concept_list": ["stock assessment"], "type": "cluster", "label": "stock assessment"}, "sedar": {"concepts": "sedar", "concept_list": ["sedar"], "type": "cluster", "label": "sedar"}, "sedar 77": {"concepts": "sedar 77", "concept_list": ["sedar 77"], "type": "cluster", "label": "sedar 77"}, "charter fishing": {"concepts": "charter fishing", "concept_list": ["charter fishing"], "type": "cluster", "label": "charter fishing"}, "fisheries": {"concepts": "fisheries", "concept_list": ["fisheries"], "type": "cluster", "label": "fisheries"}, "overfishing": {"concepts": "overfishing", "concept_list": ["overfishing"], "type": "cluster", "label": "overfishing"}, "marine biodiversity": {"concepts": "marine biodiversity", "concept_list": ["marine biodiversity"], "type": "cluster", "label": "marine biodiversity"}, "meso-predators": {"concepts": "meso-predators", "concept_list": ["meso-predators"], "type": "cluster", "label": "meso-predators"}, "trophic ecology": {"concepts": "trophic ecology", "concept_list": ["trophic ecology"], "type": "cluster", "label": "trophic ecology"}, "stock assessment scientists": {"concepts": "stock assessment scientists", "concept_list": ["stock assessment scientists"], "type": "cluster", "label": "stock assessment scientists"}, "sandbar shark": {"concepts": "sandbar shark", "concept_list": ["sandbar shark"], "type": "cluster", "label": "sandbar shark"}, "species interactions": {"concepts": "species interactions", "concept_list": ["species interactions"], "type": "cluster", "label": "species interactions"}, "habitat forming species": {"concepts": "habitat forming species", "concept_list": ["habitat forming species"], "type": "cluster", "label": "habitat forming species"}, "food-web supporting species": {"concepts": "food-web supporting species", "concept_list": ["food-web supporting species"], "type": "cluster", "label": "food-web supporting species"}, "single species management": {"concepts": "single species management", "concept_list": ["single species management"], "type": "cluster", "label": "single species management"}, "multi-species management": {"concepts": "multi-species management", "concept_list": ["multi-species management"], "type": "cluster", "label": "multi-species management"}, "report cards": {"concepts": "report cards", "concept_list": ["report cards"], "type": "cluster", "label": "report cards"}, "biodiversity": {"concepts": "biodiversity", "concept_list": ["biodiversity"], "type": "cluster", "label": "biodiversity"}, "marine resources": {"concepts": "marine resources", "concept_list": ["marine resources"], "type": "cluster", "label": "marine resources"}, "marine turtles": {"concepts": "marine turtles", "concept_list": ["marine turtles"], "type": "cluster", "label": "marine turtles"}, "shark species diversity": {"concepts": "shark species diversity", "concept_list": ["shark species diversity"], "type": "cluster", "label": "shark species diversity"}, "hammerhead sharks": {"concepts": "hammerhead sharks", "concept_list": ["hammerhead sharks"], "type": "cluster", "label": "hammerhead sharks"}, "shark deprivation": {"concepts": "shark deprivation", "concept_list": ["shark deprivation"], "type": "cluster", "label": "shark deprivation"}, "ecosystem-based fishery management": {"concepts": "ecosystem-based fishery management", "concept_list": ["ecosystem-based fishery management"], "type": "cluster", "label": "ecosystem-based fishery management"}, "recreational fishing": {"concepts": "recreational fishing", "concept_list": ["recreational fishing"], "type": "cluster", "label": "recreational fishing"}, "commercial fishing": {"concepts": "commercial fishing", "concept_list": ["commercial fishing"], "type": "cluster", "label": "commercial fishing"}, "species of conservation": {"concepts": "species of conservation", "concept_list": ["species of conservation"], "type": "cluster", "label": "species of conservation"}, "fisheries management": {"concepts": "fisheries management", "concept_list": ["fisheries management"], "type": "cluster", "label": "fisheries management"}, "reef fish": {"concepts": "reef fish", "concept_list": ["reef fish"], "type": "cluster", "label": "reef fish"}, "protected species": {"concepts": "protected species", "concept_list": ["protected species"], "type": "cluster", "label": "protected species"}, "tourism industry": {"concepts": "tourism industry", "concept_list": ["tourism industry"], "type": "cluster", "label": "tourism industry"}, "multi species management": {"concepts": "multi species management", "concept_list": ["multi species management"], "type": "cluster", "label": "multi species management"}, "north central gulf": {"concepts": "north central gulf", "concept_list": ["north central gulf"], "type": "cluster", "label": "north central gulf"}, "sharks": {"concepts": "sharks", "concept_list": ["sharks"], "type": "cluster", "label": "sharks"}, "key food-web species": {"concepts": "key food-web species", "concept_list": ["key food-web species"], "type": "cluster", "label": "key food-web species"}, "ecosystem based fishery": {"concepts": "ecosystem based fishery", "concept_list": ["ecosystem based fishery"], "type": "cluster", "label": "ecosystem based fishery"}, "coastal sharks": {"concepts": "coastal sharks", "concept_list": ["coastal sharks"], "type": "cluster", "label": "coastal sharks"}, "telemetry": {"concepts": "telemetry", "concept_list": ["telemetry"], "type": "cluster", "label": "telemetry"}, "species diversity": {"concepts": "species diversity", "concept_list": ["species diversity"], "type": "cluster", "label": "species diversity"}, "australia": {"concepts": "australia", "concept_list": ["australia"], "type": "cluster", "label": "australia"}, "sawfish": {"concepts": "sawfish", "concept_list": ["sawfish"], "type": "cluster", "label": "sawfish"}, "elasmobranchs": {"concepts": "elasmobranchs", "concept_list": ["elasmobranchs"], "type": "cluster", "label": "elasmobranchs"}, "white sharks": {"concepts": "white sharks", "concept_list": ["white sharks"], "type": "cluster", "label": "white sharks"}, "gamma diversity": {"concepts": "gamma diversity", "concept_list": ["gamma diversity"], "type": "cluster", "label": "gamma diversity"}, "geographic scale diversity": {"concepts": "geographic scale diversity", "concept_list": ["geographic scale diversity"], "type": "cluster", "label": "geographic scale diversity"}, "dolphins": {"concepts": "dolphins", "concept_list": ["dolphins"], "type": "cluster", "label": "dolphins"}, "management interventions": {"concepts": "management interventions", "concept_list": ["management interventions"], "type": "cluster", "label": "management interventions"}, "hammerheads": {"concepts": "hammerheads", "concept_list": ["hammerheads"], "type": "cluster", "label": "hammerheads"}, "fisheries ecologist": {"concepts": "fisheries ecologist", "concept_list": ["fisheries ecologist"], "type": "cluster", "label": "fisheries ecologist"}, "mental modeler": {"concepts": "mental modeler", "concept_list": ["mental modeler"], "type": "cluster", "label": "mental modeler"}, "sedar report cards": {"concepts": "sedar report cards", "concept_list": ["sedar report cards"], "type": "cluster", "label": "sedar report cards"}, "conservation concern": {"concepts": "conservation concern", "concept_list": ["conservation concern"], "type": "cluster", "label": "conservation concern"}, "scenario simulations": {"concepts": "scenario simulations", "concept_list": ["scenario simulations"], "type": "cluster", "label": "scenario simulations"}, "northern gulf of": {"concepts": "northern gulf of", "concept_list": ["northern gulf of"], "type": "cluster", "label": "northern gulf of"}};
+        const conceptData = {};
+        const interClusterEdges = [["noaa fisheries", "protected species", {"weight": 1, "confidence": 0.7, "type": "inter_cluster"}], ["harmful organisms", "ecosystem-based fishery management", {"weight": 0, "confidence": 0.7, "type": "inter_cluster"}], ["fishing industry", "commercial fishing", {"weight": 1, "confidence": 0.875, "type": "inter_cluster"}], ["workshops", "ecosystem based fishery", {"weight": 1, "confidence": 0.75, "type": "inter_cluster"}], ["workshops", "sedar report cards", {"weight": 1, "confidence": 0.75, "type": "inter_cluster"}], ["workshops", "trophic ecology", {"weight": 1, "confidence": 0.6, "type": "inter_cluster"}], ["fishermen", "charter fishing", {"weight": 1, "confidence": 0.85, "type": "inter_cluster"}], ["resource managers", "key food-web species", {"weight": 1, "confidence": 0.7, "type": "inter_cluster"}], ["species conservation concern", "meso-predators", {"weight": 1, "confidence": 0.85, "type": "inter_cluster"}], ["species conservation concern", "human-wildlife conflict", {"weight": 1, "confidence": 0.85, "type": "inter_cluster"}], ["sedar", "marine turtles", {"weight": 1, "confidence": 0.8, "type": "inter_cluster"}], ["sedar", "food-web supporting species", {"weight": 1, "confidence": 0.75, "type": "inter_cluster"}], ["sedar", "protected species", {"weight": 1, "confidence": 0.75, "type": "inter_cluster"}], ["sedar 77", "sharks", {"weight": 1, "confidence": 0.95, "type": "inter_cluster"}], ["charter fishing", "australia", {"weight": 1, "confidence": 0.6, "type": "inter_cluster"}], ["fisheries", "tourism industry", {"weight": 0, "confidence": 0.475, "type": "inter_cluster"}], ["overfishing", "key food-web species", {"weight": -1, "confidence": 0.75, "type": "inter_cluster"}], ["meso-predators", "single species management", {"weight": 1, "confidence": 0.85, "type": "inter_cluster"}], ["trophic ecology", "sedar report cards", {"weight": 1, "confidence": 0.65, "type": "inter_cluster"}], ["stock assessment scientists", "marine resources", {"weight": 1, "confidence": 0.725, "type": "inter_cluster"}], ["sandbar shark", "shark species diversity", {"weight": 1, "confidence": 0.85, "type": "inter_cluster"}], ["sandbar shark", "northern gulf of", {"weight": 1, "confidence": 0.85, "type": "inter_cluster"}], ["species interactions", "sedar", {"weight": 1, "confidence": 0.85, "type": "inter_cluster"}], ["habitat forming species", "sandbar shark", {"weight": 1, "confidence": 0.8, "type": "inter_cluster"}], ["single species management", "meso-predators", {"weight": -1, "confidence": 0.8, "type": "inter_cluster"}], ["multi-species management", "protected species", {"weight": 1, "confidence": 0.75, "type": "inter_cluster"}], ["multi-species management", "stock assessment", {"weight": 1, "confidence": 0.85, "type": "inter_cluster"}], ["report cards", "workshops", {"weight": 1, "confidence": 0.6, "type": "inter_cluster"}], ["marine resources", "coastal sharks", {"weight": 1, "confidence": 0.85, "type": "inter_cluster"}], ["marine resources", "sedar report cards", {"weight": 1, "confidence": 0.75, "type": "inter_cluster"}], ["marine resources", "scenario simulations", {"weight": 1, "confidence": 0.75, "type": "inter_cluster"}], ["marine resources", "key food web", {"weight": 1, "confidence": 0.75, "type": "inter_cluster"}], ["shark species diversity", "sandbar shark", {"weight": 1, "confidence": 0.825, "type": "inter_cluster"}], ["shark species diversity", "shark deprivation", {"weight": 1, "confidence": 0.8, "type": "inter_cluster"}], ["recreational fishing", "marine turtles", {"weight": 1, "confidence": 0.85, "type": "inter_cluster"}], ["fisheries management", "fisheries", {"weight": 1, "confidence": 0.8, "type": "inter_cluster"}], ["protected species", "gamma diversity", {"weight": 1, "confidence": 0.4, "type": "inter_cluster"}], ["multi species management", "multi-species management", {"weight": 1, "confidence": 1.0, "type": "inter_cluster"}], ["multi species management", "key food web", {"weight": 1, "confidence": 0.8, "type": "inter_cluster"}], ["north central gulf", "human-wildlife conflict", {"weight": 1, "confidence": 0.8, "type": "inter_cluster"}], ["north central gulf", "marine turtles", {"weight": 1, "confidence": 0.75, "type": "inter_cluster"}], ["sharks", "food-web supporting species", {"weight": 1, "confidence": 0.8500000000000001, "type": "inter_cluster"}], ["ecosystem based fishery", "dolphins", {"weight": 1, "confidence": 0.675, "type": "inter_cluster"}], ["ecosystem based fishery", "marine turtles", {"weight": 1, "confidence": 0.7, "type": "inter_cluster"}], ["ecosystem based fishery", "commercial fishing", {"weight": 1, "confidence": 0.7, "type": "inter_cluster"}], ["telemetry", "sedar report cards", {"weight": 1, "confidence": 0.75, "type": "inter_cluster"}], ["species diversity", "biodiversity", {"weight": 1, "confidence": 0.95, "type": "inter_cluster"}], ["australia", "sharks", {"weight": 1, "confidence": 0.5, "type": "inter_cluster"}], ["elasmobranchs", "conservation concern", {"weight": 1, "confidence": 0.85, "type": "inter_cluster"}], ["geographic scale diversity", "biodiversity", {"weight": 1, "confidence": 0.9, "type": "inter_cluster"}], ["geographic scale diversity", "marine resources", {"weight": 1, "confidence": 0.8, "type": "inter_cluster"}], ["dolphins", "workshops", {"weight": 1, "confidence": 0.9, "type": "inter_cluster"}], ["management interventions", "key food-web species", {"weight": 1, "confidence": 0.85, "type": "inter_cluster"}], ["management interventions", "tourism industry", {"weight": 1, "confidence": 0.8, "type": "inter_cluster"}], ["management interventions", "sawfish", {"weight": 1, "confidence": 0.8, "type": "inter_cluster"}], ["hammerheads", "species interactions", {"weight": 1, "confidence": 0.85, "type": "inter_cluster"}], ["hammerheads", "australia", {"weight": 1, "confidence": 0.35, "type": "inter_cluster"}], ["fisheries ecologist", "telemetry", {"weight": 1, "confidence": 0.9, "type": "inter_cluster"}], ["mental modeler", "multi species management", {"weight": 1, "confidence": 0.9, "type": "inter_cluster"}], ["mental modeler", "species conservation concern", {"weight": 1, "confidence": 0.8, "type": "inter_cluster"}], ["mental modeler", "northern gulf of", {"weight": 1, "confidence": 0.7, "type": "inter_cluster"}], ["sedar report cards", "trophic ecology", {"weight": 1, "confidence": 0.75, "type": "inter_cluster"}], ["sedar report cards", "species conservation concern", {"weight": 1, "confidence": 0.85, "type": "inter_cluster"}], ["scenario simulations", "coastal sharks", {"weight": 1, "confidence": 0.7, "type": "inter_cluster"}], ["northern gulf of", "multi species management", {"weight": 1, "confidence": 0.75, "type": "inter_cluster"}], ["northern gulf of", "white sharks", {"weight": 1, "confidence": 0.85, "type": "inter_cluster"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>
