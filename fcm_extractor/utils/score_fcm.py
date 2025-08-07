@@ -67,9 +67,9 @@ class ScoreCalculator:
         if not clean_queries or not clean_documents:
             return torch.empty((len(clean_queries), len(clean_documents)))
 
-        text_prompt = lambda t: f"Instruct: {self.task_instruction}\nQuery: {t}"
-        query_texts = [text_prompt(q) for q in clean_queries]
-        document_texts = [text_prompt(d) for d in clean_documents]
+        # Apply instruction to queries only
+        query_texts = [f"Instruct: {self.task_instruction}\nPhrase: {q}" for q in clean_queries]
+        document_texts = clean_documents  # No instruction applied to documents
 
         query_embeddings = []
         for i in range(0, len(query_texts), batch_size):
@@ -199,17 +199,44 @@ class ScoreCalculator:
         binary_matrix_src = all_scores_src >= self.threshold
         binary_matrix_tgt = all_scores_tgt >= self.threshold
 
-        gen_has_tp = np.any(binary_matrix_src & binary_matrix_tgt & all_scores_dir, axis=1)
-        gen_has_pp = np.any(binary_matrix_src & binary_matrix_tgt & ~all_scores_dir, axis=1) & ~gen_has_tp
-
-        self.TP = np.sum(gen_has_tp)
-        self.PP = np.sum(gen_has_pp)
-        self.FP = len(self.gen_edge_dir) - self.TP - self.PP
-
-        tp_mask = np.any(binary_matrix_src & binary_matrix_tgt & all_scores_dir, axis=0)
-        pp_mask = np.any(binary_matrix_src & binary_matrix_tgt & ~all_scores_dir, axis=0) & ~tp_mask
+        # Find all potential matches (similarity above threshold for both source and target)
+        common_mask = binary_matrix_src & binary_matrix_tgt
         
-        self.FN = len(self.gt_edge_dir) - np.sum(tp_mask) - np.sum(pp_mask)
+        # Separate TP (correct direction) and PP (wrong direction) potential matches
+        tp_potential = common_mask & all_scores_dir
+        pp_potential = common_mask & ~all_scores_dir
+        
+        # Implement greedy matching to prevent double counting
+        # Each GT edge can only be matched once
+        gt_edge_matched = np.zeros(len(self.gt_edge_dir), dtype=bool)
+        gen_edge_tp = np.zeros(len(self.gen_edge_dir), dtype=bool)
+        gen_edge_pp = np.zeros(len(self.gen_edge_dir), dtype=bool)
+        
+        # First pass: Assign TP matches (prioritize correct direction)
+        for gen_idx in range(len(self.gen_edge_dir)):
+            # Find all GT edges this generated edge could match as TP
+            possible_tp_matches = np.where(tp_potential[gen_idx] & ~gt_edge_matched)[0]
+            if len(possible_tp_matches) > 0:
+                # Take the first available match (could use similarity scores for better matching)
+                gt_match_idx = possible_tp_matches[0]
+                gt_edge_matched[gt_match_idx] = True
+                gen_edge_tp[gen_idx] = True
+        
+        # Second pass: Assign PP matches (only to unmatched GT edges)
+        for gen_idx in range(len(self.gen_edge_dir)):
+            if not gen_edge_tp[gen_idx]:  # Only if not already matched as TP
+                # Find all GT edges this generated edge could match as PP
+                possible_pp_matches = np.where(pp_potential[gen_idx] & ~gt_edge_matched)[0]
+                if len(possible_pp_matches) > 0:
+                    # Take the first available match
+                    gt_match_idx = possible_pp_matches[0]
+                    gt_edge_matched[gt_match_idx] = True
+                    gen_edge_pp[gen_idx] = True
+
+        self.TP = np.sum(gen_edge_tp)
+        self.PP = np.sum(gen_edge_pp)
+        self.FP = len(self.gen_edge_dir) - self.TP - self.PP
+        self.FN = len(self.gt_edge_dir) - np.sum(gt_edge_matched)
 
         TP_scaled = self.TP * self.tp_scale
         PP_scaled = self.PP * self.pp_scale
@@ -266,7 +293,7 @@ def json_to_matrix(json_data: Dict, include_intra_cluster_edges: bool = EVALUATI
         node_id = node['id']
         concepts = node['concepts']
         
-        # Use cluster name (ID) directly since it's meaningful from FCM extraction
+        # Use cluster name (ID) directly since it contains meaningful names from FCM extraction
         node_concepts[node_id] = node_id
     
     edges = []
