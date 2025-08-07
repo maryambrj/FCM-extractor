@@ -29,6 +29,7 @@ fcm_extractor/
 │       └── resume_processing.py  # Resume processing
 ├── utils/                # Utilities
 │   ├── logging_utils.py  # Logging helpers
+│   ├── score_fcm.py      # FCM evaluation and scoring
 │   └── visualize_fcm.py  # FCM visualization
 └── tests/               # Unit tests
 ```
@@ -106,6 +107,69 @@ Edit `config/constants.py` to customize:
 - `*_extraction_{timestamp}.log` - Complete processing log for each document
 - `logs/` - Directory containing all processing logs
 
+## 📊 FCM Evaluation and Scoring
+
+### Score FCMs Against Ground Truth
+
+The scoring system evaluates generated FCMs against ground truth using semantic similarity:
+
+**Evaluate single FCM:**
+```bash
+cd fcm_extractor
+python utils/score_fcm.py --gt-path ../ground_truth/BD007.csv ../fcm_outputs/BD007-1/BD007_fcm.json
+```
+
+**Batch evaluation of all matching FCMs:**
+```bash
+python utils/score_fcm.py --gt-dir ../ground_truth --gen-dir ../fcm_outputs
+```
+
+**Custom scoring parameters:**
+```bash
+python utils/score_fcm.py \
+  --gt-path ../ground_truth/BD007.csv \
+  ../fcm_outputs/BD007-1/BD007_fcm.json \
+  --threshold 0.6 \
+  --tp-scale 1.0 \
+  --pp-scale 1.1 \
+  --model-name "qwen-0.6b" \
+  --debug
+```
+
+**Parameters:**
+- `--threshold`: Semantic similarity threshold for concept matching (default: 0.6)
+- `--tp-scale`: True positive scaling factor (default: 1.0)
+- `--pp-scale`: Partial positive scaling factor (default: 1.1)
+- `--debug`: Show detailed matching information
+- `--cpu-only`: Force CPU usage instead of GPU
+
+### Programmatic Scoring
+
+```python
+from fcm_extractor.utils.score_fcm import ScoreCalculator, evaluate_single_case
+
+# Evaluate single case
+result = evaluate_single_case(
+    gt_file="ground_truth/BD007.csv",
+    gen_file="fcm_outputs/BD007-1/BD007_fcm.json",
+    threshold=0.6,
+    tp_scale=1.0,
+    pp_scale=1.1,
+    debug=True
+)
+print(f"F1 Score: {result['F1'].iloc[0]:.4f}")
+
+# Custom scoring
+scorer = ScoreCalculator(
+    threshold=0.6,
+    model_name="qwen-embedding",
+    data="BD007",
+    tp_scale=1.0,
+    pp_scale=1.1
+)
+scores = scorer.calculate_scores(gt_matrix, gen_matrix)
+```
+
 ## 🔧 Advanced Usage
 
 ### FCM Extraction Pipeline
@@ -162,6 +226,7 @@ create_interactive_visualization(fcm_data, "output.html")
 - **Advanced Clustering**: Semantic clustering of concepts using embeddings
 - **Causal Inference**: LLM-powered edge detection with confidence scoring
 - **Interactive Visualization**: Web-based D3.js visualizations
+- **FCM Evaluation**: Semantic similarity-based scoring against ground truth using Qwen embeddings
 - **Confidence Scoring**: Edge relationships include confidence scores for reliability assessment
 - **Post-Clustering Optimization**: Merges similar unconnected clusters automatically
 - **Multi-Model Support**: OpenAI GPT-4, Google Gemini, and various embedding models

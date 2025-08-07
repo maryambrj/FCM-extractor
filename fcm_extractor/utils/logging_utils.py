@@ -52,6 +52,11 @@ def setup_logging(log_directory: str = "../logs",
     # Clear any existing handlers
     logger.handlers.clear()
     
+    # REVERT: Allow normal logging behavior
+    # Suppressing Numba logging was causing mutex deadlocks
+    # The verbose logs were annoying but the system was working
+    print("📝 Note: Numba compilation details will appear in logs (system works better this way)")
+    
     # Create formatters
     if include_timestamp:
         formatter = logging.Formatter('%(asctime)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
