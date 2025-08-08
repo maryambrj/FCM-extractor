@@ -66,7 +66,8 @@ class ScoreCalculator:
 
         text_prompt = lambda t: f"Instruct: {self.task_instruction}\nQuery: {t}"
         query_texts = [text_prompt(q) for q in clean_queries]
-        document_texts = [text_prompt(d) for d in clean_documents]
+        # document_texts = [text_prompt(d) for d in clean_documents]
+        document_texts = clean_documents
 
         query_embeddings = []
         for i in range(0, len(query_texts), batch_size):
