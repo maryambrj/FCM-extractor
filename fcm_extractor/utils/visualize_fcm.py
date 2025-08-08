@@ -10,13 +10,11 @@ import os
 from pyvis.network import Network
 
 def load_fcm_from_json(json_path: str) -> nx.DiGraph:
-    """Load FCM graph from JSON file"""
     with open(json_path, 'r') as f:
         data = json.load(f)
     
     G = nx.DiGraph()
     
-    # Add cluster nodes
     if 'nodes' in data:
         for node in data['nodes']:
             node_id = node.get('id', 'unknown_node')
@@ -27,10 +25,8 @@ def load_fcm_from_json(json_path: str) -> nx.DiGraph:
                       type='cluster',
                       label=node_id)
     
-    # First pass: collect all concepts mentioned in edges
     concept_to_cluster = {}
     
-    # Add edges and create concept nodes as needed
     if 'edges' in data:
         for edge in data['edges']:
             source = edge.get('source')
@@ -40,13 +36,11 @@ def load_fcm_from_json(json_path: str) -> nx.DiGraph:
             edge_type = edge.get('type', 'inter_cluster')
             
             if source and target:
-                # For intra-cluster edges, we need to create concept nodes
+              
                 if edge_type == 'intra_cluster':
-                    # Find which cluster these concepts belong to
                     source_cluster = None
                     target_cluster = None
                     
-                    # Look through cluster nodes to find which cluster contains these concepts
                     for cluster_node in G.nodes():
                         if G.nodes[cluster_node].get('type') == 'cluster':
                             cluster_concepts = G.nodes[cluster_node].get('concept_list', [])
@@ -55,7 +49,6 @@ def load_fcm_from_json(json_path: str) -> nx.DiGraph:
                             if target in cluster_concepts:
                                 target_cluster = cluster_node
                     
-                    # Create concept nodes if they don't exist
                     if source not in G:
                         G.add_node(source,
                                   concepts=source,
@@ -70,7 +63,6 @@ def load_fcm_from_json(json_path: str) -> nx.DiGraph:
                                   cluster=target_cluster or 'unknown',
                                   label=target)
                 
-                # Add the edge
                 G.add_edge(source, target, 
                           weight=weight, 
                           confidence=confidence, 
@@ -79,14 +71,11 @@ def load_fcm_from_json(json_path: str) -> nx.DiGraph:
     return G
 
 def create_interactive_visualization(G: nx.DiGraph, output_file: str, min_confidence: float = 0.3):
-    """Create a hierarchical interactive visualization with cluster drill-down capability."""
     import json
     
-    # Separate clusters and concepts
     cluster_nodes = {node: data for node, data in G.nodes(data=True) if data.get('type') == 'cluster'}
     concept_nodes = {node: data for node, data in G.nodes(data=True) if data.get('type') == 'concept'}
     
-    # Separate inter-cluster and intra-cluster edges
     inter_cluster_edges = []
     intra_cluster_edges = []
     
@@ -97,7 +86,6 @@ def create_interactive_visualization(G: nx.DiGraph, output_file: str, min_confid
         else:
             intra_cluster_edges.append([u, v, dict(edge_data)])
     
-    # Group concepts by cluster for drill-down views
     cluster_concepts = {}
     cluster_edges = {}
     
@@ -108,7 +96,6 @@ def create_interactive_visualization(G: nx.DiGraph, output_file: str, min_confid
             cluster_edges[cluster_name] = []
         cluster_concepts[cluster_name].append([concept, dict(data)])
     
-    # Group intra-cluster edges by cluster
     for u, v, edge_data in intra_cluster_edges:
         u_cluster = concept_nodes.get(u, {}).get('cluster', 'Unknown')
         v_cluster = concept_nodes.get(v, {}).get('cluster', 'Unknown')
@@ -116,14 +103,13 @@ def create_interactive_visualization(G: nx.DiGraph, output_file: str, min_confid
         if u_cluster == v_cluster and u_cluster in cluster_edges:
             cluster_edges[u_cluster].append([u, v, dict(edge_data)])
 
-    # Convert data to JSON
     cluster_nodes_json = json.dumps({k: dict(v) for k, v in cluster_nodes.items()})
     concept_nodes_json = json.dumps({k: dict(v) for k, v in concept_nodes.items()})
     inter_cluster_edges_json = json.dumps(inter_cluster_edges)
     cluster_concepts_json = json.dumps(cluster_concepts)
     cluster_edges_json = json.dumps(cluster_edges)
 
-    # Create the hierarchical HTML with embedded data
+   
     html_content = f"""
 <!DOCTYPE html>
 <html>
@@ -425,20 +411,18 @@ def create_interactive_visualization(G: nx.DiGraph, output_file: str, min_confid
 </html>
 """
 
-    # Write the HTML file
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(html_content)
     
-    print(f'✅ Hierarchical interactive visualization saved to {output_file}')
-    print('🎯 Features:')
+    print(f'Hierarchical interactive visualization saved to {output_file}')
+    print('Features:')
     print('   • Top level: Clusters and inter-cluster relationships')
     print('   • Click any cluster to explore internal concepts and relationships') 
     print('   • Use "Back to Clusters" button to return to overview')
     print('   • Adjust confidence filter to show/hide edges')
-    print('💡 Tip: Open the file in your browser for interactive exploration!')
+    print('Tip: Open the file in your browser for interactive exploration!')
 
 def print_graph_summary(G: nx.DiGraph):
-    """Print a summary of the FCM graph"""
     print("\n" + "="*50)
     print("FCM GRAPH SUMMARY")
     print("="*50)
@@ -448,12 +432,10 @@ def print_graph_summary(G: nx.DiGraph):
     
     print("\nCLUSTERS:")
     for node in G.nodes():
-        # Use concept_list if available, otherwise fall back to concepts
         concept_list = G.nodes[node].get('concept_list')
         if concept_list and isinstance(concept_list, list):
             concepts_display = ', '.join(concept_list)
         else:
-            # If concept_list not available, concepts is already a formatted string
             concepts_display = G.nodes[node]['concepts']
         print(f"  Cluster {node}: {concepts_display}")
     
@@ -474,7 +456,6 @@ def main():
     
     args = parser.parse_args()
     
-    # Infer data_name and output_dir from path
     data_name = os.path.splitext(os.path.basename(args.gen_path))[0].replace('_fcm', '')
     output_dir = os.path.dirname(args.gen_path)
 
@@ -482,14 +463,11 @@ def main():
         print(f"Error: File {args.gen_path} not found!")
         return
     
-    # Load the graph
     G = load_fcm_from_json(args.gen_path)
     
-    # Print summary by default
     if args.summary or not args.interactive:
         print_graph_summary(G)
     
-    # Create interactive visualization
     if args.interactive or (not args.summary):
         create_interactive_visualization(G, os.path.join(output_dir, f"{data_name}_fcm_interactive.html"))
 

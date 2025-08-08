@@ -62,7 +62,7 @@ class ScoreCalculator:
         clean_documents = [str(d).strip() for d in documents if d is not None and str(d).strip()]
 
         if not clean_queries or not clean_documents:
-            return torch.empty((len(clean_queries), len(clean_documents)))
+            return torch.zeros((len(queries), len(documents)))
 
         text_prompt = lambda t: f"Instruct: {self.task_instruction}\nQuery: {t}"
         query_texts = [text_prompt(q) for q in clean_queries]
@@ -109,6 +109,9 @@ class ScoreCalculator:
             if self.device != "cpu":
                 torch.cuda.empty_cache()
 
+        if not query_embeddings or not document_embeddings:
+            return torch.zeros((len(queries), len(documents)))
+            
         query_embeddings = torch.cat(query_embeddings, dim=0)
         document_embeddings = torch.cat(document_embeddings, dim=0)
         
@@ -128,7 +131,7 @@ class ScoreCalculator:
                 if self.device != "cpu":
                     torch.cuda.empty_cache()
 
-        return similarity_matrix.T
+        return similarity_matrix
 
     def calculate_f1_score(self, tp, fp, fn, pp=None):
         if pp is None:
@@ -136,9 +139,7 @@ class ScoreCalculator:
             recall = tp / (tp + fn) if (tp + fn) > 0 else 0
             f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
         else:
-            if (2*tp + pp) == 0:
-                return 0
-            elif (2*tp + fp + fn + pp) == 0:
+            if (2*tp + fp + fn + pp) == 0:
                 return 0
             else:
                 f1_score = (2*tp + pp) / (2*tp + fp + fn + pp)
@@ -170,55 +171,102 @@ class ScoreCalculator:
             
         if 'src' not in self.cache[self.data][self.model_name]:
             try:
-                ScoreCalculator.cache[self.data][self.model_name]['src'] = self.embed_and_score(self.gt_nodes_src, self.gen_nodes_src, getattr(self, 'batch_size', 2)).cpu().numpy()
+                ScoreCalculator.cache[self.data][self.model_name]['src'] = self.embed_and_score(self.gen_nodes_src, self.gt_nodes_src, getattr(self, 'batch_size', 2)).cpu().numpy()
             except:
-                ScoreCalculator.cache[self.data][self.model_name]['src'] = self.embed_and_score(self.gt_nodes_src, self.gen_nodes_src, getattr(self, 'batch_size', 2))
+                ScoreCalculator.cache[self.data][self.model_name]['src'] = self.embed_and_score(self.gen_nodes_src, self.gt_nodes_src, getattr(self, 'batch_size', 2))
 
         if 'tgt' not in self.cache[self.data][self.model_name]:
             try:
-                ScoreCalculator.cache[self.data][self.model_name]['tgt'] = self.embed_and_score(self.gt_nodes_tgt, self.gen_nodes_tgt, getattr(self, 'batch_size', 2)).cpu().numpy()
+                ScoreCalculator.cache[self.data][self.model_name]['tgt'] = self.embed_and_score(self.gen_nodes_tgt, self.gt_nodes_tgt, getattr(self, 'batch_size', 2)).cpu().numpy()
             except:
-                ScoreCalculator.cache[self.data][self.model_name]['tgt'] = self.embed_and_score(self.gt_nodes_tgt, self.gen_nodes_tgt, getattr(self, 'batch_size', 2))
+                ScoreCalculator.cache[self.data][self.model_name]['tgt'] = self.embed_and_score(self.gen_nodes_tgt, self.gt_nodes_tgt, getattr(self, 'batch_size', 2))
 
         all_scores_src = np.array(ScoreCalculator.cache[self.data][self.model_name]['src'])
         all_scores_tgt = np.array(ScoreCalculator.cache[self.data][self.model_name]['tgt'])
 
-        # ACCOUNT FOR NEUTRAL*****************************************************************************
-        all_scores_dir = np.zeros((len(self.gen_edge_dir), len(self.gt_edge_dir)))
+        # Debug: Print shapes
+        print(f"Debug - Generated edges: {len(self.gen_edge_dir)}")
+        print(f"Debug - GT edges: {len(self.gt_edge_dir)}")
+        print(f"Debug - all_scores_src shape: {all_scores_src.shape}")
+        print(f"Debug - all_scores_tgt shape: {all_scores_tgt.shape}")
+
+        # For each generated edge, find the best matching GT edge
+        gen_has_tp = np.zeros(len(self.gen_edge_dir), dtype=bool)
+        gen_has_pp = np.zeros(len(self.gen_edge_dir), dtype=bool)
+        
         for i in range(len(self.gen_edge_dir)):
+            if i >= all_scores_src.shape[0]:
+                print(f"Warning: Skipping generated edge {i}, out of bounds for scores matrix")
+                break
+                
+            best_match_score = -1
+            best_match_j = -1
+            best_is_tp = False
+            
+            # Find best matching GT edge for this generated edge
             for j in range(len(self.gt_edge_dir)):
-                if self.gen_edge_dir[i] == self.gt_edge_dir[j]:
-                    all_scores_dir[i][j] = True
+                if j >= all_scores_src.shape[1]:
+                    print(f"Warning: Skipping GT edge {j}, out of bounds for scores matrix")
+                    break
+                    
+                src_score = all_scores_src[i, j]
+                tgt_score = all_scores_tgt[i, j]
+                
+                # Both source and target must be above threshold
+                if src_score >= self.threshold and tgt_score >= self.threshold:
+                    # Combined similarity score
+                    combined_score = (src_score + tgt_score) / 2
+                    
+                    if combined_score > best_match_score:
+                        best_match_score = combined_score
+                        best_match_j = j
+                        # Check if directions (weights) match
+                        best_is_tp = (self.gen_edge_dir[i] == self.gt_edge_dir[j])
+            
+            # Classify based on best match
+            if best_match_j >= 0:  # Found a valid match
+                if best_is_tp:
+                    gen_has_tp[i] = True
                 else:
-                    all_scores_dir[i][j] = False
-
-        all_scores_dir = all_scores_dir.astype(bool)
-
-        binary_matrix_src = all_scores_src >= self.threshold
-        binary_matrix_tgt = all_scores_tgt >= self.threshold
-
-        gen_has_tp = np.any(binary_matrix_src & binary_matrix_tgt & all_scores_dir, axis=1)
-        gen_has_pp = np.any(binary_matrix_src & binary_matrix_tgt & ~all_scores_dir, axis=1) & ~gen_has_tp
+                    gen_has_pp[i] = True
 
         self.TP = np.sum(gen_has_tp)
         self.PP = np.sum(gen_has_pp)
         self.FP = len(self.gen_edge_dir) - self.TP - self.PP
 
-        tp_mask = np.any(binary_matrix_src & binary_matrix_tgt & all_scores_dir, axis=0)
-        pp_mask = np.any(binary_matrix_src & binary_matrix_tgt & ~all_scores_dir, axis=0) & ~tp_mask
+        # For FN calculation: check which GT edges were not matched by any generated edge
+        gt_has_match = np.zeros(len(self.gt_edge_dir), dtype=bool)
         
-        self.FN = len(self.gt_edge_dir) - np.sum(tp_mask) - np.sum(pp_mask)
+        for j in range(len(self.gt_edge_dir)):
+            if j >= all_scores_src.shape[1]:
+                print(f"Warning: Skipping GT edge {j} in FN calculation, out of bounds")
+                break
+                
+            best_match_score = -1
+            
+            # Find if any generated edge matches this GT edge well enough
+            for i in range(len(self.gen_edge_dir)):
+                if i >= all_scores_src.shape[0]:
+                    break
+                    
+                src_score = all_scores_src[i, j]
+                tgt_score = all_scores_tgt[i, j]
+                
+                if src_score >= self.threshold and tgt_score >= self.threshold:
+                    combined_score = (src_score + tgt_score) / 2
+                    if combined_score > best_match_score:
+                        best_match_score = combined_score
+            
+            # If we found any match above threshold, this GT edge is covered
+            if best_match_score >= self.threshold:
+                gt_has_match[j] = True
+        
+        self.FN = len(self.gt_edge_dir) - np.sum(gt_has_match)
 
         TP_scaled = self.TP * self.tp_scale
         PP_scaled = self.PP * self.pp_scale
 
         F1 = self.calculate_f1_score(TP_scaled, self.FP, self.FN, PP_scaled)
-        
-        self.scores_df = pd.DataFrame(columns=[
-            'Model', 'data', 'F1', 'TP', 'PP', 'FP', 'FN', 
-            'threshold', 'tp_scale', 'pp_scale',
-            'gt_nodes', 'gt_edges', 'gen_nodes', 'gen_edges'
-        ])
         
         model_score = pd.DataFrame({
             'Model': [self.model_name],
@@ -237,7 +285,7 @@ class ScoreCalculator:
             'gen_edges': [len(self.gen_edge_dir)]
         })
         
-        self.scores_df = pd.concat([self.scores_df, model_score])
+        self.scores_df = model_score
 
         return model_score
 
@@ -264,12 +312,22 @@ def json_to_matrix(json_data: Dict, include_intra_cluster_edges: bool = EVALUATI
         node_id = node['id']
         concepts = node['concepts']
         
-        if isinstance(concepts, list):
-            node_concepts[node_id] = concepts[0].strip() if concepts else f"node_{node_id}"
-        elif isinstance(concepts, str):
-            node_concepts[node_id] = concepts.split(',')[0].strip() if concepts else f"node_{node_id}"
+        if include_intra_cluster_nodes:
+            if isinstance(concepts, list):
+                for i, concept in enumerate(concepts):
+                    node_concepts[f"{node_id}_{i}"] = concept.strip() if concept else f"node_{node_id}_{i}"
+            elif isinstance(concepts, str):
+                for i, concept in enumerate(concepts.split(',')):
+                    node_concepts[f"{node_id}_{i}"] = concept.strip() if concept else f"node_{node_id}_{i}"
+            else:
+                node_concepts[node_id] = f"node_{node_id}"
         else:
-            node_concepts[node_id] = f"node_{node_id}"
+            if isinstance(concepts, list):
+                node_concepts[node_id] = concepts[0].strip() if concepts else f"node_{node_id}"
+            elif isinstance(concepts, str):
+                node_concepts[node_id] = concepts.split(',')[0].strip() if concepts else f"node_{node_id}"
+            else:
+                node_concepts[node_id] = f"node_{node_id}"
     
     edges = []
     for edge in json_data['edges']:
@@ -278,22 +336,37 @@ def json_to_matrix(json_data: Dict, include_intra_cluster_edges: bool = EVALUATI
         if edge_type == 'intra_cluster' and not include_intra_cluster_edges:
             continue
             
-        if edge_type == 'inter_cluster' and include_intra_cluster_edges == False and 'only_intra' in locals():
-            continue
-            
         source_id = edge['source']
         target_id = edge['target']
         weight = edge['weight']
         
-        source_name = node_concepts.get(source_id, f"node_{source_id}")
-        target_name = node_concepts.get(target_id, f"node_{target_id}")
-        
-        edges.append({
-            'source': source_name,
-            'target': target_name,
-            'weight': weight,
-            'type': edge_type
-        })
+        if include_intra_cluster_nodes and edge_type == 'intra_cluster':
+            source_node = next((node for node in json_data['nodes'] if node['id'] == source_id), None)
+            target_node = next((node for node in json_data['nodes'] if node['id'] == target_id), None)
+            
+            if source_node and target_node:
+                source_concepts = source_node['concepts'] if isinstance(source_node['concepts'], list) else source_node['concepts'].split(',')
+                target_concepts = target_node['concepts'] if isinstance(target_node['concepts'], list) else target_node['concepts'].split(',')
+                
+                for src_concept in source_concepts:
+                    for tgt_concept in target_concepts:
+                        if src_concept.strip() and tgt_concept.strip():
+                            edges.append({
+                                'source': src_concept.strip(),
+                                'target': tgt_concept.strip(),
+                                'weight': weight,
+                                'type': edge_type
+                            })
+        else:
+            source_name = node_concepts.get(source_id, f"node_{source_id}")
+            target_name = node_concepts.get(target_id, f"node_{target_id}")
+            
+            edges.append({
+                'source': source_name,
+                'target': target_name,
+                'weight': weight,
+                'type': edge_type
+            })
     
     if not edges:
         all_nodes = list(node_concepts.values())
@@ -305,7 +378,7 @@ def json_to_matrix(json_data: Dict, include_intra_cluster_edges: bool = EVALUATI
         matrix = pd.DataFrame(0, index=all_nodes, columns=all_nodes)
         
         for edge in edges:
-            matrix.loc[edge['target'], edge['source']] = edge['weight']
+            matrix.loc[edge['source'], edge['target']] = edge['weight']
     
     print(f"Created evaluation matrix with {len(edges)} edges ({len([e for e in edges if e.get('type') == 'inter_cluster'])} inter-cluster, {len([e for e in edges if e.get('type') == 'intra_cluster'])} intra-cluster)")
     
