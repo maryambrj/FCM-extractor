@@ -1,46 +1,13 @@
 # FCM Extractor
 
-A comprehensive Python package for extracting Fuzzy Cognitive Maps (FCMs) from interview transcripts using advanced NLP, clustering techniques, and semantic similarity analysis. This tool automates the conversion of qualitative interview data into structured cognitive maps for research and analysis.
+A Python package for extracting Fuzzy Cognitive Maps (FCMs) from interview transcripts using advanced NLP, clustering techniques, and semantic similarity analysis. This tool automates the conversion of qualitative interview data into structured cognitive maps for research and analysis.
 
-## 📁 Project Structure
-
-```
-fcm_extractor/
-├── run_extraction.py       # Main entry point
-├── requirements.txt        # Python dependencies
-├── config/                 # Configuration files
-│   ├── constants.py       # All configuration constants
-│   └── prompt_templates.json  # LLM prompt templates
-├── src/                   # Source code
-│   ├── core/             # Core functionality
-│   │   ├── extract_concepts.py  # Concept extraction
-│   │   └── build_graph.py       # Graph construction
-│   ├── models/           # Data models and clients
-│   │   ├── cluster_metadata.py  # Cluster metadata
-│   │   ├── llm_client.py       # LLM API client
-│   │   └── meta_prompting_agent.py  # Meta-prompting
-│   ├── clustering/       # Clustering algorithms
-│   │   ├── embed_and_cluster.py  # Embedding-based
-│   │   └── improved_clustering.py # Advanced clustering
-│   ├── edge_inference/   # Edge inference
-│   │   └── edge_inference.py    # Causal relationships
-│   └── pipeline/         # Processing pipelines
-│       ├── process_interviews.py # Interview processing
-│       └── resume_processing.py  # Resume processing
-├── utils/                # Utilities
-│   ├── logging_utils.py  # Logging helpers
-│   ├── score_fcm.py      # FCM evaluation and scoring
-│   └── visualize_fcm.py  # FCM visualization
-└── tests/               # Unit tests
-```
-```
-
-2. Install dependencies:
+ Install dependencies:
 ```bash
 pip install -r fcm_extractor/requirements.txt
 ```
 
-3. Set up environment variables:
+. Set up environment variables:
 ```bash
 export OPENAI_API_KEY="your-api-key"
 export GOOGLE_API_KEY="your-gemini-api-key"
@@ -55,8 +22,7 @@ cd fcm_extractor
 python run_extraction.py
 
 # Process specific document (supports .docx, .doc, .txt)
-python run_extraction.py BD007.docx
-python run_extraction.py P1_Day1_FCM_closed_caption.txt
+python run_extraction.py <file_name>
 ```
 
 
@@ -68,8 +34,10 @@ Edit `config/constants.py`
 ### FCM Extraction Output:
 - `*_fcm.json` - FCM graph data (nodes, edges, weights)
 - `*_fcm_interactive.html` - Interactive D3.js visualization
-- `*_fcm_static.png` - Static NetworkX graph image
 - `*_cluster_metadata.json` - Detailed cluster information
+- `*_fcm_params.json`
+- `*_generated_matrix.csv`
+`*_scoring_results.csv`
 
 ### Processing Logs:
 - `*_extraction_{timestamp}.log` - Complete processing log for each document
@@ -159,7 +127,7 @@ from fcm_extractor.src.pipeline import process_single_document
 result = process_single_document(
     file_path="path/to/document.docx",
     output_dir="custom_output/",
-    use_improved_clustering=True
+    use_clustering=True
 )
 ```
 

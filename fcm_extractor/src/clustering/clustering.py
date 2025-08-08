@@ -1,14 +1,6 @@
-"""
-Improved clustering methods for concept grouping.
-Includes multiple approaches: better embeddings, LLM-based clustering, and hybrid methods.
-"""
-
 import os
 import sys
 import warnings
-
-
-
 import numpy as np
 from typing import List, Dict, Tuple, Optional
 from sentence_transformers import SentenceTransformer
@@ -23,7 +15,6 @@ import re
 import os
 import sys
 
-# Add parent directories to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from config.constants import (
@@ -54,19 +45,16 @@ def name_cluster(concepts: List[str], model: str) -> str:
     name = name.strip().replace('"', '').lstrip('*i.v. ').rstrip(':**').strip()
     name = re.sub(r'\(\d+\)|-?\d+|\*\*', '', name).strip()
     if len(name.split()) > 4 or len(name) > 30 or name.lower().startswith('here are'):
-        return "Unnamed Cluster" # Return a default name if it's invalid
+        return "Unnamed Cluster" 
     return name
 
 def name_clusters_batch(clusters_list: List[Tuple[int, List[str]]], model: str) -> List[str]:
-    """Name multiple clusters in a single API call for efficiency."""
     if not clusters_list:
         return []
     
-    # If only one cluster, use the original function
     if len(clusters_list) == 1:
         return [name_cluster(clusters_list[0][1], model)]
     
-    # Build batch prompt
     cluster_descriptions = []
     for i, (cluster_id, concepts) in enumerate(clusters_list):
         if not concepts:
@@ -105,7 +93,6 @@ Names:"""
                 name = "Unnamed Cluster"
             cleaned_names.append(name)
         
-        # Ensure we have the right number of names
         while len(cleaned_names) < len(clusters_list):
             cleaned_names.append("Unnamed Cluster")
         
@@ -113,21 +100,17 @@ Names:"""
         
     except Exception as e:
         print(f"Warning: Batch cluster naming failed: {e}")
-        # Fallback to individual naming
         return [name_cluster(concepts, model) for _, concepts in clusters_list]
 
 def name_all_clusters(clusters: Dict[int, List[str]], model: str = LLM_CLUSTERING_MODEL) -> Dict[str, List[str]]:
-    """Name all clusters efficiently using batch processing."""
     if not clusters:
         return {}
     
-    # Convert to list for batch processing
     clusters_list = [(cluster_id, concepts) for cluster_id, concepts in clusters.items() if concepts]
     
     if not clusters_list:
         return {}
     
-    # Process in batches of 10 clusters per API call
     batch_size = 10
     all_names = []
     
@@ -139,10 +122,8 @@ def name_all_clusters(clusters: Dict[int, List[str]], model: str = LLM_CLUSTERIN
         all_names.extend(batch_names)
         print(f"  Named batch {i//batch_size + 1}/{(len(clusters_list) - 1)//batch_size + 1}")
     
-    # Build final result with duplicate handling
     named_clusters = {}
     for (cluster_id, concepts), cluster_name in zip(clusters_list, all_names):
-        # Handle duplicate names
         original_name = cluster_name
         counter = 2
         while cluster_name in named_clusters:
@@ -154,16 +135,6 @@ def name_all_clusters(clusters: Dict[int, List[str]], model: str = LLM_CLUSTERIN
 
 
 def embed_concepts_improved(concepts: List[str], model_name: str = CLUSTERING_EMBEDDING_MODEL) -> np.ndarray:
-    """
-    Embed concepts using improved embedding models.
-    
-    Args:
-        concepts: List of concept strings
-        model_name: Name of the embedding model to use
-        
-    Returns:
-        Numpy array of embeddings
-    """
     try:
         model = SentenceTransformer(model_name)
         embeddings = model.encode(concepts, show_progress_bar=False)
@@ -176,17 +147,6 @@ def embed_concepts_improved(concepts: List[str], model_name: str = CLUSTERING_EM
 
 def reduce_dimensions(embeddings: np.ndarray, method: str = DIMENSIONALITY_REDUCTION, 
                      n_components: int = UMAP_N_COMPONENTS) -> np.ndarray:
-    """
-    Reduce embedding dimensionality using various methods.
-    
-    Args:
-        embeddings: Input embeddings
-        method: Reduction method ("umap", "tsne", "pca", "none")
-        n_components: Number of dimensions to reduce to
-        
-    Returns:
-        Reduced embeddings
-    """
     if method == "none" or len(embeddings) < 4:
         return embeddings
         
@@ -225,16 +185,7 @@ def reduce_dimensions(embeddings: np.ndarray, method: str = DIMENSIONALITY_REDUC
 
 
 def cluster_embeddings(embeddings: np.ndarray, algorithm: str = CLUSTERING_ALGORITHM) -> List[int]:
-    """
-    Cluster embeddings using various algorithms.
-    
-    Args:
-        embeddings: Input embeddings
-        algorithm: Clustering algorithm ("hdbscan", "kmeans", "agglomerative", "spectral")
-        
-    Returns:
-        Cluster labels
-    """
+
     try:
         if algorithm == "hdbscan":
             clusterer = hdbscan.HDBSCAN(
@@ -283,16 +234,7 @@ def cluster_embeddings(embeddings: np.ndarray, algorithm: str = CLUSTERING_ALGOR
 
 
 def estimate_optimal_clusters(embeddings: np.ndarray, max_clusters: int = 10) -> int:
-    """
-    Estimate optimal number of clusters using elbow method.
-    
-    Args:
-        embeddings: Input embeddings
-        max_clusters: Maximum number of clusters to consider
-        
-    Returns:
-        Estimated optimal number of clusters
-    """
+
     n_samples = len(embeddings)
     max_clusters = min(max_clusters, n_samples // 2, 8)  # Reasonable upper bound
     
@@ -313,7 +255,6 @@ def estimate_optimal_clusters(embeddings: np.ndarray, max_clusters: int = 10) ->
     if len(inertias) < 2:
         return max(2, n_samples // 3)
     
-    # Simple elbow detection
     diffs = np.diff(inertias)
     if len(diffs) > 1:
         second_diffs = np.diff(diffs)
@@ -324,20 +265,10 @@ def estimate_optimal_clusters(embeddings: np.ndarray, max_clusters: int = 10) ->
 
 
 def llm_based_clustering(concepts: List[str], model: str = LLM_CLUSTERING_MODEL) -> Dict[int, List[str]]:
-    """
-    Use LLM to semantically cluster concepts.
-    
-    Args:
-        concepts: List of concept strings
-        model: LLM model to use for clustering
-        
-    Returns:
-        Dictionary mapping cluster IDs to concept lists
-    """
+
     if len(concepts) <= 3:
         return {i: [concept] for i, concept in enumerate(concepts)}
     
-    # Create prompt for LLM clustering
     concepts_str = "\n".join([f"{i+1}. {concept}" for i, concept in enumerate(concepts)])
     
     prompt = f"""Group the following concepts into semantically related clusters. Concepts in the same cluster should be closely related in meaning or domain.
@@ -366,7 +297,6 @@ Your clustering:"""
         
         content, _ = llm_client.chat_completion(model, messages, temperature=0.1)
         
-        # Parse the response
         clusters = {}
         cluster_id = 0
         
@@ -374,7 +304,6 @@ Your clustering:"""
             line = line.strip()
             if line.startswith('Cluster') and ':' in line:
                 try:
-                    # Extract concept numbers
                     numbers_part = line.split(':', 1)[1].strip()
                     concept_indices = [int(x.strip()) - 1 for x in numbers_part.split(',') if x.strip().isdigit()]
                     
@@ -384,7 +313,6 @@ Your clustering:"""
                 except:
                     continue
         
-        # Ensure all concepts are assigned
         assigned_concepts = set()
         for cluster_concepts in clusters.values():
             assigned_concepts.update(cluster_concepts)
@@ -401,26 +329,15 @@ Your clustering:"""
         return {i: [concept] for i, concept in enumerate(concepts)}
 
 def batch_llm_cluster_refinement(clusters_to_refine: List[Tuple[int, List[str]]], model: str = LLM_CLUSTERING_MODEL) -> Dict[int, Dict[int, List[str]]]:
-    """
-    Refine multiple clusters in a single API call for efficiency.
-    
-    Args:
-        clusters_to_refine: List of (original_cluster_id, concepts) tuples
-        model: LLM model to use
-        
-    Returns:
-        Dictionary mapping original cluster IDs to their refined sub-clusters
-    """
+
     if not clusters_to_refine:
         return {}
     
-    # If only one cluster, use the individual function
     if len(clusters_to_refine) == 1:
         original_id, concepts = clusters_to_refine[0]
         refined = llm_based_clustering(concepts, model)
         return {original_id: refined}
     
-    # Build batch prompt for multiple clusters
     cluster_descriptions = []
     for i, (cluster_id, concepts) in enumerate(clusters_to_refine):
         concepts_str = "\n".join([f"  {j+1}. {concept}" for j, concept in enumerate(concepts)])
@@ -451,19 +368,16 @@ Your refined clustering:"""
         
         content, _ = llm_client.chat_completion(model, messages, temperature=0.1)
         
-        # Parse the response
         refined_results = {}
         
         for line in content.split('\n'):
             line = line.strip()
             if 'Group' in line and ':' in line:
                 try:
-                    # Extract group info: "Group 1.2: 1, 3, 5"
                     parts = line.split(':', 1)
                     group_part = parts[0].strip()
                     numbers_part = parts[1].strip()
                     
-                    # Parse group number: "Group 1.2" -> group_idx=0, subcluster_id=2
                     if '.' in group_part:
                         group_info = group_part.replace('Group ', '').strip()
                         group_idx = int(group_info.split('.')[0]) - 1
@@ -472,7 +386,6 @@ Your refined clustering:"""
                         if 0 <= group_idx < len(clusters_to_refine):
                             original_cluster_id, original_concepts = clusters_to_refine[group_idx]
                             
-                            # Parse concept numbers
                             concept_indices = [int(x.strip()) - 1 for x in numbers_part.split(',') if x.strip().isdigit()]
                             
                             if concept_indices:
@@ -485,13 +398,11 @@ Your refined clustering:"""
                 except:
                     continue
         
-        # Ensure all concepts are assigned for each original cluster
         for original_cluster_id, original_concepts in clusters_to_refine:
             if original_cluster_id not in refined_results:
                 refined_results[original_cluster_id] = {0: original_concepts}
                 continue
                 
-            # Check for unassigned concepts
             assigned_concepts = set()
             for sub_concepts in refined_results[original_cluster_id].values():
                 assigned_concepts.update(sub_concepts)
@@ -505,7 +416,6 @@ Your refined clustering:"""
         
     except Exception as e:
         print(f"Warning: Batch LLM refinement failed: {e}")
-        # Fallback to individual processing
         fallback_results = {}
         for original_cluster_id, concepts in clusters_to_refine:
             try:
@@ -517,64 +427,48 @@ Your refined clustering:"""
 
 
 def hybrid_clustering(concepts: List[str]) -> Dict[int, List[str]]:
-    """
-    Combine embedding-based and LLM-based clustering for best results.
-    
-    Args:
-        concepts: List of concept strings
-        
-    Returns:
-        Dictionary mapping cluster IDs to concept lists
-    """
+
     if len(concepts) <= 3:
         return {i: [concept] for i, concept in enumerate(concepts)}
     
-    # Step 1: Get initial clustering using embeddings
     embeddings = embed_concepts_improved(concepts)
     reduced_embeddings = reduce_dimensions(embeddings)
     initial_labels = cluster_embeddings(reduced_embeddings)
     
-    # Convert to cluster dictionary
     initial_clusters = {}
     for label, concept in zip(initial_labels, concepts):
         if label not in initial_clusters:
             initial_clusters[label] = []
         initial_clusters[label].append(concept)
     
-    # Step 2: Collect large clusters for batch refinement
     large_clusters = []
     final_clusters = {}
     cluster_id = 0
     
-    # Separate large clusters that need refinement
     for initial_id, cluster_concepts in initial_clusters.items():
-        if len(cluster_concepts) > 4:  # Collect large clusters for batch processing
+        if len(cluster_concepts) > 4:  
             large_clusters.append((initial_id, cluster_concepts))
         else:
             final_clusters[cluster_id] = cluster_concepts
             cluster_id += 1
     
-    # Batch refine large clusters to reduce API calls
     if large_clusters:
         print(f"  Refining {len(large_clusters)} large clusters in batch to reduce API calls...")
         try:
-            # Process in batches of 5 clusters per API call
             batch_size = 5
             for batch_start in range(0, len(large_clusters), batch_size):
                 batch = large_clusters[batch_start:batch_start + batch_size]
                 refined_results = batch_llm_cluster_refinement(batch)
                 
-                # Add refined clusters to final result
                 for original_id, sub_clusters in refined_results.items():
                     for sub_concepts in sub_clusters.values():
-                        if sub_concepts:  # Only add non-empty clusters
+                        if sub_concepts: 
                             final_clusters[cluster_id] = sub_concepts
                             cluster_id += 1
                             
             print(f"  Completed batch refinement of large clusters")
         except Exception as e:
             print(f"  Warning: Batch refinement failed: {e}")
-            # Fallback: add large clusters as-is
             for _, cluster_concepts in large_clusters:
                 final_clusters[cluster_id] = cluster_concepts
                 cluster_id += 1
@@ -584,22 +478,14 @@ def hybrid_clustering(concepts: List[str]) -> Dict[int, List[str]]:
 
 def generate_cluster_summary(concepts: List[str], concept_metadata: Dict[str, ConceptMetadata], 
                            cluster_name: str = None, model: str = LLM_CLUSTERING_MODEL) -> Tuple[str, float]:
-    """
-    Generate a short, descriptive name for a cluster using LLM.
-    
-    Returns:
-        Tuple of (short_name, confidence)
-    """
-    
-    # Collect sample contexts from the concepts (reduced for brevity)
+  
     sample_contexts = []
-    for concept in concepts[:3]:  # Limit to first 3 concepts
+    for concept in concepts[:3]:  
         if concept in concept_metadata:
             contexts = concept_metadata[concept].source_contexts
             if contexts:
-                sample_contexts.extend(contexts[:1])  # Max 1 context per concept
+                sample_contexts.extend(contexts[:1]) 
     
-    # Limit total context length
     context_text = ". ".join(sample_contexts[:3])
     if len(context_text) > 200:
         context_text = context_text[:200] + "..."
@@ -629,11 +515,9 @@ Short name:"""
         content, _ = llm_client.chat_completion(model, messages, 0.3)
         summary = content.strip().strip('"').strip("'")
         
-        # Remove common unwanted phrases and clean up
         summary = summary.replace("Short name:", "").strip()
-        summary = summary.split('\n')[0].strip()  # Take only first line
+        summary = summary.split('\n')[0].strip() 
         
-        # Basic confidence scoring based on length and content
         word_count = len(summary.split())
         if word_count <= 4 and len(summary) <= 25 and not summary.lower().startswith('this cluster'):
             confidence = 0.9
@@ -650,34 +534,22 @@ Short name:"""
 
 def batch_generate_cluster_summaries(clusters_data: List[Tuple[int, List[str], Dict[str, ConceptMetadata]]], 
                                     model: str = LLM_CLUSTERING_MODEL) -> Dict[int, Tuple[str, float]]:
-    """
-    Generate summaries for multiple clusters in a single API call for maximum efficiency.
-    
-    Args:
-        clusters_data: List of (cluster_id, concepts, concept_metadata) tuples
-        model: LLM model to use
-        
-    Returns:
-        Dictionary mapping cluster_id to (summary, confidence) tuple
-    """
+
     
     if not clusters_data:
         return {}
     
-    # Build batch prompt for multiple clusters
     clusters_text = ""
     for i, (cluster_id, concepts, concept_metadata) in enumerate(clusters_data):
         concepts_text = ", ".join(concepts)
         
-        # Collect sample contexts from the concepts (limit to avoid huge prompts)
         sample_contexts = []
-        for concept in concepts[:3]:  # Limit to first 3 concepts
+        for concept in concepts[:3]:  
             if concept in concept_metadata:
                 contexts = concept_metadata[concept].source_contexts
                 if contexts:
-                    sample_contexts.extend(contexts[:1])  # Max 1 context per concept
+                    sample_contexts.extend(contexts[:1]) 
         
-        # Limit total context length per cluster
         context_text = ". ".join(sample_contexts[:3])
         if len(context_text) > 200:
             context_text = context_text[:200] + "..."
@@ -716,10 +588,9 @@ Response:"""
         
         if not content.strip():
             print(f"    Warning: Empty response for batch cluster naming")
-            # Fallback to individual processing
+
             return _fallback_individual_naming(clusters_data, model)
         
-        # Parse the batched response
         results = {}
         lines = content.strip().split('\n')
         
@@ -728,10 +599,9 @@ Response:"""
             if not line or ':' not in line:
                 continue
             
-            # Extract cluster number and description
             try:
                 cluster_part, description = line.split(':', 1)
-                cluster_num = int(cluster_part.strip().split()[-1]) - 1  # Convert to 0-based index
+                cluster_num = int(cluster_part.strip().split()[-1]) - 1  
                 
                 if cluster_num >= len(clusters_data):
                     continue
@@ -739,22 +609,20 @@ Response:"""
                 cluster_id, _, _ = clusters_data[cluster_num]
                 description = description.strip()
                 
-                # Clean up the description
                 if description.startswith('"') and description.endswith('"'):
                     description = description[1:-1]
                 
-                # Fixed confidence scoring - favor SHORT names
                 confidence = 0.9
                 word_count = len(description.split())
                 
                 if word_count <= 4 and len(description) <= 25:
-                    confidence = 0.95  # High confidence for short, appropriate names
+                    confidence = 0.95  
                 elif word_count <= 6 and len(description) <= 40:
-                    confidence = 0.8   # Medium confidence for moderately short names  
+                    confidence = 0.8  
                 elif "cluster" in description.lower() or "this cluster" in description.lower():
-                    confidence = 0.3   # Low confidence for verbose descriptions
+                    confidence = 0.3   
                 else:
-                    confidence = 0.6   # Default for other cases
+                    confidence = 0.6  
                 
                 results[cluster_id] = (description, confidence)
                 
@@ -764,7 +632,6 @@ Response:"""
         
         print(f"    Batch processed {len(clusters_data)} clusters → {len(results)} descriptions in 1 API call")
         
-        # Fill in any missing clusters with fallback
         missing_clusters = [(cid, concepts, meta) for cid, concepts, meta in clusters_data if cid not in results]
         if missing_clusters:
             print(f"    Processing {len(missing_clusters)} missing clusters individually...")
@@ -775,12 +642,11 @@ Response:"""
         
     except Exception as e:
         print(f"    Error in batch cluster naming: {e}")
-        # Fallback to individual processing
         return _fallback_individual_naming(clusters_data, model)
 
 def _fallback_individual_naming(clusters_data: List[Tuple[int, List[str], Dict[str, ConceptMetadata]]], 
                                model: str) -> Dict[int, Tuple[str, float]]:
-    """Fallback to individual cluster naming if batch fails."""
+
     results = {}
     for cluster_id, concepts, concept_metadata in clusters_data:
         try:
@@ -792,15 +658,7 @@ def _fallback_individual_naming(clusters_data: List[Tuple[int, List[str], Dict[s
     return results
 
 def cluster_concepts_improved(concepts: List[str]) -> Dict[int, List[str]]:
-    """
-    Main improved clustering function (backward compatibility version).
-    
-    Args:
-        concepts: List of concept strings
-        
-    Returns:
-        Dictionary mapping cluster IDs to concept lists
-    """
+
     if len(concepts) < 4:
         return {i: [concept] for i, concept in enumerate(concepts)}
     
@@ -819,7 +677,7 @@ def cluster_concepts_improved(concepts: List[str]) -> Dict[int, List[str]]:
                 clusters = hybrid_clustering(concepts)
             elif CLUSTERING_METHOD == "embedding_enhanced":
                 print("  Using enhanced embedding-based clustering (0 API calls)")
-                # Enhanced embedding-based pipeline
+
                 embeddings = embed_concepts_improved(concepts)
                 reduced_embeddings = reduce_dimensions(embeddings)
                 cluster_labels = cluster_embeddings(reduced_embeddings)
@@ -837,14 +695,12 @@ def cluster_concepts_improved(concepts: List[str]) -> Dict[int, List[str]]:
                 from embed_and_cluster import cluster_concepts
                 return cluster_concepts(concepts)
         
-        # Handle noise points (-1 cluster) if they exist
         if -1 in clusters:
             noise_concepts = clusters.pop(-1)
             max_cluster_id = max(clusters.keys()) if clusters else -1
             for i, concept in enumerate(noise_concepts):
                 clusters[max_cluster_id + 1 + i] = [concept]
         
-        # Ensure all concepts are assigned
         if not clusters:
             print(f"  No clusters created, falling back to individual concepts")
             return {i: [concept] for i, concept in enumerate(concepts)}
@@ -858,18 +714,8 @@ def cluster_concepts_improved(concepts: List[str]) -> Dict[int, List[str]]:
         return {i: [concept] for i, concept in enumerate(concepts)}
 
 def cluster_concepts_with_metadata(concepts: List[str], concept_metadata: Dict[str, ConceptMetadata]) -> ClusterMetadataManager:
-    """
-    Cluster concepts and return rich metadata.
-    
-    Args:
-        concepts: List of concept strings
-        concept_metadata: Metadata for each concept
-        
-    Returns:
-        ClusterMetadataManager with full cluster metadata
-    """
+
     if len(concepts) < 4:
-        # Handle small concept sets
         manager = ClusterMetadataManager()
         for i, concept in enumerate(concepts):
             cluster_id = f"cluster_{i}"
@@ -884,7 +730,6 @@ def cluster_concepts_with_metadata(concepts: List[str], concept_metadata: Dict[s
             warnings.filterwarnings("ignore", category=FutureWarning)
             warnings.filterwarnings("ignore", category=UserWarning)
             
-            # Get basic clusters first (without metadata)
             if CLUSTERING_METHOD == "llm_only" and USE_LLM_CLUSTERING:
                 print("  Using LLM-only clustering (1 API call)")
                 basic_clusters = llm_based_clustering(concepts)
@@ -893,7 +738,7 @@ def cluster_concepts_with_metadata(concepts: List[str], concept_metadata: Dict[s
                 basic_clusters = hybrid_clustering(concepts)
             elif CLUSTERING_METHOD == "embedding_enhanced":
                 print("  Using enhanced embedding-based clustering (0 API calls)")
-                # Enhanced embedding-based pipeline
+
                 embeddings = embed_concepts_improved(concepts)
                 reduced_embeddings = reduce_dimensions(embeddings)
                 cluster_labels = cluster_embeddings(reduced_embeddings)
@@ -911,12 +756,10 @@ def cluster_concepts_with_metadata(concepts: List[str], concept_metadata: Dict[s
                 from embed_and_cluster import cluster_concepts
                 basic_clusters = cluster_concepts(concepts)
         
-        # Convert to metadata-rich clusters
         manager = ClusterMetadataManager()
         
         print(f"  Created {len(basic_clusters)} clusters, generating metadata...")
         
-        # Prepare data for batch cluster naming
         clusters_for_naming = []
         single_concept_clusters = []
         
@@ -931,13 +774,10 @@ def cluster_concepts_with_metadata(concepts: List[str], concept_metadata: Dict[s
                     )
             
             if len(cluster_concepts) == 1:
-                # Handle single concept clusters separately
                 single_concept_clusters.append((cluster_id, cluster_concepts, cluster_concept_metadata))
             else:
-                # Add to batch naming list
                 clusters_for_naming.append((cluster_id, cluster_concepts, cluster_concept_metadata))
         
-        # Batch process multi-concept clusters in configurable batch sizes
         batch_summaries = {}
         total_api_calls = 0
         
@@ -956,43 +796,36 @@ def cluster_concepts_with_metadata(concepts: List[str], concept_metadata: Dict[s
                 batch_summaries.update(batch_results)
                 total_api_calls += 1
         
-        # Process all clusters (single and multi-concept)
         all_clusters_data = single_concept_clusters + clusters_for_naming
         
         for cluster_id, cluster_concepts, cluster_concept_metadata in all_clusters_data:
             cluster_id_str = f"cluster_{cluster_id}"
             
-            # Generate name and summary
             if len(cluster_concepts) == 1:
-                # Single concept clusters
                 cluster_name = cluster_concepts[0]
                 summary = f"Individual concept: {cluster_concepts[0]}"
                 confidence = 1.0
             else:
-                # Multi-concept clusters (from batch)
                 if cluster_id in batch_summaries:
                     short_name, confidence = batch_summaries[cluster_id]
-                    cluster_name = short_name  # Use the short name directly
+                    cluster_name = short_name  
                     summary = f"Cluster of concepts related to {short_name.lower()}"
                 else:
-                    # Fallback if batch failed
                     cluster_name = f"Cluster {cluster_id}"
                     summary = f"Cluster containing {', '.join(cluster_concepts[:3])}{'...' if len(cluster_concepts) > 3 else ''}"
                     confidence = 0.5
             
-            # Add cluster to manager
             cluster = manager.add_cluster(cluster_id_str, cluster_concepts, cluster_concept_metadata, cluster_name)
             cluster.summary = summary
             cluster.confidence = confidence
             
             print(f"    Cluster {cluster_id}: {len(cluster_concepts)} concepts - {summary}")
         
-        # Report efficiency gains
         original_calls = len([c for c in all_clusters_data if len(c[1]) > 1])
         if original_calls > 0:
             efficiency_gain = ((original_calls - total_api_calls) / original_calls) * 100
-            print(f"  🚀 Cluster naming efficiency: {total_api_calls} API calls (vs {original_calls} individual calls)")
-            print(f"  📊 Efficiency gain: {efficiency_gain:.1f}% fewer API calls")
+            print(f"  Cluster naming efficiency: {total_api_calls} API calls (vs {original_calls} individual calls)")
+            print(f"  Efficiency gain: {efficiency_gain:.1f}% fewer API calls")
         
         return manager
         
@@ -1010,7 +843,6 @@ def cluster_concepts_with_metadata(concepts: List[str], concept_metadata: Dict[s
 
 
 if __name__ == "__main__":
-    # Test the improved clustering
     test_concepts = [
         "social isolation", "loneliness", "depression", "anxiety", 
         "poor sleep", "insomnia", "fatigue", "stress", 
@@ -1019,20 +851,18 @@ if __name__ == "__main__":
     
     print("Testing improved clustering methods:")
     
-    # Test different methods
     for method in ["improved_pipeline", "llm_based", "hybrid"]:
         print(f"\n--- {method.upper()} ---")
-        # Temporarily change method
         original_method = CLUSTERING_METHOD
-        import constants
+        
+        import config.constants as constants
         constants.CLUSTERING_METHOD = method
         
         try:
-            clusters = cluster_concepts_with_metadata(test_concepts, {}) # Pass an empty dict for concept_metadata for now
+            clusters = cluster_concepts_with_metadata(test_concepts, {}) 
             for cluster_id, cluster_metadata in clusters.clusters.items():
                 print(f"Cluster {cluster_id}: {', '.join(cluster_metadata.concepts)}")
         except Exception as e:
             print(f"Error with {method}: {e}")
         
-        # Restore original method
         constants.CLUSTERING_METHOD = original_method 

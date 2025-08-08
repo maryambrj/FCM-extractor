@@ -1,5 +1,3 @@
-"""Edge inference modules for FCM extraction."""
-
 from .edge_inference import (
     infer_edges,
     infer_edges_original,

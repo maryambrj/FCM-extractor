@@ -1,9 +1,6 @@
 import os
 import sys
 import warnings
-
-
-
 import numpy as np
 from typing import List, Dict
 from sentence_transformers import SentenceTransformer
@@ -15,17 +12,14 @@ from config.constants import CLUSTERING_EMBEDDING_MODEL, HDBSCAN_MIN_CLUSTER_SIZ
 
 
 def embed_concepts(concepts: List[str]) -> np.ndarray:
-    """Embed concepts using SentenceTransformer."""
     model = SentenceTransformer(CLUSTERING_EMBEDDING_MODEL)
     return model.encode(concepts)
 
 def tsne_reduce(embeddings: np.ndarray, n_components: int = 2) -> np.ndarray:
-    """Reduce embedding dimensionality using t-SNE."""
     tsne = TSNE(n_components=n_components, random_state=42, perplexity=min(30, len(embeddings)-1))
     return tsne.fit_transform(embeddings)
 
 def hdbscan_cluster(reduced: np.ndarray) -> List[int]:
-    """Cluster reduced embeddings using HDBSCAN."""
     clusterer = hdbscan.HDBSCAN(
         min_cluster_size=HDBSCAN_MIN_CLUSTER_SIZE,
         min_samples=HDBSCAN_MIN_SAMPLES if HDBSCAN_MIN_SAMPLES is not None else HDBSCAN_MIN_CLUSTER_SIZE
@@ -33,11 +27,7 @@ def hdbscan_cluster(reduced: np.ndarray) -> List[int]:
     return clusterer.fit_predict(reduced)
 
 def cluster_concepts(concepts: List[str]) -> Dict[int, List[str]]:
-    """Cluster concepts into groups using embedding, t-SNE, and HDBSCAN.
-    Cluster IDs are arbitrary integers assigned by HDBSCAN. -1 means 'noise' (unclustered concepts).
-    """
     if len(concepts) < 4:
-        # If we have very few concepts, just return them as separate clusters
         return {i: [concept] for i, concept in enumerate(concepts)}
     
     try:
@@ -49,17 +39,13 @@ def cluster_concepts(concepts: List[str]) -> Dict[int, List[str]]:
         clusters = {}
         for label, concept in zip(cluster_labels, concepts):
             clusters.setdefault(label, []).append(concept)
-        
-        # Handle noise points (-1 cluster)
+
         if -1 in clusters:
             noise_concepts = clusters.pop(-1)
-            # Find the next available cluster ID
             max_cluster_id = max(clusters.keys()) if clusters else -1
-            # Assign each noise concept to its own new cluster
             for i, concept in enumerate(noise_concepts):
                 clusters[max_cluster_id + 1 + i] = [concept]
                 
-        # If all concepts are in cluster -1 (noise), treat each as its own cluster
         if not clusters:
             return {i: [concept] for i, concept in enumerate(concepts)}
         return clusters

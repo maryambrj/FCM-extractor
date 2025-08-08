@@ -1,12 +1,3 @@
-"""
-Dynamic Prompt Agent
-
-This module implements a sophisticated meta-prompting system that dynamically generates
-prompts tailored to specific contexts, text characteristics, and task requirements.
-Uses advanced techniques like chain-of-thought reasoning, self-reflection, and 
-adaptive prompt engineering.
-"""
-
 import os
 import json
 import numpy as np
@@ -47,15 +38,14 @@ class TextComplexity(Enum):
 
 @dataclass
 class TextAnalysis:
-    """Comprehensive analysis of input text characteristics."""
     length: int
     sentence_count: int
     avg_sentence_length: float
     complexity_score: float
     domain_indicators: List[str]
     technical_terms_count: int
-    narrative_style: str  # "narrative", "structured", "mixed"
-    emotional_content: str  # "high", "medium", "low"
+    narrative_style: str
+    emotional_content: str
     causal_language_count: int
     concept_density: float
     text_hash: str
@@ -63,7 +53,6 @@ class TextAnalysis:
 
 @dataclass
 class PromptPerformance:
-    """Track performance of generated prompts."""
     prompt_hash: str
     task_type: TaskType
     text_analysis: TextAnalysis
@@ -76,33 +65,21 @@ class PromptPerformance:
 
 
 class DynamicPromptAgent:
-    """
-    Advanced meta-prompting agent that dynamically generates contextually-aware prompts
-    using sophisticated analysis and self-reflection techniques.
-    """
-    
     def __init__(self, model: str = META_PROMPTING_MODEL, temperature: float = META_PROMPTING_TEMPERATURE):
         self.model = model
         self.temperature = temperature
         
-        # Performance tracking
         self.performance_history: List[PromptPerformance] = []
         self.prompt_cache: Dict[str, str] = {}
         self.adaptation_rate = 0.1
         
-        # Domain knowledge bases
         self.domain_vocabularies = self._load_domain_vocabularies()
         self.causal_indicators = self._load_causal_indicators()
         self.task_objectives = self._load_task_objectives()
         
-        # Load existing performance data
         self._load_performance_history()
-        
-        # Initialize logging
-        self._setup_logging()
     
     def _load_domain_vocabularies(self) -> Dict[str, List[str]]:
-        """Load domain-specific vocabularies for better context understanding."""
         return {
             'psychological': [
                 'stress', 'anxiety', 'depression', 'mood', 'emotion', 'behavior', 'cognitive', 
@@ -132,7 +109,6 @@ class DynamicPromptAgent:
         }
     
     def _load_causal_indicators(self) -> List[str]:
-        """Load causal language indicators."""
         return [
             'causes', 'leads to', 'results in', 'because of', 'due to', 'owing to',
             'triggers', 'influences', 'affects', 'impacts', 'contributes to',
@@ -143,7 +119,6 @@ class DynamicPromptAgent:
         ]
     
     def _load_task_objectives(self) -> Dict[TaskType, Dict]:
-        """Define specific objectives and success criteria for each task type."""
         return {
             TaskType.CONCEPT_EXTRACTION: {
                 'primary_goal': 'Extract semantically meaningful concepts that capture key variables and entities',
@@ -172,16 +147,13 @@ class DynamicPromptAgent:
         }
     
     def analyze_text(self, text: str) -> TextAnalysis:
-        """Perform comprehensive analysis of input text characteristics."""
         sentences = [s.strip() for s in re.split(r'[.!?]+', text) if s.strip()]
         words = text.lower().split()
         
-        # Basic metrics
         length = len(text)
         sentence_count = len(sentences)
         avg_sentence_length = length / max(sentence_count, 1)
         
-        # Domain detection
         domain_scores = {}
         for domain, vocab in self.domain_vocabularies.items():
             score = sum(1 for word in vocab if word.lower() in text.lower())
@@ -190,10 +162,8 @@ class DynamicPromptAgent:
         top_domains = sorted(domain_scores.items(), key=lambda x: x[1], reverse=True)[:3]
         domain_indicators = [domain for domain, score in top_domains if score > 0]
         
-        # Technical complexity
         technical_terms = sum(1 for word in words if len(word) > 8 and word.isalpha())
         
-        # Narrative style detection
         first_person = len(re.findall(r'\b(I|me|my|we|us|our)\b', text, re.IGNORECASE))
         structured_indicators = len(re.findall(r'\b(first|second|third|step|stage|phase)\b', text, re.IGNORECASE))
         
@@ -204,28 +174,23 @@ class DynamicPromptAgent:
         else:
             narrative_style = "mixed"
         
-        # Emotional content
         emotional_words = ['feel', 'emotion', 'happy', 'sad', 'angry', 'fear', 'joy', 'stress', 'anxiety']
         emotional_count = sum(1 for word in emotional_words if word in text.lower())
         emotional_content = "high" if emotional_count > 5 else "medium" if emotional_count > 2 else "low"
         
-        # Causal language
         causal_count = sum(1 for indicator in self.causal_indicators if indicator in text.lower())
         
-        # Complexity score (0-10)
         complexity_factors = [
-            min(avg_sentence_length / 20, 1),  # Sentence complexity
-            min(technical_terms / len(words) * 10, 1),  # Technical density
-            min(len(set(words)) / len(words) * 2, 1),  # Vocabulary diversity
-            min(causal_count / 10, 1)  # Causal complexity
+            min(avg_sentence_length / 20, 1),
+            min(technical_terms / len(words) * 10, 1),
+            min(len(set(words)) / len(words) * 2, 1),
+            min(causal_count / 10, 1)
         ]
-        complexity_score = sum(complexity_factors) * 2.5  # Scale to 0-10
+        complexity_score = sum(complexity_factors) * 2.5
         
-        # Concept density estimation
         potential_concepts = len([w for w in words if len(w) > 3 and w.isalpha()])
         concept_density = potential_concepts / len(words)
         
-        # Create unique hash for caching
         text_hash = hashlib.md5(text.encode()).hexdigest()[:12]
         
         return TextAnalysis(
@@ -243,19 +208,11 @@ class DynamicPromptAgent:
         )
     
     def generate_dynamic_prompt(self, task_type: TaskType, text: str, **kwargs) -> Tuple[str, Dict]:
-        """
-        Generate a dynamic, contextually-aware prompt using advanced meta-prompting techniques.
-        
-        Returns:
-            Tuple of (generated_prompt, generation_metadata)
-        """
         if not META_PROMPTING_ENABLED or not DYNAMIC_PROMPTING_ENABLED:
             return self._get_default_prompt(task_type), {'method': 'default'}
         
-        # Analyze text characteristics
         text_analysis = self.analyze_text(text)
         
-        # Check cache first if caching is enabled
         cache_key = f"{task_type.value}_{text_analysis.text_hash}_{str(kwargs)}"
         if DYNAMIC_PROMPTING_USE_CACHE and cache_key in self.prompt_cache:
             if META_PROMPTING_VERBOSE:
@@ -264,13 +221,10 @@ class DynamicPromptAgent:
                 self._log_to_file(cache_msg)
             return self.prompt_cache[cache_key], {'method': 'cached', 'text_analysis': text_analysis}
         
-        # Get historical performance insights
         performance_insights = self._get_performance_insights(task_type, text_analysis)
         
-        # Generate contextual prompt using chain-of-thought reasoning
         generated_prompt = self._generate_contextual_prompt(task_type, text_analysis, performance_insights, **kwargs)
         
-        # Apply self-reflection and refinement if enabled
         if DYNAMIC_PROMPTING_USE_REFLECTION:
             if META_PROMPTING_VERBOSE:
                 reflection_msg = f"🔍 Applying self-reflection for {task_type.value} prompt refinement..."
@@ -284,7 +238,6 @@ class DynamicPromptAgent:
         else:
             refined_prompt = generated_prompt
         
-        # Cache the result if caching is enabled
         if DYNAMIC_PROMPTING_USE_CACHE:
             self.prompt_cache[cache_key] = refined_prompt
         
@@ -296,9 +249,9 @@ class DynamicPromptAgent:
         }
         
         if META_PROMPTING_VERBOSE:
-            verbose_output = f"🧠 DYNAMIC PROMPT GENERATION REPORT for {task_type.value.upper()}\n"
+            verbose_output = f"DYNAMIC PROMPT GENERATION REPORT for {task_type.value.upper()}\n"
             verbose_output += f"{'='*80}\n"
-            verbose_output += f"📊 TEXT ANALYSIS:\n"
+            verbose_output += f"TEXT ANALYSIS:\n"
             verbose_output += f"   • Length: {text_analysis.length} characters ({text_analysis.sentence_count} sentences)\n"
             verbose_output += f"   • Complexity Score: {text_analysis.complexity_score:.1f}/10\n"
             verbose_output += f"   • Domains: {', '.join(text_analysis.domain_indicators) if text_analysis.domain_indicators else 'general'}\n"
@@ -307,11 +260,11 @@ class DynamicPromptAgent:
             verbose_output += f"   • Causal Language Count: {text_analysis.causal_language_count}\n"
             verbose_output += f"   • Technical Terms: {text_analysis.technical_terms_count}\n"
             verbose_output += f"   • Concept Density: {text_analysis.concept_density:.2f}\n"
-            verbose_output += f"\n📈 PERFORMANCE INSIGHTS:\n"
+            verbose_output += f"\nPERFORMANCE INSIGHTS:\n"
             verbose_output += f"   {self._format_performance_insights(performance_insights).replace(chr(10), chr(10) + '   ')}\n"
-            verbose_output += f"\n🎯 GENERATION METHOD: {generation_metadata['method']}\n"
+            verbose_output += f"\nGENERATION METHOD: {generation_metadata['method']}\n"
             verbose_output += f"📏 FINAL PROMPT LENGTH: {len(refined_prompt)} characters\n"
-            verbose_output += f"\n🔤 GENERATED PROMPT:\n"
+            verbose_output += f"\nGENERATED PROMPT:\n"
             verbose_output += f"{'-'*80}\n{refined_prompt}\n{'-'*80}"
             
             print(verbose_output)
@@ -321,9 +274,7 @@ class DynamicPromptAgent:
     
     def _generate_contextual_prompt(self, task_type: TaskType, text_analysis: TextAnalysis, 
                                   performance_insights: Dict, **kwargs) -> str:
-        """Generate a contextual prompt using advanced reasoning."""
         
-        # Build context-aware meta-prompt for prompt generation
         meta_prompt = f"""Generate a precise prompt for {task_type.value} that is optimized for the following context:
 
 TEXT CHARACTERISTICS:
@@ -361,10 +312,8 @@ Return ONLY the prompt text, no explanations or analysis."""
             
             response, _ = llm_client.chat_completion(self.model, messages, self.temperature, max_tokens=1000)
             
-            # Clean up the response - remove any residual formatting or prefixes
             generated_prompt = response.strip()
             
-            # Remove common unwanted prefixes if they appear
             unwanted_prefixes = [
                 "Here is the prompt:", "Here's the prompt:", "Certainly!", "Here is a", "Here's a",
                 "The prompt is:", "Generated prompt:", "GENERATED PROMPT:", "**Refined Prompt:**",
@@ -384,7 +333,6 @@ Return ONLY the prompt text, no explanations or analysis."""
     
     def _refine_prompt_with_reflection(self, initial_prompt: str, task_type: TaskType, 
                                      text_analysis: TextAnalysis) -> str:
-        """Apply self-reflection to refine and improve the generated prompt."""
         
         reflection_prompt = f"""Improve this {task_type.value} prompt for better clarity and effectiveness:
 
@@ -412,10 +360,8 @@ Return ONLY the improved prompt text, no analysis or explanation."""
             
             response, _ = llm_client.chat_completion(self.model, messages, self.temperature * 0.8, max_tokens=800)
             
-            # Clean up the response
             refined_prompt = response.strip()
             
-            # Remove common unwanted prefixes
             unwanted_prefixes = [
                 "Here is the improved prompt:", "Here's the improved prompt:", "Improved prompt:",
                 "REFINED PROMPT:", "Refined prompt:", "Here is the refined prompt:", "The improved prompt is:",
@@ -427,9 +373,8 @@ Return ONLY the improved prompt text, no analysis or explanation."""
                     refined_prompt = refined_prompt[len(prefix):].strip()
                     break
             
-            # Ensure refinement actually improved the prompt
             if len(refined_prompt) < len(initial_prompt) * 0.5:
-                return initial_prompt  # Refinement failed, keep original
+                return initial_prompt
             
             return refined_prompt
             
@@ -438,7 +383,6 @@ Return ONLY the improved prompt text, no analysis or explanation."""
             return initial_prompt
     
     def _get_performance_insights(self, task_type: TaskType, text_analysis: TextAnalysis) -> Dict:
-        """Extract insights from historical performance data."""
         relevant_history = [
             perf for perf in self.performance_history 
             if perf.task_type == task_type and 
@@ -448,7 +392,6 @@ Return ONLY the improved prompt text, no analysis or explanation."""
         if not relevant_history:
             return {'message': 'No relevant historical data available'}
         
-        # Calculate success patterns
         successful_attempts = [p for p in relevant_history if p.success and p.performance_score > 0.7]
         avg_performance = np.mean([p.performance_score for p in relevant_history])
         
@@ -461,7 +404,6 @@ Return ONLY the improved prompt text, no analysis or explanation."""
         }
     
     def _format_performance_insights(self, insights: Dict) -> str:
-        """Format performance insights for inclusion in meta-prompts."""
         if 'message' in insights:
             return insights['message']
         
@@ -471,7 +413,6 @@ Return ONLY the improved prompt text, no analysis or explanation."""
 - Best performing contexts: {insights.get('common_domains', 'various')}"""
     
     def _format_additional_context(self, kwargs: Dict) -> str:
-        """Format additional context from kwargs."""
         if not kwargs:
             return "None specified"
         
@@ -485,7 +426,6 @@ Return ONLY the improved prompt text, no analysis or explanation."""
         return '\n'.join(formatted)
     
     def _get_default_prompt(self, task_type: TaskType) -> str:
-        """Fallback to default prompts when meta-prompting is disabled or fails."""
         defaults = {
             TaskType.CONCEPT_EXTRACTION: "Extract the most important key concepts or entities from the following text. Return a comma-separated list of 1-3 word terms.",
             TaskType.EDGE_INFERENCE: "Analyze the causal relationship between the given concepts based on the text. Determine direction and strength.",
@@ -497,9 +437,8 @@ Return ONLY the improved prompt text, no analysis or explanation."""
     def record_performance(self, prompt: str, task_type: TaskType, text_analysis: TextAnalysis,
                          performance_score: float, execution_time: float, success: bool,
                          output_quality: float = 0.0, error_message: str = None):
-        """Record the performance of a generated prompt for future learning."""
         if not DYNAMIC_PROMPTING_TRACK_PERFORMANCE:
-            return  # Skip tracking if disabled
+            return
             
         prompt_hash = hashlib.md5(prompt.encode()).hexdigest()[:12]
         
@@ -517,13 +456,11 @@ Return ONLY the improved prompt text, no analysis or explanation."""
         
         self.performance_history.append(performance_record)
         
-        # Periodic cleanup and persistence
         if len(self.performance_history) % 50 == 0:
             self._save_performance_history()
             self._cleanup_old_records()
     
     def _save_performance_history(self):
-        """Save performance history to disk."""
         try:
             history_file = os.path.join(LOG_DIRECTORY, "dynamic_prompt_performance.json")
             os.makedirs(os.path.dirname(history_file), exist_ok=True)
@@ -542,7 +479,6 @@ Return ONLY the improved prompt text, no analysis or explanation."""
             print(f"Warning: Could not save performance history: {e}")
     
     def _load_performance_history(self):
-        """Load existing performance history from disk."""
         try:
             history_file = os.path.join(LOG_DIRECTORY, "dynamic_prompt_performance.json")
             if os.path.exists(history_file):
@@ -550,7 +486,6 @@ Return ONLY the improved prompt text, no analysis or explanation."""
                     data = json.load(f)
                 
                 for record_dict in data:
-                    # Reconstruct objects
                     record_dict['task_type'] = TaskType(record_dict['task_type'])
                     record_dict['timestamp'] = datetime.fromisoformat(record_dict['timestamp'])
                     record_dict['text_analysis'] = TextAnalysis(**record_dict['text_analysis'])
@@ -561,7 +496,6 @@ Return ONLY the improved prompt text, no analysis or explanation."""
             print(f"Warning: Could not load performance history: {e}")
     
     def _cleanup_old_records(self, max_records: int = 1000):
-        """Keep only the most recent performance records."""
         if len(self.performance_history) > max_records:
             self.performance_history = sorted(
                 self.performance_history,
@@ -570,7 +504,6 @@ Return ONLY the improved prompt text, no analysis or explanation."""
             )[:max_records]
     
     def _setup_logging(self):
-        """Initialize logging for dynamic prompting."""
         try:
             from config.constants import LOG_DIRECTORY, ENABLE_FILE_LOGGING
             if ENABLE_FILE_LOGGING:
@@ -583,7 +516,6 @@ Return ONLY the improved prompt text, no analysis or explanation."""
             self.log_file_path = None
     
     def _log_to_file(self, message: str):
-        """Log message to file if file logging is enabled."""
         if not self.log_file_path:
             return
             
@@ -595,11 +527,10 @@ Return ONLY the improved prompt text, no analysis or explanation."""
             print(f"Warning: Could not write to dynamic prompting log: {e}")
     
     def get_adaptation_stats(self) -> Dict:
-        """Get statistics about the agent's adaptation and learning."""
         if not self.performance_history:
             return {'status': 'no_data'}
         
-        recent_records = self.performance_history[-100:]  # Last 100 records
+        recent_records = self.performance_history[-100:]
         
         return {
             'total_prompts_generated': len(self.performance_history),
@@ -614,9 +545,7 @@ Return ONLY the improved prompt text, no analysis or explanation."""
         }
 
 
-# Convenience functions for integration
 def get_dynamic_prompt(task_type: str, text: str, **kwargs) -> str:
-    """Convenience function to get a dynamic prompt."""
     agent = DynamicPromptAgent()
     task_enum = TaskType(task_type)
     prompt, _ = agent.generate_dynamic_prompt(task_enum, text, **kwargs)
@@ -624,15 +553,12 @@ def get_dynamic_prompt(task_type: str, text: str, **kwargs) -> str:
 
 
 def create_global_prompt_agent() -> DynamicPromptAgent:
-    """Create a global instance of the dynamic prompt agent."""
     return DynamicPromptAgent()
 
 
-# Global instance for shared use across the pipeline
 _global_prompt_agent = None
 
 def get_global_prompt_agent() -> DynamicPromptAgent:
-    """Get or create the global prompt agent instance."""
     global _global_prompt_agent
     if _global_prompt_agent is None:
         _global_prompt_agent = create_global_prompt_agent()

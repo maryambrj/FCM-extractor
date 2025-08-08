@@ -1,6 +1,4 @@
-"""Clustering modules for FCM extraction."""
-
-from .improved_clustering import (
+from .clustering import (
     cluster_concepts_improved,
     cluster_concepts_with_metadata,
     name_all_clusters,

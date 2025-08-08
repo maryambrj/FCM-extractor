@@ -1,5 +1,3 @@
-"""Models and agents for FCM extraction."""
-
 from .cluster_metadata import ClusterMetadata, ClusterMetadataManager, ConceptMetadata
 from .llm_client import UnifiedLLMClient
 from .meta_prompting_agent import MetaPromptingAgent
