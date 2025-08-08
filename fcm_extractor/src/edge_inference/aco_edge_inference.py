@@ -100,8 +100,11 @@ class ACOEdgeInference:
             return [edge_keys[i] for i in sampled_edges]
         
         # For subsequent iterations, use pheromone-based sampling
-        if total_pheromone == 0:
-            # If no pheromones yet, use uniform distribution
+        if total_pheromone == 0 or len(self.pheromone_matrix) == 0:
+            # If no pheromones yet or no edges, return empty list
+            if len(self.pheromone_matrix) == 0:
+                return []
+            # Use uniform distribution
             probabilities = [1.0 / len(self.pheromone_matrix)] * len(self.pheromone_matrix)
         else:
             # Proportional selection based on pheromone levels
@@ -185,6 +188,10 @@ class ACOEdgeInference:
             
             if not content.strip():
                 print("    ⚠️ Empty LLM response")
+                print(f"    📋 Debug - Model: {EDGE_INFERENCE_MODEL}")
+                print(f"    🌡️ Debug - Temperature: {EDGE_INFERENCE_TEMPERATURE}")
+                print(f"    📝 Debug - Prompt length: {len(str(messages))} chars")
+                print(f"    🔢 Debug - Edge pairs: {len(edge_pairs)}")
                 return []
             
             # DEBUG: Print raw LLM response

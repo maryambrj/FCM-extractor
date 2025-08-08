@@ -33,20 +33,6 @@ fcm_extractor/
 │   └── visualize_fcm.py  # FCM visualization
 └── tests/               # Unit tests
 ```
-
-## 🚀 Quick Start
-
-### Prerequisites
-- Python 3.8 or higher
-- GPU recommended for faster embedding computation
-- OpenAI API key and/or Google AI Studio API key
-
-### Installation
-
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd new-FCM-extraction
 ```
 
 2. Install dependencies:
@@ -68,34 +54,16 @@ cd fcm_extractor
 # Process all documents
 python run_extraction.py
 
-# Process specific document
+# Process specific document (supports .docx, .doc, .txt)
 python run_extraction.py BD007.docx
+python run_extraction.py P1_Day1_FCM_closed_caption.txt
 ```
 
 
 ### Configuration
 
-Edit `config/constants.py` to customize:
+Edit `config/constants.py` 
 
-**Model Settings:**
-- `MODEL_PROVIDER`: Choose between "openai" or "google"
-- `MODEL_NAME`: Specific model (e.g., "gpt-4o", "gemini-1.5-pro")
-- `EMBEDDING_MODEL`: Model for semantic similarity (default: "Qwen/Qwen3-Embedding-0.6B")
-
-**Clustering Parameters:**
-- `DEFAULT_NUM_CLUSTERS`: Number of concept clusters
-- `MIN_CLUSTER_SIZE`: Minimum concepts per cluster
-- `USE_IMPROVED_CLUSTERING`: Advanced clustering algorithm
-
-**Evaluation Settings:**
-- `EVALUATION_INCLUDE_INTRA_CLUSTER_EDGES`: Include intra-cluster edges in evaluation
-- `EDGE_CONFIDENCE_THRESHOLD`: Minimum confidence for edge inference
-
-**I/O Directories:**
-- `BASE_INPUT_DIR`: Input documents directory
-- `BASE_OUTPUT_DIR`: Output files directory
-
-## 📊 Output Files
 
 ### FCM Extraction Output:
 - `*_fcm.json` - FCM graph data (nodes, edges, weights)
@@ -116,59 +84,69 @@ The scoring system evaluates generated FCMs against ground truth using semantic 
 **Evaluate single FCM:**
 ```bash
 cd fcm_extractor
-python utils/score_fcm.py --gt-path ../ground_truth/BD007.csv ../fcm_outputs/BD007-1/BD007_fcm.json
+python utils/score_fcm.py --gt-path ../ground_truth/BD007.csv --gen-path ../fcm_outputs/BD007-1/BD007_fcm.json
+python utils/score_fcm.py --gt-path ../ground_truth/P3_MentalModeler_csv.csv --gen-path ../fcm_outputs/P3_Day1_FCM_closed_caption/P3_Day1_FCM_closed_caption_fcm.json
 ```
 
-**Batch evaluation of all matching FCMs:**
+## 🎨 FCM Visualization
+
+### Create Interactive HTML Visualizations
+
+The FCM Extractor generates interactive HTML visualizations that allow you to explore the cognitive maps in detail.
+
+**Create visualization from existing FCM JSON:**
 ```bash
-python utils/score_fcm.py --gt-dir ../ground_truth --gen-dir ../fcm_outputs
+cd fcm_extractor
+python utils/visualize_fcm.py --gen-path ../fcm_outputs/BD007-1/BD007_fcm.json --interactive
+python utils/visualize_fcm.py --gen-path ../fcm_outputs/P1_Day1_FCM_closed_caption/P1_Day1_FCM_closed_caption_fcm.json --interactive
+P1_Day1_FCM_closed_caption_fcm_interactive
 ```
 
-**Custom scoring parameters:**
+**Print graph summary only:**
 ```bash
-python utils/score_fcm.py \
-  --gt-path ../ground_truth/BD007.csv \
-  ../fcm_outputs/BD007-1/BD007_fcm.json \
-  --threshold 0.6 \
-  --tp-scale 1.0 \
-  --pp-scale 1.1 \
-  --model-name "qwen-0.6b" \
-  --debug
+python utils/visualize_fcm.py --gen-path ../fcm_outputs/BD007-1/BD007_fcm.json --summary
 ```
 
-**Parameters:**
-- `--threshold`: Semantic similarity threshold for concept matching (default: 0.6)
-- `--tp-scale`: True positive scaling factor (default: 1.0)
-- `--pp-scale`: Partial positive scaling factor (default: 1.1)
-- `--debug`: Show detailed matching information
-- `--cpu-only`: Force CPU usage instead of GPU
+```bash
+# Open with default browser
+open fcm_outputs/BD007-1/BD007_fcm_interactive.html
 
-### Programmatic Scoring
-
-```python
-from fcm_extractor.utils.score_fcm import ScoreCalculator, evaluate_single_case
-
-# Evaluate single case
-result = evaluate_single_case(
-    gt_file="ground_truth/BD007.csv",
-    gen_file="fcm_outputs/BD007-1/BD007_fcm.json",
-    threshold=0.6,
-    tp_scale=1.0,
-    pp_scale=1.1,
-    debug=True
-)
-print(f"F1 Score: {result['F1'].iloc[0]:.4f}")
-
-# Custom scoring
-scorer = ScoreCalculator(
-    threshold=0.6,
-    model_name="qwen-embedding",
-    data="BD007",
-    tp_scale=1.0,
-    pp_scale=1.1
-)
-scores = scorer.calculate_scores(gt_matrix, gen_matrix)
+# Or specify browser
+open -a "Google Chrome" fcm_outputs/BD007-1/BD007_fcm_interactive.html
 ```
+
+**Method 5: Command line (Windows):**
+```bash
+# Open with default browser
+start fcm_outputs\BD007-1\BD007_fcm_interactive.html
+```
+
+### Interactive Features
+
+The HTML visualization includes:
+
+- **Hierarchical View**: 
+  - Top level shows clusters and inter-cluster relationships
+  - Click any cluster to explore internal concepts and relationships
+  - Use "Back to Clusters" button to return to overview
+
+- **Interactive Controls**:
+  - Confidence filter slider to show/hide edges based on confidence
+  - Hover over nodes and edges for detailed information
+  - Drag nodes to rearrange the layout
+
+- **Visual Elements**:
+  - **Blue nodes**: Clusters (click to explore)
+  - **Orange nodes**: Individual concepts
+  - **Green lines**: Positive relationships
+  - **Red lines**: Negative relationships
+  - **Solid lines**: Inter-cluster relationships
+  - **Dashed lines**: Intra-cluster relationships
+
+- **Information Display**:
+  - Edge weights and confidence scores on hover
+  - Node details and cluster information
+  - Current view indicator (Cluster Overview or specific cluster)
 
 ## 🔧 Advanced Usage
 

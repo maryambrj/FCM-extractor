@@ -49,6 +49,18 @@ from utils.visualize_fcm import create_interactive_visualization
 import networkx as nx
 from itertools import combinations
 
+def read_document(file_path: str) -> str:
+    """Read text content from a document (Word or text file)."""
+    file_extension = os.path.splitext(file_path)[1].lower()
+    
+    if file_extension in ['.docx', '.doc']:
+        return read_word_document(file_path)
+    elif file_extension == '.txt':
+        return read_text_file(file_path)
+    else:
+        print(f"Unsupported file format: {file_extension}")
+        return None
+
 def read_word_document(file_path: str) -> str:
     """Read text content from a Word document."""
     try:
@@ -59,7 +71,26 @@ def read_word_document(file_path: str) -> str:
                 text.append(paragraph.text.strip())
         return '\n\n'.join(text)
     except Exception as e:
-        print(f"Error reading {file_path}: {e}")
+        print(f"Error reading Word document {file_path}: {e}")
+        return None
+
+def read_text_file(file_path: str) -> str:
+    """Read text content from a text file."""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            text = f.read()
+        return text
+    except UnicodeDecodeError:
+        # Try with different encoding if UTF-8 fails
+        try:
+            with open(file_path, 'r', encoding='latin-1') as f:
+                text = f.read()
+            return text
+        except Exception as e:
+            print(f"Error reading text file {file_path} with latin-1 encoding: {e}")
+            return None
+    except Exception as e:
+        print(f"Error reading text file {file_path}: {e}")
         return None
 
 def save_intermediate_results(results: Dict, output_dir: str, base_name: str):
@@ -231,7 +262,9 @@ def process_single_document(file_path: str, output_dir: str = OUTPUT_DIRECTORY) 
         
         # 1. Read and extract concepts with metadata
         print('\n=== 1. Reading Document & Extracting Concepts ===')
-        text = read_word_document(file_path)
+        text = read_document(file_path)
+        if text is None:
+            raise Exception(f"Failed to read document: {file_path}")
         results['text_length'] = len(text)
         results['stage'] = 'document_read'
         
@@ -451,7 +484,7 @@ def process_interviews(interviews_dir: str = INTERVIEWS_DIRECTORY,
     # Check if interviews directory exists
     if not os.path.exists(interviews_dir):
         print(f"Interviews directory '{interviews_dir}' not found.")
-        print("Please create the directory and add your Word documents (.docx files).")
+        print("Please create the directory and add your documents (.docx, .doc, or .txt files).")
         return []
     
     # Determine which files to process
@@ -463,30 +496,31 @@ def process_interviews(interviews_dir: str = INTERVIEWS_DIRECTORY,
             print(f"Please check the DEFAULT_INTERVIEW_FILE setting in constants.py or ensure the file exists.")
             return []
         
-        word_files = [file_path]
+        document_files = [file_path]
         print(f"Processing specific file: {specific_file}")
         
     else:
-        # Process all Word documents (either explicitly requested or PROCESS_ALL_FILES=True)
-        word_files = glob.glob(os.path.join(interviews_dir, "*.docx"))
-        word_files.extend(glob.glob(os.path.join(interviews_dir, "*.doc")))
+        # Process all documents (either explicitly requested or PROCESS_ALL_FILES=True)
+        document_files = glob.glob(os.path.join(interviews_dir, "*.docx"))
+        document_files.extend(glob.glob(os.path.join(interviews_dir, "*.doc")))
+        document_files.extend(glob.glob(os.path.join(interviews_dir, "*.txt")))
         
-        if not word_files:
-            print(f"No Word documents found in '{interviews_dir}' directory.")
-            print("Please add .docx or .doc files to the interviews folder.")
+        if not document_files:
+            print(f"No documents found in '{interviews_dir}' directory.")
+            print("Please add .docx, .doc, or .txt files to the interviews folder.")
             return []
         
         if PROCESS_ALL_FILES:
-            print(f"Processing all {len(word_files)} Word document(s) (PROCESS_ALL_FILES=True):")
+            print(f"Processing all {len(document_files)} document(s) (PROCESS_ALL_FILES=True):")
         else:
-            print(f"Processing all {len(word_files)} Word document(s) (requested via command line):")
-        for file in word_files:
+            print(f"Processing all {len(document_files)} document(s) (requested via command line):")
+        for file in document_files:
             print(f"  - {os.path.basename(file)}")
     
     # Process each document
     results = []
-    for i, file_path in enumerate(word_files, 1):
-        print(f"\n🔄 Processing document {i}/{len(word_files)}")
+    for i, file_path in enumerate(document_files, 1):
+        print(f"\n🔄 Processing document {i}/{len(document_files)}")
         result = process_single_document(file_path, output_dir)
         if result:
             results.append(result)
@@ -504,7 +538,9 @@ def print_summary(results: List[Dict]):
     
     for result in results:
         doc_name = result.get('document_name', 'Unknown')
-        print(f"\n{doc_name}.docx:")
+        file_path = result.get('file_path', '')
+        file_extension = os.path.splitext(file_path)[1] if file_path else '.docx'
+        print(f"\n{doc_name}{file_extension}:")
         
         # Handle each field safely
         if 'text_length' in result:

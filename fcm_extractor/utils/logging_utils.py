@@ -8,8 +8,26 @@ import builtins
 
 # Global variables
 _original_print = builtins.print
+_original_stderr = sys.stderr
 _log_file_path = None
 _console_and_file_logger = None
+
+class LoggingStderr:
+    """Custom stderr that logs to both console and file."""
+    
+    def __init__(self, logger):
+        self.logger = logger
+        self.original_stderr = _original_stderr
+        
+    def write(self, message):
+        if message.strip():  # Only log non-empty messages
+            if self.logger:
+                self.logger.error(message.rstrip('\n'))
+            # Also write to original stderr for immediate visibility
+            self.original_stderr.write(message)
+            
+    def flush(self):
+        self.original_stderr.flush()
 
 def setup_logging(log_directory: str = "../logs", 
                  log_filename: str = None,
@@ -77,6 +95,9 @@ def setup_logging(log_directory: str = "../logs",
     
     # Replace built-in print function
     builtins.print = logged_print
+    
+    # Redirect stderr to also log to file
+    sys.stderr = LoggingStderr(_console_and_file_logger)
     
     # Log the setup
     logger.info(f"=== FCM Extraction Session Started ===")
@@ -158,8 +179,9 @@ def finalize_logging():
         
         _console_and_file_logger = None
     
-    # Restore original print function
+    # Restore original print function and stderr
     builtins.print = _original_print
+    sys.stderr = _original_stderr
 
 def get_log_file_path() -> Optional[str]:
     """Get the current log file path."""

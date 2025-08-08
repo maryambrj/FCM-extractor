@@ -38,6 +38,7 @@ class UnifiedLLMClient:
     def __init__(self):
         self.openai_client = None
         self.google_client = None
+        self._gpt5_warning_shown = False
         
     def _get_openai_client(self):
         """Initialize LangChain OpenAI client if not already done."""
@@ -81,8 +82,15 @@ class UnifiedLLMClient:
             client = self._get_openai_client()
             client.model_name = model
             # o1/o3 reasoning models don't support temperature parameter
+            # GPT-5 models only support temperature = 1.0 (default)
             if not is_reasoning_model(model):
-                client.temperature = temperature
+                if model.startswith('gpt-5') and temperature != 1.0:
+                    if not self._gpt5_warning_shown:
+                        print(f"Warning: {model} only supports temperature=1.0, adjusting from {temperature}")
+                        self._gpt5_warning_shown = True
+                    client.temperature = 1.0
+                else:
+                    client.temperature = temperature
             client.max_tokens = max_tokens
             
             response = client.invoke(langchain_messages)
