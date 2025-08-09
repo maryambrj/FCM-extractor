@@ -11,10 +11,10 @@ edge inference, and post-processing steps.
 # =============================================================================
 
 # Core LLM models for different tasks
-CONCEPT_EXTRACTION_MODEL = "gpt-4o-2024-08-06"#"gpt-5-2025-08-07"  # gpt-4.1-mini-2025-04-14 # Model for extracting concepts from text
-META_PROMPTING_MODEL = "gpt-4o-2024-08-06" #"gpt-4o-2024-08-06"      # Model for meta-prompting decisions
-EDGE_INFERENCE_MODEL = "gpt-4o-2024-08-06"      # Model for inferring causal relationships
-LLM_CLUSTERING_MODEL = "gpt-4o-2024-08-06"      # Model for LLM-based clustering
+CONCEPT_EXTRACTION_MODEL = "o3-mini-2025-01-31"#"gpt-5-2025-08-07"  # gpt-4.1-mini-2025-04-14 # Model for extracting concepts from text
+META_PROMPTING_MODEL = "o3-mini-2025-01-31" #"gpt-4o-2024-08-06"      # Model for meta-prompting decisions
+EDGE_INFERENCE_MODEL = "o3-mini-2025-01-31"      # Model for inferring causal relationships
+LLM_CLUSTERING_MODEL = "o3-mini-2025-01-31"      # Model for LLM-based clustering
 
 # Model temperature settings
 CONCEPT_EXTRACTION_TEMPERATURE = 0.0    # Lower = more deterministic extraction

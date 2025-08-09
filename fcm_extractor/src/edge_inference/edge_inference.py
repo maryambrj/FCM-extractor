@@ -49,9 +49,9 @@ def parse_llm_response_for_edges(response: str, pairs: List[Tuple[str, str]], us
     
     print(f"Raw LLM Response:\n---\n{response[:500]}{'...' if len(response) > 500 else ''}\n---")
     
-    langsmith_edges = parse_langsmith_format(response, pairs, use_confidence)
-    if langsmith_edges:
-        return langsmith_edges
+    # langsmith_edges = parse_langsmith_format(response, pairs, use_confidence)
+    # if langsmith_edges:
+    #     return langsmith_edges
     
     edges = []
     lines = response.strip().split('\n')
@@ -107,80 +107,80 @@ def parse_llm_response_for_edges(response: str, pairs: List[Tuple[str, str]], us
     return edges
 
 
-def parse_langsmith_format(response: str, pairs: List[Tuple[str, str]], use_confidence: bool) -> List[Dict]:
-    edges = []
-    
-    sections = re.split(r'Response for Pair (\d+):', response)
-    
-    if len(sections) < 3:
-        return []
-    
-    print(f"Found {(len(sections) - 1) // 2} LangSmith response sections")
-    
-    for i in range(1, len(sections), 2):
-        try:
-            pair_num = int(sections[i]) - 1
-            section_content = sections[i + 1] if i + 1 < len(sections) else ""
-            
-            if pair_num >= len(pairs):
-                print(f"WARNING: Invalid pair number {pair_num + 1}")
-                continue
-            
-            relationship_match = re.search(r'- Relationship:\s*(Yes|No)', section_content, re.IGNORECASE)
-            direction_match = re.search(r'- Direction:\s*([AB])\s*->\s*([AB])', section_content, re.IGNORECASE)
-            polarity_match = re.search(r'- Polarity:\s*(Negative|Positive|Mixed)', section_content, re.IGNORECASE)
-            confidence_match = re.search(r'- Confidence:\s*([0-1]\.\d+)', section_content)
-            
-            if not relationship_match or relationship_match.group(1).lower() == 'no':
-                print(f"✓ Parsed: Pair {pair_num + 1} - no relationship")
-                continue
-            
-            if not direction_match or not polarity_match or not confidence_match:
-                print(f"WARNING: Incomplete data for pair {pair_num + 1}")
-                continue
-            
-            expected_c1, expected_c2 = pairs[pair_num]
-            
-            direction_from = direction_match.group(1).upper()
-            direction_to = direction_match.group(2).upper()
-            
-            if direction_from == 'A' and direction_to == 'B':
-                source, target = expected_c1, expected_c2
-            elif direction_from == 'B' and direction_to == 'A':
-                source, target = expected_c2, expected_c1
-            else:
-                print(f"WARNING: Invalid direction for pair {pair_num + 1}: {direction_from} -> {direction_to}")
-                continue
-            
-            polarity = polarity_match.group(1).lower()
-            if polarity == "mixed":
-                weight = 1.0
-                relationship = "positive"
-            else:
-                weight = 1.0 if polarity == "positive" else -1.0
-                relationship = polarity
-            
-            confidence = float(confidence_match.group(1))
-            
-            edge = {
-                "source": source,
-                "target": target,
-                "weight": weight,
-                "relationship": relationship,
-                "confidence": confidence if use_confidence else 1.0,
-                "expected_pair": f"{expected_c1} -> {expected_c2}",
-                "parsed_pair": f"{source} -> {target}",
-                "format": "langsmith"
-            }
-            edges.append(edge)
-            print(f"✓ Parsed LangSmith: {source} -> {target} ({relationship}, conf: {confidence})")
-            
-        except (ValueError, IndexError) as e:
-            print(f"WARNING: Error parsing pair {i//2 + 1}: {e}")
-            continue
-    
-    print(f"Successfully parsed {len(edges)} edges from LangSmith format")
-    return edges
+# def parse_langsmith_format(response: str, pairs: List[Tuple[str, str]], use_confidence: bool) -> List[Dict]:
+#     edges = []
+#     
+#     sections = re.split(r'Response for Pair (\d+):', response)
+#     
+#     if len(sections) < 3:
+#         return []
+#     
+#     print(f"Found {(len(sections) - 1) // 2} LangSmith response sections")
+#     
+#     for i in range(1, len(sections), 2):
+#         try:
+#             pair_num = int(sections[i]) - 1
+#             section_content = sections[i + 1] if i + 1 < len(sections) else ""
+#             
+#             if pair_num >= len(pairs):
+#                 print(f"WARNING: Invalid pair number {pair_num + 1}")
+#                 continue
+#             
+#             relationship_match = re.search(r'- Relationship:\s*(Yes|No)', section_content, re.IGNORECASE)
+#             direction_match = re.search(r'- Direction:\s*([AB])\s*->\s*([AB])', section_content, re.IGNORECASE)
+#             polarity_match = re.search(r'- Polarity:\s*(Negative|Positive|Mixed)', section_content, re.IGNORECASE)
+#             confidence_match = re.search(r'- Confidence:\s*([0-1]\.\d+)', section_content)
+#             
+#             if not relationship_match or relationship_match.group(1).lower() == 'no':
+#                 print(f"✓ Parsed: Pair {pair_num + 1} - no relationship")
+#                 continue
+#             
+#             if not direction_match or not polarity_match or not confidence_match:
+#                 print(f"WARNING: Incomplete data for pair {pair_num + 1}")
+#                 continue
+#             
+#             expected_c1, expected_c2 = pairs[pair_num]
+#             
+#             direction_from = direction_match.group(1).upper()
+#             direction_to = direction_match.group(2).upper()
+#             
+#             if direction_from == 'A' and direction_to == 'B':
+#                 source, target = expected_c1, expected_c2
+#             elif direction_from == 'B' and direction_to == 'A':
+#                 source, target = expected_c2, expected_c1
+#             else:
+#                 print(f"WARNING: Invalid direction for pair {pair_num + 1}: {direction_from} -> {direction_to}")
+#                 continue
+#             
+#             polarity = polarity_match.group(1).lower()
+#             if polarity == "mixed":
+#                 weight = 1.0
+#                 relationship = "positive"
+#             else:
+#                 weight = 1.0 if polarity == "positive" else -1.0
+#                 relationship = polarity
+#             
+#             confidence = float(confidence_match.group(1))
+#             
+#             edge = {
+#                 "source": source,
+#                 "target": target,
+#                 "weight": weight,
+#                 "relationship": relationship,
+#                 "confidence": confidence if use_confidence else 1.0,
+#                 "expected_pair": f"{expected_c1} -> {expected_c2}",
+#                 "parsed_pair": f"{source} -> {target}",
+#                 "format": "langsmith"
+#             }
+#             edges.append(edge)
+#             print(f"✓ Parsed LangSmith: {source} -> {target} ({relationship}, conf: {confidence})")
+#             
+#         except (ValueError, IndexError) as e:
+#             print(f"WARNING: Error parsing pair {i//2 + 1}: {e}")
+#             continue
+#     
+#     print(f"Successfully parsed {len(edges)} edges from LangSmith format")
+#     return edges
 
 def extract_relevant_text_for_concepts(text: str, concept_pairs: List[Tuple[str, str]], max_length: int = MAX_EDGE_INFERENCE_TEXT_LENGTH) -> str:
     
