@@ -12,7 +12,7 @@ load_dotenv()
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from utils.llm_utils import get_model_provider, is_reasoning_model
+from utils.llm_utils import get_model_provider, is_reasoning_model, uses_max_completion_tokens
 
 # if "LANGCHAIN_API_KEY" not in os.environ:
 #     print("Warning: LANGCHAIN_API_KEY not set. Set it to trace runs in LangSmith.")
@@ -69,12 +69,21 @@ class UnifiedLLMClient:
                         self._gpt5_warning_shown = True
                     actual_temperature = 1.0
             
-            response = client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=actual_temperature,
-                max_tokens=max_tokens
-            )
+            # Use appropriate parameter based on model
+            if uses_max_completion_tokens(model):
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=actual_temperature,
+                    max_completion_tokens=max_tokens
+                )
+            else:
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=actual_temperature,
+                    max_tokens=max_tokens
+                )
             
             content = response.choices[0].message.content
             confidence = 1.0
