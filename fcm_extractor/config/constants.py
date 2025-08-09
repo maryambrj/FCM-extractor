@@ -11,10 +11,10 @@ edge inference, and post-processing steps.
 # =============================================================================
 
 # Core LLM models for different tasks
-CONCEPT_EXTRACTION_MODEL = "gpt-5-2025-08-07"  # gpt-4.1-mini-2025-04-14 # Model for extracting concepts from text
-META_PROMPTING_MODEL = "gpt-5-2025-08-07" #"gpt-4o-2024-08-06"      # Model for meta-prompting decisions
-EDGE_INFERENCE_MODEL = "gpt-5-2025-08-07"      # Model for inferring causal relationships
-LLM_CLUSTERING_MODEL = "gpt-5-2025-08-07"      # Model for LLM-based clustering
+CONCEPT_EXTRACTION_MODEL = "gpt-4o-2024-08-06"#"gpt-5-2025-08-07"  # gpt-4.1-mini-2025-04-14 # Model for extracting concepts from text
+META_PROMPTING_MODEL = "gpt-4o-2024-08-06" #"gpt-4o-2024-08-06"      # Model for meta-prompting decisions
+EDGE_INFERENCE_MODEL = "gpt-4o-2024-08-06"      # Model for inferring causal relationships
+LLM_CLUSTERING_MODEL = "gpt-4o-2024-08-06"      # Model for LLM-based clustering
 
 # Model temperature settings
 CONCEPT_EXTRACTION_TEMPERATURE = 0.0    # Lower = more deterministic extraction
@@ -26,7 +26,7 @@ META_PROMPTING_TEMPERATURE = 0.5        # Higher = more creative meta-prompting
 # =============================================================================
 
 # Primary clustering method selection
-CLUSTERING_METHOD = "hybrid"  
+CLUSTERING_METHOD = "hybrid" 
 # Options:
 # - "llm_only": Use LLM for all clustering decisions
 # - "hybrid": Combine embedding-based and LLM-based clustering
@@ -65,10 +65,10 @@ CLUSTER_NAMING_BATCH_SIZE = 5           # Concepts per batch for cluster naming
 
 # HDBSCAN parameters
 HDBSCAN_MIN_CLUSTER_SIZE = 2           # Minimum concepts per cluster (lower = more clusters)
-HDBSCAN_MIN_SAMPLES = 3               # Minimum samples for core points (lower = more clusters)
+HDBSCAN_MIN_SAMPLES = 5               # Minimum samples for core points (lower = more clusters)
 
 # UMAP parameters
-UMAP_N_NEIGHBORS = 3                    # Local vs global structure (1-50)
+UMAP_N_NEIGHBORS = 5                    # Local vs global structure (1-50)
 UMAP_MIN_DIST = 0.1                     # Cluster tightness (0.0-1.0)
 UMAP_N_COMPONENTS = 2                   # Dimensions after reduction
 
@@ -121,8 +121,8 @@ ENABLE_INTRA_CLUSTER_EDGES = False     # Whether to infer edges within clusters
 
 # Batch sizes for API efficiency
 EDGE_INFERENCE_BATCH_SIZE = 5          # Batch size for intra-cluster edges
-CLUSTER_EDGE_BATCH_SIZE = 5            # Batch size for inter-cluster edges
-MAX_EDGE_INFERENCE_TEXT_LENGTH = 12000  # Maximum text length for edge inference
+CLUSTER_EDGE_BATCH_SIZE = 2            # Batch size for inter-cluster edges
+MAX_EDGE_INFERENCE_TEXT_LENGTH = 24000  # Maximum text length for edge inference
 
 # =============================================================================
 # CONCEPT EXTRACTION CONFIGURATION
@@ -135,10 +135,10 @@ CONCEPT_EXTRACTION_N_PROMPTS = 2        # Number of extraction prompts to run
 # =============================================================================
 
 ACO_MAX_ITERATIONS = 5    #3              # Number of ACO iterations
-ACO_SAMPLES_PER_ITERATION = 70     #30     # Number of edges to sample per iteration
-ACO_EVAPORATION_RATE = 0.25 #0.15             # Pheromone evaporation rate (0.0-1.0)
-ACO_INITIAL_PHEROMONE = 0.02#0.01            # Initial pheromone level for all edges
-ACO_CONVERGENCE_THRESHOLD = 0.05#0.03        # Convergence threshold for early stopping
+ACO_SAMPLES_PER_ITERATION = 50     #30     # Number of edges to sample per iteration
+ACO_EVAPORATION_RATE = 0.15             # Pheromone evaporation rate (0.0-1.0)
+ACO_INITIAL_PHEROMONE = 0.01            # Initial pheromone level for all edges
+ACO_CONVERGENCE_THRESHOLD = 0.03        # Convergence threshold for early stopping
 ACO_GUARANTEE_COVERAGE = True           # Ensure all edges tested at least once
 
 # =============================================================================
@@ -164,7 +164,7 @@ INCLUDE_TIMESTAMP_IN_LOGS = True        # Include timestamps in log entries
 SEPARATE_LOG_PER_DOCUMENT = True        # Create separate log per document
 
 # Verbosity settings
-META_PROMPTING_VERBOSE = True          # Show meta-prompting decisions
+META_PROMPTING_VERBOSE = False          # Show meta-prompting decisions
 
 # =============================================================================
 # EVALUATION SETTINGS

@@ -1,5 +1,6 @@
 import numpy as np
 import random
+import re
 from typing import Dict, List, Tuple, Set
 from dataclasses import dataclass
 import sys

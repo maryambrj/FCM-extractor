@@ -9,25 +9,80 @@ from transformers import AutoTokenizer, AutoModel
 import os
 import argparse
 import sys
+import random
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from config.constants import EVALUATION_INCLUDE_INTRA_CLUSTER_EDGES, EVALUATION_INCLUDE_INTRA_CLUSTER_NODES
-from typing import Dict, List, Tuple
+from config.constants import EDGE_CONFIDENCE_THRESHOLD
+from typing import Dict, List, Tuple, Optional
+
+
+def build_cluster_texts(metadata_json):
+    """
+    Accepts dict-like metadata keyed by cluster ids (e.g., 'cluster_0').
+    Returns:
+      doc_texts: map usable under both keys: id -> text AND name -> text
+      id_to_name: map id -> human-readable name
+    """
+    doc_texts = {}
+    id_to_name = {}
+    
+    # If metadata is a dict of clusters
+    if isinstance(metadata_json, dict) and "clusters" not in metadata_json:
+        items = metadata_json.items()
+        # print(f"Processing {len(items)} clusters as dict items")
+    else:
+        clusters_data = metadata_json.get("clusters", [])
+        items = enumerate(clusters_data)
+        # print(f"Processing {len(clusters_data)} clusters from list")
+
+    for k, c in items:
+        # Normalize to a common record
+        cid   = str(c.get("id", k)).strip()
+        cname = str(c.get("name", cid)).strip()
+        concepts = c.get("concepts", []) or []
+        summary  = c.get("summary", "")
+
+        # Build a rich but short text (avoid banned fields like embeddings)
+        # Keep top-N concepts for signal; tweak N if needed
+        conc_text = ", ".join(concepts[:10])
+        blob = " ".join([cname, summary, conc_text]).strip() or cname
+
+        # Fill both keys so enrichment works regardless of whether FCM uses id or name
+        doc_texts[cid] = blob
+        doc_texts[cname] = blob
+        id_to_name[cid] = cname
+
+    # print(f"Built rich text for {len(doc_texts)//2} clusters (with both id and name keys)")
+    return doc_texts, id_to_name
 
 
 class ScoreCalculator:
     cache = {}
-    def __init__(self, threshold, model_name, data, tp_scale=1, pp_scale=1.1):  #pp 1
+    def __init__(self, threshold, model_name, data, tp_scale=1, pp_scale=1.1, seed=42, doc_texts=None):  #pp 1
+        # Set seeds for reproducibility
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed(seed)
+            torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
         self.model_name = model_name
         self.data = data
         self.threshold = threshold
         self.tp_scale = tp_scale
         self.pp_scale = pp_scale
+        self.doc_texts = doc_texts or {}  # cluster_id -> rich_text mapping
         
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name, padding_side='left')
-        self.model = AutoModel.from_pretrained(self.model_name)
-        self.task_instruction = "Retrieve concepts that are semantically similar."
+        self.model = AutoModel.from_pretrained(
+            self.model_name,
+            torch_dtype=torch.float32  # <- force fp32
+        )
+        self.model.eval()              # <- disable dropout
+        self.task_instruction = "Retrieve clusters that are semantically similar."
         
         try:
             if torch.cuda.is_available():
@@ -45,29 +100,40 @@ class ScoreCalculator:
             else:
                 raise e
 
-    def last_token_pool(self, last_hidden_states, attention_mask):
-        left_padding = (attention_mask[:, -1].sum() == attention_mask.shape[0])
-        if left_padding:
-            return last_hidden_states[:, -1]
-        else:
-            sequence_lengths = attention_mask.sum(dim=1) - 1
-            batch_size = last_hidden_states.shape[0]
-            return last_hidden_states[
-                torch.arange(batch_size, device=last_hidden_states.device),
-                sequence_lengths
-            ]
+    def mean_pool(self, last_hidden_states, attention_mask):
+        mask = attention_mask.unsqueeze(-1).to(last_hidden_states.dtype)
+        summed = (last_hidden_states * mask).sum(dim=1)
+        counts = mask.sum(dim=1).clamp(min=1e-9)
+        return summed / counts
+
+    def _sanitize(self, x):
+        """Sanitize input while preserving alignment - don't drop entries."""
+        s = "" if x is None else str(x).strip()
+        return s if s else "<EMPTY>"
 
     def embed_and_score(self, queries, documents, batch_size=4):
-        clean_queries = [str(q).strip() for q in queries if q is not None and str(q).strip()]
-        clean_documents = [str(d).strip() for d in documents if d is not None and str(d).strip()]
+        """
+        Compute similarity matrix between queries and documents.
+        
+        Returns:
+            torch.Tensor: Similarity matrix of shape (len(queries), len(documents))
+                         where result[i, j] is similarity between queries[i] and documents[j]
+        """
+        # Preserve alignment by sanitizing but not filtering out entries
+        clean_queries = [self._sanitize(q) for q in queries]
+        clean_documents = [self._sanitize(d) for d in documents]
 
         if not clean_queries or not clean_documents:
             return torch.zeros((len(queries), len(documents)))
 
+        # Enrich *generated clusters* (queries) with metadata
+        enriched_queries = [self.doc_texts.get(q, q) for q in clean_queries]
+        
+
+
         text_prompt = lambda t: f"Instruct: {self.task_instruction}\nQuery: {t}"
-        query_texts = [text_prompt(q) for q in clean_queries]
-        # document_texts = [text_prompt(d) for d in clean_documents]
-        document_texts = clean_documents
+        query_texts = [text_prompt(q) for q in enriched_queries]
+        document_texts = clean_documents  # GT names stay plain
 
         query_embeddings = []
         for i in range(0, len(query_texts), batch_size):
@@ -82,11 +148,11 @@ class ScoreCalculator:
 
             with torch.no_grad():
                 outputs = self.model(**batch)
-            batch_embeddings = self.last_token_pool(outputs.last_hidden_state, batch['attention_mask'])
+            batch_embeddings = self.mean_pool(outputs.last_hidden_state, batch['attention_mask'])
             query_embeddings.append(batch_embeddings)
             
             del batch, outputs, batch_embeddings
-            if self.device != "cpu":
+            if self.device == "cuda" and torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
         document_embeddings = []
@@ -102,11 +168,11 @@ class ScoreCalculator:
 
             with torch.no_grad():
                 outputs = self.model(**batch)
-            batch_embeddings = self.last_token_pool(outputs.last_hidden_state, batch['attention_mask'])
+            batch_embeddings = self.mean_pool(outputs.last_hidden_state, batch['attention_mask'])
             document_embeddings.append(batch_embeddings)
             
             del batch, outputs, batch_embeddings
-            if self.device != "cpu":
+            if self.device == "cuda" and torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
         if not query_embeddings or not document_embeddings:
@@ -115,8 +181,16 @@ class ScoreCalculator:
         query_embeddings = torch.cat(query_embeddings, dim=0)
         document_embeddings = torch.cat(document_embeddings, dim=0)
         
-        query_embeddings = F.normalize(query_embeddings, p=2, dim=1)
-        document_embeddings = F.normalize(document_embeddings, p=2, dim=1)
+        # Robust normalization (no NaNs)
+        query_embeddings = torch.nan_to_num(query_embeddings)
+        document_embeddings = torch.nan_to_num(document_embeddings)
+
+        # safe_l2_norm
+        def safe_l2_norm(x):
+            return x / torch.clamp(torch.norm(x, dim=1, keepdim=True), min=1e-6)
+
+        query_embeddings = safe_l2_norm(query_embeddings)
+        document_embeddings = safe_l2_norm(document_embeddings)
 
         similarity_matrix = torch.zeros(len(clean_queries), len(clean_documents), device=self.device)
         
@@ -128,34 +202,29 @@ class ScoreCalculator:
                 similarity_matrix[i:i + batch_size, j:j + batch_size] = batch_similarity
                 
                 del batch_similarity
-                if self.device != "cpu":
+                if torch.cuda.is_available() and self.device == "cuda":
                     torch.cuda.empty_cache()
 
         return similarity_matrix
 
     def calculate_f1_score(self, tp, fp, fn, pp=None):
         if pp is None:
-            precision = tp / (tp + fp) if (tp + fp) > 0 else 0
-            recall = tp / (tp + fn) if (tp + fn) > 0 else 0
-            f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
-        else:
-            if (2*tp + fp + fn + pp) == 0:
-                return 0
-            else:
-                f1_score = (2*tp + pp) / (2*tp + fp + fn + pp)
-        
-        return f1_score
+            denom = 2*tp + fp + fn
+            return (2*tp)/denom if denom else 0.0
+        denom = 2*tp + fp + fn + pp
+        return (2*tp + pp)/denom if denom else 0.0
         
     def convert_matrix(self, df_matrix):
         values = df_matrix.values
         columns = df_matrix.columns
         index = df_matrix.index
 
+        # Extract all non-zero entries (including negative values) as edges
         row_idx, col_idx = np.nonzero(values)
 
-        sources_list = [columns[c] for c in col_idx]
-        targets_list = [index[r] for r in row_idx]
-        values_list = [int(values[r, c]) for r, c in zip(row_idx, col_idx)]
+        sources_list = [index[r] for r in row_idx]   # rows → sources
+        targets_list = [columns[c] for c in col_idx]  # cols → targets
+        values_list = [float(values[r, c]) for r, c in zip(row_idx, col_idx)]
 
         return sources_list, targets_list, values_list
 
@@ -163,34 +232,39 @@ class ScoreCalculator:
         self.gt_nodes_src, self.gt_nodes_tgt, self.gt_edge_dir = self.convert_matrix(gt_matrix)
         self.gen_nodes_src, self.gen_nodes_tgt, self.gen_edge_dir = self.convert_matrix(gen_matrix)
         
-        if self.data not in self.cache:
-            ScoreCalculator.cache[self.data] = {}
-
-        if self.model_name not in self.cache[self.data]:
-            ScoreCalculator.cache[self.data][self.model_name] = {}
+        # Create a more specific cache key that includes metadata state
+        import hashlib, json
+        cache_content = (
+            tuple(self.gen_nodes_src), tuple(self.gt_nodes_src),
+            tuple(self.gen_nodes_tgt), tuple(self.gt_nodes_tgt)
+        )
+        cache_hash = hashlib.md5(str(cache_content).encode()).hexdigest()[:8]
+        docsig = hashlib.md5(json.dumps(self.doc_texts, sort_keys=True).encode()).hexdigest() if self.doc_texts else "nometa"
+        cache_key = f"{self.data}_{self.model_name}_{cache_hash}_{docsig}"
+        
+        if cache_key not in self.cache:
+            ScoreCalculator.cache[cache_key] = {}
             
-        if 'src' not in self.cache[self.data][self.model_name]:
-            try:
-                ScoreCalculator.cache[self.data][self.model_name]['src'] = self.embed_and_score(self.gen_nodes_src, self.gt_nodes_src, getattr(self, 'batch_size', 2)).cpu().numpy()
-            except:
-                ScoreCalculator.cache[self.data][self.model_name]['src'] = self.embed_and_score(self.gen_nodes_src, self.gt_nodes_src, getattr(self, 'batch_size', 2))
+        if 'src' not in self.cache[cache_key]:
+            # embed_and_score(queries, documents) returns (queries × documents) 
+            # Call as (gen, gt) to get (gen × gt) similarity matrix
+            src_scores = self.embed_and_score(self.gen_nodes_src, self.gt_nodes_src, getattr(self, 'batch_size', 2))
+            ScoreCalculator.cache[cache_key]['src'] = src_scores.detach().cpu().numpy()
 
-        if 'tgt' not in self.cache[self.data][self.model_name]:
-            try:
-                ScoreCalculator.cache[self.data][self.model_name]['tgt'] = self.embed_and_score(self.gen_nodes_tgt, self.gt_nodes_tgt, getattr(self, 'batch_size', 2)).cpu().numpy()
-            except:
-                ScoreCalculator.cache[self.data][self.model_name]['tgt'] = self.embed_and_score(self.gen_nodes_tgt, self.gt_nodes_tgt, getattr(self, 'batch_size', 2))
+        if 'tgt' not in self.cache[cache_key]:
+            # embed_and_score(queries, documents) returns (queries × documents)
+            # Call as (gen, gt) to get (gen × gt) similarity matrix
+            tgt_scores = self.embed_and_score(self.gen_nodes_tgt, self.gt_nodes_tgt, getattr(self, 'batch_size', 2))
+            ScoreCalculator.cache[cache_key]['tgt'] = tgt_scores.detach().cpu().numpy()
 
-        all_scores_src = np.array(ScoreCalculator.cache[self.data][self.model_name]['src'])
-        all_scores_tgt = np.array(ScoreCalculator.cache[self.data][self.model_name]['tgt'])
+        all_scores_src = np.array(ScoreCalculator.cache[cache_key]['src'])
+        all_scores_tgt = np.array(ScoreCalculator.cache[cache_key]['tgt'])
 
-        # Debug: Print shapes
-        print(f"Debug - Generated edges: {len(self.gen_edge_dir)}")
-        print(f"Debug - GT edges: {len(self.gt_edge_dir)}")
-        print(f"Debug - all_scores_src shape: {all_scores_src.shape}")
-        print(f"Debug - all_scores_tgt shape: {all_scores_tgt.shape}")
 
-        # For each generated edge, find the best matching GT edge
+      
+        src_top = np.unravel_index(np.argsort(all_scores_src, axis=None)[-5:], all_scores_src.shape)
+        tgt_top = np.unravel_index(np.argsort(all_scores_tgt, axis=None)[-5:], all_scores_tgt.shape)
+
         gen_has_tp = np.zeros(len(self.gen_edge_dir), dtype=bool)
         gen_has_pp = np.zeros(len(self.gen_edge_dir), dtype=bool)
         
@@ -220,8 +294,10 @@ class ScoreCalculator:
                     if combined_score > best_match_score:
                         best_match_score = combined_score
                         best_match_j = j
-                        # Check if directions (weights) match
-                        best_is_tp = (self.gen_edge_dir[i] == self.gt_edge_dir[j])
+                        # Check if directions (polarities) match
+                        gen_sign = np.sign(self.gen_edge_dir[i])
+                        gt_sign = np.sign(self.gt_edge_dir[j])
+                        best_is_tp = (gen_sign == gt_sign)
             
             # Classify based on best match
             if best_match_j >= 0:  # Found a valid match
@@ -263,6 +339,13 @@ class ScoreCalculator:
         
         self.FN = len(self.gt_edge_dir) - np.sum(gt_has_match)
 
+        # print("Kept predicted edges after filtering:", len(self.gen_edge_dir))
+        # print("GT edges:", len(self.gt_edge_dir))
+        # print("Mean src/tgt sims above threshold:",
+        #       (all_scores_src >= self.threshold).mean(),
+        #       (all_scores_tgt >= self.threshold).mean())
+        print("TP, PP, FP, FN:", self.TP, self.PP, self.FP, self.FN)
+
         TP_scaled = self.TP * self.tp_scale
         PP_scaled = self.PP * self.pp_scale
 
@@ -290,99 +373,55 @@ class ScoreCalculator:
         return model_score
 
 
-def load_fcm_data(gt_path: str, gen_path: str, include_intra_cluster_edges: bool = EVALUATION_INCLUDE_INTRA_CLUSTER_EDGES,
-                  include_intra_cluster_nodes: bool = EVALUATION_INCLUDE_INTRA_CLUSTER_NODES) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    
-    print(f"Loading ground truth from: {gt_path}")
+def load_fcm_data(gt_path, gen_path, metadata_path=None):
     gt_matrix = pd.read_csv(gt_path, index_col=0)
-    
-    print(f"Loading generated FCM from: {gen_path}")
-    with open(gen_path, 'r') as f:
+
+    with open(gen_path, "r") as f:
         gen_json = json.load(f)
-    
-    gen_matrix = json_to_matrix(gen_json, include_intra_cluster_edges, include_intra_cluster_nodes)
-    
-    return gt_matrix, gen_matrix
+
+    doc_texts, id_to_name = {}, {}
+    if metadata_path and os.path.exists(metadata_path):
+        with open(metadata_path, "r") as f:
+            metadata_json = json.load(f)
+        doc_texts, id_to_name = build_cluster_texts(metadata_json)
+        print(f"Loaded metadata for {len(id_to_name)} clusters")
+
+    gen_matrix = json_to_matrix(gen_json, id_to_name=id_to_name)
+    return gt_matrix, gen_matrix, doc_texts
 
 
-def json_to_matrix(json_data: Dict, include_intra_cluster_edges: bool = EVALUATION_INCLUDE_INTRA_CLUSTER_EDGES, 
-                   include_intra_cluster_nodes: bool = EVALUATION_INCLUDE_INTRA_CLUSTER_NODES) -> pd.DataFrame:
-    node_concepts = {}
-    for node in json_data['nodes']:
-        node_id = node['id']
-        concepts = node['concepts']
-        
-        if include_intra_cluster_nodes:
-            if isinstance(concepts, list):
-                for i, concept in enumerate(concepts):
-                    node_concepts[f"{node_id}_{i}"] = concept.strip() if concept else f"node_{node_id}_{i}"
-            elif isinstance(concepts, str):
-                for i, concept in enumerate(concepts.split(',')):
-                    node_concepts[f"{node_id}_{i}"] = concept.strip() if concept else f"node_{node_id}_{i}"
-            else:
-                node_concepts[node_id] = f"node_{node_id}"
-        else:
-            if isinstance(concepts, list):
-                node_concepts[node_id] = concepts[0].strip() if concepts else f"node_{node_id}"
-            elif isinstance(concepts, str):
-                node_concepts[node_id] = concepts.split(',')[0].strip() if concepts else f"node_{node_id}"
-            else:
-                node_concepts[node_id] = f"node_{node_id}"
-    
+def json_to_matrix(json_data: Dict, id_to_name=None) -> pd.DataFrame:
+    # Map node ids -> preferred node label
+    # Prefer metadata name when available; otherwise keep whatever is in JSON
+    def label_for(raw_id):
+        raw_id = str(raw_id)
+        if id_to_name and raw_id in id_to_name:
+            return id_to_name[raw_id]
+        return raw_id 
+
     edges = []
-    for edge in json_data['edges']:
-        edge_type = edge.get('type', 'inter_cluster')
-        
-        if edge_type == 'intra_cluster' and not include_intra_cluster_edges:
+    for e in json_data["edges"]:
+        if e.get("type") != "inter_cluster":
             continue
-            
-        source_id = edge['source']
-        target_id = edge['target']
-        weight = edge['weight']
-        
-        if include_intra_cluster_nodes and edge_type == 'intra_cluster':
-            source_node = next((node for node in json_data['nodes'] if node['id'] == source_id), None)
-            target_node = next((node for node in json_data['nodes'] if node['id'] == target_id), None)
-            
-            if source_node and target_node:
-                source_concepts = source_node['concepts'] if isinstance(source_node['concepts'], list) else source_node['concepts'].split(',')
-                target_concepts = target_node['concepts'] if isinstance(target_node['concepts'], list) else target_node['concepts'].split(',')
-                
-                for src_concept in source_concepts:
-                    for tgt_concept in target_concepts:
-                        if src_concept.strip() and tgt_concept.strip():
-                            edges.append({
-                                'source': src_concept.strip(),
-                                'target': tgt_concept.strip(),
-                                'weight': weight,
-                                'type': edge_type
-                            })
-        else:
-            source_name = node_concepts.get(source_id, f"node_{source_id}")
-            target_name = node_concepts.get(target_id, f"node_{target_id}")
-            
-            edges.append({
-                'source': source_name,
-                'target': target_name,
-                'weight': weight,
-                'type': edge_type
-            })
-    
+        conf = float(e.get("confidence", 0.0))
+        if conf <= EDGE_CONFIDENCE_THRESHOLD:
+            continue
+        s = label_for(e["source"])
+        t = label_for(e["target"])
+        w = float(e["weight"])
+        edges.append((s, t, w))
+
+    # Build adjacency with correct orientation
     if not edges:
-        all_nodes = list(node_concepts.values())
-        if not all_nodes:
-            all_nodes = ['empty_graph']
-        matrix = pd.DataFrame(0, index=all_nodes, columns=all_nodes)
+        nodes = set()
     else:
-        all_nodes = list(set([edge['source'] for edge in edges] + [edge['target'] for edge in edges]))
-        matrix = pd.DataFrame(0, index=all_nodes, columns=all_nodes)
-        
-        for edge in edges:
-            matrix.loc[edge['source'], edge['target']] = edge['weight']
-    
-    print(f"Created evaluation matrix with {len(edges)} edges ({len([e for e in edges if e.get('type') == 'inter_cluster'])} inter-cluster, {len([e for e in edges if e.get('type') == 'intra_cluster'])} intra-cluster)")
-    
-    return matrix
+        nodes = set([s for s, _, _ in edges] + [t for _, t, _ in edges])
+    nodes = sorted(nodes) or ["empty_graph"]
+    mat = pd.DataFrame(0.0, index=nodes, columns=nodes)
+    for s, t, w in edges:
+        mat.loc[s, t] = w
+    print(f"Created evaluation matrix with {len(edges)} edges")
+    return mat
 
 
 def main():
@@ -394,13 +433,30 @@ def main():
     parser.add_argument('--tp-scale', type=float, default=1.0, help='True positive scale')
     parser.add_argument('--pp-scale', type=float, default=1.1, help='Partial positive scale')
     parser.add_argument('--batch-size', type=int, default=2, help='Batch size for processing (lower = less memory)')
-    parser.add_argument('--include-intra-cluster-edges', action='store_true', help='Include intra-cluster edges in evaluation')
-    parser.add_argument('--include-intra-cluster-nodes', action='store_true', help='Include intra-cluster nodes in evaluation')
+    parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
+    parser.add_argument('--metadata-path', help='Path to cluster metadata JSON file (e.g., BD007_cluster_metadata.json)')
     
     args = parser.parse_args()
     
     data_name = os.path.splitext(os.path.basename(args.gt_path))[0]
     output_dir = os.path.dirname(args.gen_path)
+    
+    # Auto-construct metadata path if not provided
+    metadata_path = args.metadata_path
+    if not metadata_path:
+        # Try to find metadata file based on dataset name
+        potential_metadata_path = os.path.join(output_dir, f"{data_name}_cluster_metadata.json")
+        print(f"Looking for metadata at: {potential_metadata_path}")
+        if os.path.exists(potential_metadata_path):
+            metadata_path = potential_metadata_path
+            print(f"Auto-detected metadata file: {metadata_path}")
+        else:
+            print(f"No metadata file found at expected location: {potential_metadata_path}")
+            metadata_path = None
+    else:
+        print(f"Using provided metadata path: {metadata_path}")
+    
+    final_metadata_path = metadata_path
     
     if not os.path.exists(args.gt_path):
         print(f"Error: Ground truth file {args.gt_path} not found!")
@@ -412,9 +468,8 @@ def main():
     
     os.makedirs(output_dir, exist_ok=True)
     
-    gt_matrix, gen_matrix = load_fcm_data(args.gt_path, args.gen_path, 
-                                         args.include_intra_cluster_edges, 
-                                         args.include_intra_cluster_nodes)
+    gt_matrix, gen_matrix, doc_texts = load_fcm_data(args.gt_path, args.gen_path, 
+                                                    final_metadata_path)
     
     print(f"Ground truth matrix shape: {gt_matrix.shape}")
     print(f"Generated matrix shape: {gen_matrix.shape}")
@@ -428,7 +483,9 @@ def main():
         model_name=args.model_name,
         data=data_name,
         tp_scale=args.tp_scale,
-        pp_scale=args.pp_scale
+        pp_scale=args.pp_scale,
+        seed=args.seed,
+        doc_texts=doc_texts
     )
     
     scorer.batch_size = args.batch_size

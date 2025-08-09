@@ -90,7 +90,7 @@ def build_fcm_graph(clusters: Dict[str, List[str]], inter_cluster_edges: List[Di
             
     return G
 
-def export_graph_to_json(G: nx.DiGraph, out_path: str):
+def export_graph_to_json(G: nx.DiGraph, out_path: str, constants_config: Dict = None):
     def convert_numpy_types(obj):
         """Convert numpy types to native Python types for JSON serialization"""
         if isinstance(obj, np.integer):
@@ -123,6 +123,10 @@ def export_graph_to_json(G: nx.DiGraph, out_path: str):
             if d.get("type") in ["inter_cluster", "intra_cluster"] and "weight" in d
         ]
     }
+    
+    # Include constants configuration if provided
+    if constants_config:
+        data["constants_config"] = constants_config
     with open(out_path, "w") as f:
         json.dump(data, f, indent=2)
 

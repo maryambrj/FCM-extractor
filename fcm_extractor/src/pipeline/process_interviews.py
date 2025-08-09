@@ -28,7 +28,12 @@ from config.constants import (
     TSNE_PERPLEXITY, TSNE_EARLY_EXAGGERATION, TSNE_LEARNING_RATE, TSNE_N_ITER,
     EVALUATION_INCLUDE_INTRA_CLUSTER_EDGES, EVALUATION_INCLUDE_INTRA_CLUSTER_NODES,
     LLM_CLUSTERING_PROMPT_TEMPLATE, LLM_CLUSTER_REFINEMENT_PROMPT_TEMPLATE,
-    ENABLE_POST_CLUSTERING, POST_CLUSTERING_SIMILARITY_THRESHOLD, POST_CLUSTERING_EMBEDDING_MODEL
+    ENABLE_POST_CLUSTERING, POST_CLUSTERING_SIMILARITY_THRESHOLD, POST_CLUSTERING_EMBEDDING_MODEL,
+    META_PROMPTING_MODEL, META_PROMPTING_TEMPERATURE, META_PROMPTING_ENABLED, META_PROMPTING_VERBOSE,
+    DYNAMIC_PROMPTING_ENABLED, DYNAMIC_PROMPTING_USE_CACHE, DYNAMIC_PROMPTING_USE_REFLECTION,
+    DYNAMIC_PROMPTING_TRACK_PERFORMANCE, POST_CLUSTERING_MAX_MERGES_PER_CLUSTER,
+    POST_CLUSTERING_REQUIRE_MINIMUM_SIMILARITY, ACO_MAX_ITERATIONS, ACO_SAMPLES_PER_ITERATION,
+    ACO_EVAPORATION_RATE, ACO_INITIAL_PHEROMONE, ACO_CONVERGENCE_THRESHOLD, ACO_GUARANTEE_COVERAGE
 )
 from src.core import extract_concepts, extract_concepts_with_metadata, build_fcm_graph, export_graph_to_json
 from src.clustering import cluster_concepts_improved, name_all_clusters, cluster_concepts_with_metadata, apply_post_clustering
@@ -80,29 +85,86 @@ def read_text_file(file_path: str) -> str:
         print(f"Error reading text file {file_path}: {e}")
         return None
 
-def save_intermediate_results(results: Dict, output_dir: str, base_name: str):
-    temp_file = os.path.join(output_dir, f"{base_name}_temp.json")
-    with open(temp_file, 'w') as f:
-        json.dump(results, f, indent=2)
-
-def load_intermediate_results(output_dir: str, base_name: str) -> Dict:
-    temp_file = os.path.join(output_dir, f"{base_name}_temp.json")
-    if os.path.exists(temp_file):
-        try:
-            with open(temp_file, 'r') as f:
-                results = json.load(f)
-            print(f"Loaded existing intermediate results from {temp_file}")
-            return results
-        except Exception as e:
-            print(f"Could not load intermediate results: {e}")
-    return None
-
-def save_run_parameters(output_dir, base_name):
-    params = {
+def get_constants_config():
+    """Extract constants configuration for inclusion in output files."""
+    return {
         "CONCEPT_EXTRACTION_MODEL": CONCEPT_EXTRACTION_MODEL,
         "CONCEPT_EXTRACTION_TEMPERATURE": CONCEPT_EXTRACTION_TEMPERATURE,
         "CONCEPT_EXTRACTION_N_PROMPTS": CONCEPT_EXTRACTION_N_PROMPTS,
         "DEFAULT_CONCEPT_EXTRACTION_PROMPT": DEFAULT_CONCEPT_EXTRACTION_PROMPT,
+        "META_PROMPTING_MODEL": META_PROMPTING_MODEL,
+        "META_PROMPTING_TEMPERATURE": META_PROMPTING_TEMPERATURE,
+        "META_PROMPTING_ENABLED": META_PROMPTING_ENABLED,
+        "META_PROMPTING_VERBOSE": META_PROMPTING_VERBOSE,
+        "DYNAMIC_PROMPTING_ENABLED": DYNAMIC_PROMPTING_ENABLED,
+        "DYNAMIC_PROMPTING_USE_CACHE": DYNAMIC_PROMPTING_USE_CACHE,
+        "DYNAMIC_PROMPTING_USE_REFLECTION": DYNAMIC_PROMPTING_USE_REFLECTION,
+        "DYNAMIC_PROMPTING_TRACK_PERFORMANCE": DYNAMIC_PROMPTING_TRACK_PERFORMANCE,
+        "CLUSTERING_METHOD": CLUSTERING_METHOD,
+        "CLUSTERING_ALGORITHM": CLUSTERING_ALGORITHM,
+        "CLUSTERING_EMBEDDING_MODEL": CLUSTERING_EMBEDDING_MODEL,
+        "DIMENSIONALITY_REDUCTION": DIMENSIONALITY_REDUCTION,
+        "USE_LLM_CLUSTERING": USE_LLM_CLUSTERING,
+        "LLM_CLUSTERING_MODEL": LLM_CLUSTERING_MODEL,
+        "CLUSTER_NAMING_BATCH_SIZE": CLUSTER_NAMING_BATCH_SIZE,
+        "HDBSCAN_MIN_CLUSTER_SIZE": HDBSCAN_MIN_CLUSTER_SIZE,
+        "HDBSCAN_MIN_SAMPLES": HDBSCAN_MIN_SAMPLES,
+        "UMAP_N_NEIGHBORS": UMAP_N_NEIGHBORS,
+        "UMAP_MIN_DIST": UMAP_MIN_DIST,
+        "UMAP_N_COMPONENTS": UMAP_N_COMPONENTS,
+        "TSNE_PERPLEXITY": TSNE_PERPLEXITY,
+        "TSNE_EARLY_EXAGGERATION": TSNE_EARLY_EXAGGERATION,
+        "TSNE_LEARNING_RATE": TSNE_LEARNING_RATE,
+        "TSNE_N_ITER": TSNE_N_ITER,
+        "AGGLOMERATIVE_MAX_CLUSTERS": AGGLOMERATIVE_MAX_CLUSTERS,
+        "AGGLOMERATIVE_USE_ELBOW_METHOD": AGGLOMERATIVE_USE_ELBOW_METHOD,
+        "AGGLOMERATIVE_USE_DISTANCE_THRESHOLD": AGGLOMERATIVE_USE_DISTANCE_THRESHOLD,
+        "AGGLOMERATIVE_DISTANCE_THRESHOLD": AGGLOMERATIVE_DISTANCE_THRESHOLD,
+        "EDGE_INFERENCE_MODEL": EDGE_INFERENCE_MODEL,
+        "EDGE_INFERENCE_TEMPERATURE": EDGE_INFERENCE_TEMPERATURE,
+        "EDGE_INFERENCE_BATCH_SIZE": EDGE_INFERENCE_BATCH_SIZE,
+        "CLUSTER_EDGE_BATCH_SIZE": CLUSTER_EDGE_BATCH_SIZE,
+        "ENABLE_INTRA_CLUSTER_EDGES": ENABLE_INTRA_CLUSTER_EDGES,
+        "USE_CONFIDENCE_FILTERING": USE_CONFIDENCE_FILTERING,
+        "EDGE_CONFIDENCE_THRESHOLD": EDGE_CONFIDENCE_THRESHOLD,
+        "MAX_EDGE_INFERENCE_TEXT_LENGTH": MAX_EDGE_INFERENCE_TEXT_LENGTH,
+        "DEFAULT_EDGE_INFERENCE_PROMPT": DEFAULT_EDGE_INFERENCE_PROMPT,
+        "DEFAULT_INTER_CLUSTER_EDGE_PROMPT": DEFAULT_INTER_CLUSTER_EDGE_PROMPT,
+        "DEFAULT_INTRA_CLUSTER_EDGE_PROMPT": DEFAULT_INTRA_CLUSTER_EDGE_PROMPT,
+        "EVALUATION_INCLUDE_INTRA_CLUSTER_EDGES": EVALUATION_INCLUDE_INTRA_CLUSTER_EDGES,
+        "EVALUATION_INCLUDE_INTRA_CLUSTER_NODES": EVALUATION_INCLUDE_INTRA_CLUSTER_NODES,
+        "ENABLE_POST_CLUSTERING": ENABLE_POST_CLUSTERING,
+        "POST_CLUSTERING_SIMILARITY_THRESHOLD": POST_CLUSTERING_SIMILARITY_THRESHOLD,
+        "POST_CLUSTERING_EMBEDDING_MODEL": POST_CLUSTERING_EMBEDDING_MODEL,
+        "POST_CLUSTERING_MAX_MERGES_PER_CLUSTER": POST_CLUSTERING_MAX_MERGES_PER_CLUSTER,
+        "POST_CLUSTERING_REQUIRE_MINIMUM_SIMILARITY": POST_CLUSTERING_REQUIRE_MINIMUM_SIMILARITY,
+        "ACO_MAX_ITERATIONS": ACO_MAX_ITERATIONS,
+        "ACO_SAMPLES_PER_ITERATION": ACO_SAMPLES_PER_ITERATION,
+        "ACO_EVAPORATION_RATE": ACO_EVAPORATION_RATE,
+        "ACO_INITIAL_PHEROMONE": ACO_INITIAL_PHEROMONE,
+        "ACO_CONVERGENCE_THRESHOLD": ACO_CONVERGENCE_THRESHOLD,
+        "ACO_GUARANTEE_COVERAGE": ACO_GUARANTEE_COVERAGE,
+        "LLM_CLUSTERING_PROMPT_TEMPLATE": LLM_CLUSTERING_PROMPT_TEMPLATE,
+        "LLM_CLUSTER_REFINEMENT_PROMPT_TEMPLATE": LLM_CLUSTER_REFINEMENT_PROMPT_TEMPLATE,
+        "DEFAULT_INTERVIEW_FILE": DEFAULT_INTERVIEW_FILE,
+        "PROCESS_ALL_FILES": PROCESS_ALL_FILES,
+        "INTERVIEWS_DIRECTORY": INTERVIEWS_DIRECTORY,
+        "OUTPUT_DIRECTORY": OUTPUT_DIRECTORY,
+        "ENABLE_FILE_LOGGING": ENABLE_FILE_LOGGING,
+        "LOG_DIRECTORY": LOG_DIRECTORY,
+        "SEPARATE_LOG_PER_DOCUMENT": SEPARATE_LOG_PER_DOCUMENT,
+        "INCLUDE_TIMESTAMP_IN_LOGS": INCLUDE_TIMESTAMP_IN_LOGS,
+        "LOG_LEVEL": LOG_LEVEL
+    }
+
+def save_run_parameters(output_dir, base_name):
+    print(f"Saving run parameters to {output_dir} for {base_name}")
+    try:
+        params = {
+            "CONCEPT_EXTRACTION_MODEL": CONCEPT_EXTRACTION_MODEL,
+            "CONCEPT_EXTRACTION_TEMPERATURE": CONCEPT_EXTRACTION_TEMPERATURE,
+            "CONCEPT_EXTRACTION_N_PROMPTS": CONCEPT_EXTRACTION_N_PROMPTS,
+            "DEFAULT_CONCEPT_EXTRACTION_PROMPT": DEFAULT_CONCEPT_EXTRACTION_PROMPT,
         
         "META_PROMPTING_MODEL": META_PROMPTING_MODEL,
         "META_PROMPTING_TEMPERATURE": META_PROMPTING_TEMPERATURE,
@@ -179,11 +241,15 @@ def save_run_parameters(output_dir, base_name):
         "SEPARATE_LOG_PER_DOCUMENT": SEPARATE_LOG_PER_DOCUMENT,
         "INCLUDE_TIMESTAMP_IN_LOGS": INCLUDE_TIMESTAMP_IN_LOGS,
         "LOG_LEVEL": LOG_LEVEL
-    }
-    param_file = os.path.join(output_dir, f"{base_name}_fcm_params.json")
-    with open(param_file, "w") as f:
-        json.dump(params, f, indent=2)
-    print(f"Saved all run parameters to {param_file}")
+        }
+        param_file = os.path.join(output_dir, f"{base_name}_fcm_params.json")
+        with open(param_file, "w") as f:
+            json.dump(params, f, indent=2)
+        print(f"Saved all run parameters to {param_file}")
+    except Exception as e:
+        print(f"Error saving run parameters: {e}")
+        import traceback
+        traceback.print_exc()
 
 def process_single_document(file_path: str, output_dir: str = OUTPUT_DIRECTORY) -> Dict:
     print(f"\nProcessing: {file_path}")
@@ -227,7 +293,7 @@ def process_single_document(file_path: str, output_dir: str = OUTPUT_DIRECTORY) 
         results['stage'] = 'document_read'
         
         print(f"Document length: {len(text)} characters")
-        save_intermediate_results(results, doc_output_dir, base_name)
+        # No longer saving intermediate temp files
         
         concepts, concept_metadata = extract_concepts_with_metadata(
             text, 
@@ -240,7 +306,7 @@ def process_single_document(file_path: str, output_dir: str = OUTPUT_DIRECTORY) 
         print(f"Extracted {len(concepts)} concepts with metadata")
         results['concepts_count'] = len(concepts)
         results['stage'] = 'concepts_extracted'
-        save_intermediate_results(results, doc_output_dir, base_name)
+        # No longer saving intermediate temp files
         
         print('\n=== 2. Concept Clustering with Metadata ===')
         cluster_manager = cluster_concepts_with_metadata(concepts, concept_metadata)
@@ -257,7 +323,7 @@ def process_single_document(file_path: str, output_dir: str = OUTPUT_DIRECTORY) 
         results['clusters_count'] = len(simple_clusters)
         results['cluster_metadata'] = str(cluster_metadata_path)
         results['stage'] = 'clustering_complete'
-        save_intermediate_results(results, doc_output_dir, base_name)
+        # No longer saving intermediate temp files
         
         print(f"Generated {num_clusters} clusters with rich metadata")
 
@@ -304,7 +370,7 @@ def process_single_document(file_path: str, output_dir: str = OUTPUT_DIRECTORY) 
         results['inter_cluster_edges_count'] = len(inter_cluster_edges)
         results['intra_cluster_edges_count'] = len(intra_cluster_edges)
         results['stage'] = 'edge_inference_complete'
-        save_intermediate_results(results, doc_output_dir, base_name)
+        # No longer saving intermediate temp files
         
         print('\n=== 4. Post-clustering (Synonym Grouping) ===')
         if ENABLE_POST_CLUSTERING:
@@ -329,13 +395,16 @@ def process_single_document(file_path: str, output_dir: str = OUTPUT_DIRECTORY) 
         
         results['clusters_count'] = len(simple_clusters)
         results['stage'] = 'post_clustering_complete'
-        save_intermediate_results(results, doc_output_dir, base_name)
+        # No longer saving intermediate temp files
 
         print('\n=== 5. Final Graph Export ===')
         
         output_file = os.path.join(doc_output_dir, f"{base_name}_fcm.json")
         
-        export_graph_to_json(G, output_file)
+        # Get constants configuration to include in output
+        constants_config = get_constants_config()
+        
+        export_graph_to_json(G, output_file, constants_config)
         print(f'Graph exported to {output_file}')
         
         print('\n=== 6. Create Visualizations ===')
@@ -349,7 +418,7 @@ def process_single_document(file_path: str, output_dir: str = OUTPUT_DIRECTORY) 
             'cluster_metadata': str(cluster_metadata_path)
         }
         
-        save_intermediate_results(results, doc_output_dir, base_name)
+        # No longer saving intermediate temp files
         
         results.update({
             'fcm_json': output_file,
@@ -386,6 +455,8 @@ def process_single_document(file_path: str, output_dir: str = OUTPUT_DIRECTORY) 
         print(f"   Inter-cluster edges: {CLUSTER_EDGE_BATCH_SIZE} pairs/call") 
         print(f"   Intra-cluster edges: {EDGE_INFERENCE_BATCH_SIZE} pairs/call")
         
+        save_run_parameters(str(doc_output_dir), base_name)
+        
         print(f'\nProcessing completed successfully!')
         print(f'Results: {len(concepts)} concepts → {len(cluster_manager.clusters)} clusters → {len(inter_cluster_edges)} edges')
         print(f'Output directory: {doc_output_dir}')
@@ -405,7 +476,7 @@ def process_single_document(file_path: str, output_dir: str = OUTPUT_DIRECTORY) 
         
         results['stage'] = 'error'
         results['error'] = str(e)
-        save_intermediate_results(results, doc_output_dir, base_name)
+        # No longer saving intermediate temp files
         
         if ENABLE_FILE_LOGGING and SEPARATE_LOG_PER_DOCUMENT:
             finalize_logging()

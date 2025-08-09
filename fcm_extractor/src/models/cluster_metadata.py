@@ -6,9 +6,23 @@ import numpy as np
 @dataclass
 class ConceptMetadata:
     concept: str
-    source_contexts: List[str]  
-    chunk_indices: List[int]   
+    source_contexts: List[str] = None
+    chunk_indices: List[int] = None
     embedding: Optional[np.ndarray] = None
+    chunk_index: int = 0
+    text_length: int = 0
+    extraction_time: float = 0.0
+    generation_method: str = ""
+    prompt_length: int = 0
+    context_analysis: dict = None
+    
+    def __post_init__(self):
+        if self.source_contexts is None:
+            self.source_contexts = []
+        if self.chunk_indices is None:
+            self.chunk_indices = [self.chunk_index] if self.chunk_index is not None else []
+        if self.context_analysis is None:
+            self.context_analysis = {}
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary (for JSON serialization)."""

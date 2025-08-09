@@ -72,6 +72,7 @@ class DynamicPromptAgent:
         self.performance_history: List[PromptPerformance] = []
         self.prompt_cache: Dict[str, str] = {}
         self.adaptation_rate = 0.1
+        self.log_file_path = None
         
         self.domain_vocabularies = self._load_domain_vocabularies()
         self.causal_indicators = self._load_causal_indicators()
