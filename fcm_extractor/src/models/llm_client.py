@@ -12,7 +12,7 @@ load_dotenv()
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from utils.llm_utils import get_model_provider, is_reasoning_model, uses_max_completion_tokens
+from utils.llm_utils import get_model_provider, is_reasoning_model, uses_max_completion_tokens, supports_temperature
 
 # if "LANGCHAIN_API_KEY" not in os.environ:
 #     print("Warning: LANGCHAIN_API_KEY not set. Set it to trace runs in LangSmith.")
@@ -60,8 +60,10 @@ class UnifiedLLMClient:
         if provider == 'openai':
             client = self._get_openai_client()
             
-            # Handle temperature for reasoning models and GPT-5
+            # Handle temperature for different models
             actual_temperature = temperature
+            include_temperature = supports_temperature(model)
+            
             if not is_reasoning_model(model):
                 if model.startswith('gpt-5') and temperature != 1.0:
                     if not self._gpt5_warning_shown:
@@ -69,21 +71,23 @@ class UnifiedLLMClient:
                         self._gpt5_warning_shown = True
                     actual_temperature = 1.0
             
-            # Use appropriate parameter based on model
+            # Build API call parameters
+            api_params = {
+                "model": model,
+                "messages": messages
+            }
+            
+            # Add temperature if supported
+            if include_temperature:
+                api_params["temperature"] = actual_temperature
+            
+            # Add max_tokens or max_completion_tokens based on model
             if uses_max_completion_tokens(model):
-                response = client.chat.completions.create(
-                    model=model,
-                    messages=messages,
-                    temperature=actual_temperature,
-                    max_completion_tokens=max_tokens
-                )
+                api_params["max_completion_tokens"] = max_tokens
             else:
-                response = client.chat.completions.create(
-                    model=model,
-                    messages=messages,
-                    temperature=actual_temperature,
-                    max_tokens=max_tokens
-                )
+                api_params["max_tokens"] = max_tokens
+            
+            response = client.chat.completions.create(**api_params)
             
             content = response.choices[0].message.content
             confidence = 1.0

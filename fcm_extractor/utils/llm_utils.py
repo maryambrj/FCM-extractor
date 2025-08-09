@@ -12,4 +12,9 @@ def is_reasoning_model(model_name: str) -> bool:
 
 def uses_max_completion_tokens(model_name: str) -> bool:
     """Check if model uses max_completion_tokens instead of max_tokens"""
-    return model_name.startswith(("o3",)) 
+    return model_name.startswith(("o3",))
+
+def supports_temperature(model_name: str) -> bool:
+    """Check if model supports temperature parameter"""
+    # o3 models don't support temperature parameter
+    return not model_name.startswith(("o3",)) 

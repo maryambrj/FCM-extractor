@@ -18,6 +18,7 @@ from config.constants import (
     DYNAMIC_PROMPTING_USE_CACHE, DYNAMIC_PROMPTING_USE_REFLECTION,
     DYNAMIC_PROMPTING_TRACK_PERFORMANCE
 )
+from utils.llm_utils import supports_temperature
 from src.models.llm_client import llm_client
 
 
@@ -311,7 +312,9 @@ Return ONLY the prompt text, no explanations or analysis."""
                 {"role": "user", "content": meta_prompt}
             ]
             
-            response, _ = llm_client.chat_completion(self.model, messages, self.temperature, max_tokens=1000)
+            # Use temperature only if supported by the model
+            temp = self.temperature if supports_temperature(self.model) else 0.0
+            response, _ = llm_client.chat_completion(self.model, messages, temp, max_tokens=1000)
             
             generated_prompt = response.strip()
             
@@ -359,7 +362,9 @@ Return ONLY the improved prompt text, no analysis or explanation."""
                 {"role": "user", "content": reflection_prompt}
             ]
             
-            response, _ = llm_client.chat_completion(self.model, messages, self.temperature * 0.8, max_tokens=800)
+            # Use temperature only if supported by the model
+            temp = (self.temperature * 0.8) if supports_temperature(self.model) else 0.0
+            response, _ = llm_client.chat_completion(self.model, messages, temp, max_tokens=800)
             
             refined_prompt = response.strip()
             

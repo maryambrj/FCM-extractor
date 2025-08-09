@@ -13,6 +13,7 @@ from config.constants import (
     META_PROMPTING_MODEL, META_PROMPTING_TEMPERATURE, META_PROMPTING_VERBOSE,
     META_PROMPTING_ENABLED, DEFAULT_CONCEPT_EXTRACTION_PROMPT, DEFAULT_EDGE_INFERENCE_PROMPT
 )
+from utils.llm_utils import supports_temperature
 from src.models.llm_client import llm_client
 
 
@@ -86,7 +87,9 @@ Respond with only the number (1-{num_prompts}) and a brief reason (max 50 words)
                 {"role": "user", "content": meta_prompt}
             ]
             
-            content = llm_client.chat_completion(self.model, messages, self.temperature, max_tokens=100)
+            # Use temperature only if supported by the model
+            temp = self.temperature if supports_temperature(self.model) else 0.0
+            content = llm_client.chat_completion(self.model, messages, temp, max_tokens=100)
             
             if META_PROMPTING_VERBOSE:
                 print(f"Meta-prompting decision for {task_type}: {content}")

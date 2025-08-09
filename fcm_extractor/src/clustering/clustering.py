@@ -28,6 +28,7 @@ from config.constants import (
 )
 from src.models.llm_client import llm_client
 from src.models.cluster_metadata import ClusterMetadata, ConceptMetadata, ClusterMetadataManager
+from utils.llm_utils import supports_temperature
 
 
 def name_cluster(concepts: List[str], model: str) -> str:
@@ -41,7 +42,8 @@ def name_cluster(concepts: List[str], model: str) -> str:
         {"role": "system", "content": "You are an expert in creating concise, unique cluster names."},
         {"role": "user", "content": prompt}
     ]
-    name, _ = llm_client.chat_completion(model, messages, temperature=0.2)
+    temp = 0.2 if supports_temperature(model) else 0.0
+    name, _ = llm_client.chat_completion(model, messages, temp)
     name = name.strip().replace('"', '').lstrip('*i.v. ').rstrip(':**').strip()
     name = re.sub(r'\(\d+\)|-?\d+|\*\*', '', name).strip()
     if len(name.split()) > 4 or len(name) > 30 or name.lower().startswith('here are'):
@@ -81,7 +83,8 @@ Names:"""
     ]
     
     try:
-        response, _ = llm_client.chat_completion(model, messages, temperature=0.2)
+        temp = 0.2 if supports_temperature(model) else 0.0
+        response, _ = llm_client.chat_completion(model, messages, temp)
         names = response.strip().split('\n')
         
         # Clean up names
@@ -295,7 +298,8 @@ Your clustering:"""
             {"role": "user", "content": prompt}
         ]
         
-        content, _ = llm_client.chat_completion(model, messages, temperature=0.1)
+        temp = 0.1 if supports_temperature(model) else 0.0
+        content, _ = llm_client.chat_completion(model, messages, temp)
         
         clusters = {}
         cluster_id = 0
@@ -366,7 +370,8 @@ Your refined clustering:"""
             {"role": "user", "content": batch_prompt}
         ]
         
-        content, _ = llm_client.chat_completion(model, messages, temperature=0.1)
+        temp = 0.1 if supports_temperature(model) else 0.0
+        content, _ = llm_client.chat_completion(model, messages, temp)
         
         refined_results = {}
         
