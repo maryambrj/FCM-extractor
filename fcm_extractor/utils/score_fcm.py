@@ -13,7 +13,7 @@ import random
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from config.constants import EDGE_CONFIDENCE_THRESHOLD
+from config.constants import EDGE_CONFIDENCE_THRESHOLD, USE_CONFIDENCE_FILTERING
 from typing import Dict, List, Tuple, Optional
 
 
@@ -404,7 +404,7 @@ def json_to_matrix(json_data: Dict, id_to_name=None) -> pd.DataFrame:
         if e.get("type") != "inter_cluster":
             continue
         conf = float(e.get("confidence", 0.0))
-        if conf <= EDGE_CONFIDENCE_THRESHOLD:
+        if USE_CONFIDENCE_FILTERING and conf <= EDGE_CONFIDENCE_THRESHOLD:
             continue
         s = label_for(e["source"])
         t = label_for(e["target"])

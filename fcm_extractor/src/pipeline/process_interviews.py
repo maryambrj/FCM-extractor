@@ -367,8 +367,6 @@ def process_single_document(file_path: str, output_dir: str = OUTPUT_DIRECTORY) 
             
         api_call_tracker['total_calls'] = sum(api_call_tracker.values())
         
-        results['inter_cluster_edges_count'] = len(inter_cluster_edges)
-        results['intra_cluster_edges_count'] = len(intra_cluster_edges)
         results['stage'] = 'edge_inference_complete'
         # No longer saving intermediate temp files
         
@@ -383,6 +381,12 @@ def process_single_document(file_path: str, output_dir: str = OUTPUT_DIRECTORY) 
             simple_clusters = updated_clusters
             G = build_fcm_graph(simple_clusters, inter_cluster_edges, intra_cluster_edges)
             
+            # Count final edges after post-clustering
+            final_inter_edges = [d for _, _, d in G.edges(data=True) if d.get('type') == 'inter_cluster']
+            final_intra_edges = [d for _, _, d in G.edges(data=True) if d.get('type') == 'intra_cluster']
+            results['inter_cluster_edges_count'] = len(final_inter_edges)
+            results['intra_cluster_edges_count'] = len(final_intra_edges)
+            
             if merge_mapping:
                 print(f"Post-clustering complete: Merged {len(merge_mapping)} unconnected clusters")
                 for old_name, new_name in merge_mapping.items():
@@ -392,6 +396,12 @@ def process_single_document(file_path: str, output_dir: str = OUTPUT_DIRECTORY) 
         else:
             print("Post-clustering is disabled in configuration")
             G = build_fcm_graph(simple_clusters, inter_cluster_edges, intra_cluster_edges)
+            
+            # Count final edges when post-clustering is disabled
+            final_inter_edges = [d for _, _, d in G.edges(data=True) if d.get('type') == 'inter_cluster']
+            final_intra_edges = [d for _, _, d in G.edges(data=True) if d.get('type') == 'intra_cluster']
+            results['inter_cluster_edges_count'] = len(final_inter_edges)
+            results['intra_cluster_edges_count'] = len(final_intra_edges)
         
         results['clusters_count'] = len(simple_clusters)
         results['stage'] = 'post_clustering_complete'

@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 from config.constants import (
     EDGE_INFERENCE_MODEL, EDGE_INFERENCE_TEMPERATURE, 
-    DEFAULT_INTER_CLUSTER_EDGE_PROMPT, EDGE_CONFIDENCE_THRESHOLD,
+    DEFAULT_INTER_CLUSTER_EDGE_PROMPT, EDGE_CONFIDENCE_THRESHOLD, USE_CONFIDENCE_FILTERING,
     ACO_MAX_ITERATIONS, ACO_SAMPLES_PER_ITERATION, ACO_EVAPORATION_RATE,
     ACO_INITIAL_PHEROMONE, ACO_CONVERGENCE_THRESHOLD, ACO_GUARANTEE_COVERAGE,
     ENABLE_INTRA_CLUSTER_EDGES
@@ -100,9 +100,11 @@ class ACOEdgeInference:
     
     def query_llm_oracle(self, edge_pairs: List[Tuple[str, str]]) -> List[Dict]:
         if not edge_pairs:
+            print("   🚨 DEBUG: edge_pairs is empty, returning []")
             return []
         
-        print(f"   Querying LLM oracle for {len(edge_pairs)} edge pairs...")
+        print(f"   🔍 DEBUG: Querying LLM oracle for {len(edge_pairs)} edge pairs...")
+        print(f"   🔍 DEBUG: Edge pairs: {edge_pairs[:3]}..." if len(edge_pairs) > 3 else f"   🔍 DEBUG: Edge pairs: {edge_pairs}")
         
         pairs_text = []
         for i, (source, target) in enumerate(edge_pairs):
@@ -127,10 +129,17 @@ class ACOEdgeInference:
         ]
         
         try:
+            print(f"   🔍 DEBUG: Sending to model {EDGE_INFERENCE_MODEL} with temp {EDGE_INFERENCE_TEMPERATURE}")
+            print(f"   🔍 DEBUG: Prompt length: {len(prompt)} chars")
+            print(f"   🔍 DEBUG: First 500 chars of prompt: {prompt[:500]}...")
             content, _ = llm_client.chat_completion(EDGE_INFERENCE_MODEL, messages, EDGE_INFERENCE_TEMPERATURE)
+            
+            print(f"   🔍 DEBUG: Raw model response ({len(content)} chars):")
+            print(f"   🔍 DEBUG: '{content[:300]}...'")
             
             results = []
             lines = content.strip().split('\n')
+            print(f"   🔍 DEBUG: Split into {len(lines)} lines for {len(edge_pairs)} pairs")
             
             for i, line in enumerate(lines):
                 if i >= len(edge_pairs):
@@ -162,21 +171,31 @@ class ACOEdgeInference:
                                     result['relationship'] = 'negative'
                                     result['weight'] = -1
                                 
-                                confidence_match = re.search(r'0\.\d+', confidence_part)
+                                confidence_match = re.search(r'(?:1\.0+|0\.\d+|\.\d+|\d+\.\d+)', confidence_part)
                                 if confidence_match:
                                     result['confidence'] = float(confidence_match.group())
+                                else:
+                                    print(f"      ⚠️ Failed to parse confidence from: '{confidence_part}'")
                     except Exception as e:
                         print(f"      ⚠️ Error parsing line {i+1}: {e}")
                 
                 results.append(result)
+                
+            print(f"   🔍 DEBUG: Parsed {len(results)} results:")
+            for i, r in enumerate(results):
+                print(f"      {i+1}: {r['source']} -> {r['target']} | {r['relationship']} | conf: {r['confidence']} | weight: {r['weight']}")
             
             return results
             
         except Exception as e:
-            print(f"      Error in LLM oracle query: {e}")
+            print(f"   🚨 DEBUG: LLM API ERROR: {e}")
+            print(f"   🚨 DEBUG: Error type: {type(e)}")
             return []
     
     def update_pheromones(self, iteration: int, oracle_results: List[Dict]):
+        print(f"      🔍 DEBUG: Updating pheromones with {len(oracle_results)} results...")
+        
+        valid_deposits = 0
         for result in oracle_results:
             source = result['source']
             target = result['target']
@@ -193,12 +212,15 @@ class ACOEdgeInference:
                 edge.weight_history.append(weight)
                 edge.last_sampled = iteration
                 
-                if confidence >= EDGE_CONFIDENCE_THRESHOLD:
+                if not USE_CONFIDENCE_FILTERING or confidence >= EDGE_CONFIDENCE_THRESHOLD:
                     pheromone_deposit = confidence * abs(weight)
                     edge.pheromone += pheromone_deposit
+                    valid_deposits += 1
                     print(f"      {source} -> {target}: +{pheromone_deposit:.3f} (conf: {confidence:.2f})")
                 else:
                     print(f"      {source} -> {target}: below threshold (conf: {confidence:.2f})")
+        
+        print(f"      🔍 DEBUG: Made {valid_deposits} valid pheromone deposits out of {len(oracle_results)} results")
         
         for edge in self.pheromone_matrix.values():
             edge.pheromone *= (1 - self.evaporation_rate)
@@ -230,14 +252,20 @@ class ACOEdgeInference:
         return False
     
     def extract_final_edges(self) -> List[Dict]:
+        print(f"   🔍 DEBUG: Extracting final edges from {len(self.pheromone_matrix)} candidates...")
+        
         final_edges = []
+        edges_with_history = 0
+        edges_above_threshold = 0
         
         for edge_key, edge in self.pheromone_matrix.items():
             if edge.confidence_history:
+                edges_with_history += 1
                 avg_confidence = np.mean(edge.confidence_history)
                 avg_weight = np.mean(edge.weight_history) if edge.weight_history else 0
                 
-                if avg_confidence >= EDGE_CONFIDENCE_THRESHOLD and abs(avg_weight) > 0:
+                if (not USE_CONFIDENCE_FILTERING or avg_confidence >= EDGE_CONFIDENCE_THRESHOLD) and abs(avg_weight) > 0:
+                    edges_above_threshold += 1
                     final_edges.append({
                         'source': edge.source,
                         'target': edge.target,
@@ -249,15 +277,41 @@ class ACOEdgeInference:
                     })
         
         final_edges.sort(key=lambda x: x['pheromone'], reverse=True)
+        
+        print(f"   🔍 DEBUG: Final edge extraction results:")
+        print(f"   🔍 DEBUG: - Total edges in matrix: {len(self.pheromone_matrix)}")
+        print(f"   🔍 DEBUG: - Edges with confidence history: {edges_with_history}")
+        print(f"   🔍 DEBUG: - Edges above threshold with weight: {edges_above_threshold}")
+        print(f"   🔍 DEBUG: - Final edges returned: {len(final_edges)}")
+        
+        if len(final_edges) == 0:
+            print(f"   🚨 DEBUG: NO EDGES EXTRACTED! USE_CONFIDENCE_FILTERING={USE_CONFIDENCE_FILTERING}, THRESHOLD={EDGE_CONFIDENCE_THRESHOLD}")
+            # Show sample edges for debugging
+            sample_count = min(5, len(self.pheromone_matrix))
+            print(f"   🚨 DEBUG: Sample of {sample_count} edges from matrix:")
+            for i, (edge_key, edge) in enumerate(list(self.pheromone_matrix.items())[:sample_count]):
+                if edge.confidence_history:
+                    avg_conf = np.mean(edge.confidence_history)
+                    avg_weight = np.mean(edge.weight_history) if edge.weight_history else 0
+                    print(f"      {edge.source} -> {edge.target}: conf={avg_conf:.3f}, weight={avg_weight:.3f}, samples={len(edge.confidence_history)}")
+                else:
+                    print(f"      {edge.source} -> {edge.target}: NO HISTORY")
+        
         return final_edges
     
     def infer_edges(self, clusters: Dict[str, List[str]], text: str,
                     cluster_metadata_manager = None) -> Tuple[List[Dict], List[Dict]]:
+        if len(clusters) < 2:
+            print(f"ACO edge inference requires at least 2 clusters, got {len(clusters)}")
+            return [], []
+            
         self.text = text
         self.cluster_metadata_manager = cluster_metadata_manager
         
-        print(f"Starting ACO edge inference with {len(clusters)} clusters")
-        print(f"   Parameters: {self.max_iterations} iterations, {self.samples_per_iteration} samples/iter")
+        print(f"🔍 DEBUG: Starting ACO edge inference with {len(clusters)} clusters")
+        print(f"🔍 DEBUG: Cluster names: {list(clusters.keys())}")
+        print(f"🔍 DEBUG: Parameters: {self.max_iterations} iterations, {self.samples_per_iteration} samples/iter")
+        print(f"🔍 DEBUG: Config: USE_CONFIDENCE_FILTERING={USE_CONFIDENCE_FILTERING}, THRESHOLD={EDGE_CONFIDENCE_THRESHOLD}")
         
         self.initialize_pheromones(clusters)
         
@@ -350,13 +404,15 @@ class ACOEdgeInference:
                                     result['relationship'] = 'negative'
                                     result['weight'] = -1
                                 
-                                confidence_match = re.search(r'0\.\d+', confidence_part)
+                                confidence_match = re.search(r'(?:1\.0+|0\.\d+|\.\d+|\d+\.\d+)', confidence_part)
                                 if confidence_match:
                                     result['confidence'] = float(confidence_match.group())
+                                else:
+                                    print(f"      ⚠️ Failed to parse intra-cluster confidence from: '{confidence_part}'")
                     except Exception as e:
                         print(f"      Error parsing intra-cluster line {i+1}: {e}")
                 
-                if result['confidence'] >= EDGE_CONFIDENCE_THRESHOLD and abs(result['weight']) > 0:
+                if (not USE_CONFIDENCE_FILTERING or result['confidence'] >= EDGE_CONFIDENCE_THRESHOLD) and abs(result['weight']) > 0:
                     intra_edges.append(result)
             
             return intra_edges
