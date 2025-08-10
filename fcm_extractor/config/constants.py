@@ -11,10 +11,10 @@ edge inference, and post-processing steps.
 # =============================================================================
 
 # Core LLM models for different tasks
-CONCEPT_EXTRACTION_MODEL = "o3-mini-2025-01-31"#"gpt-5-2025-08-07"  # gpt-4.1-mini-2025-04-14 # Model for extracting concepts from text
-META_PROMPTING_MODEL = "o3-mini-2025-01-31" #"gpt-4o-2024-08-06"      # Model for meta-prompting decisions
-EDGE_INFERENCE_MODEL = "gpt-4o"      # Model for inferring causal relationships
-LLM_CLUSTERING_MODEL = "o3-mini-2025-01-31"      # Model for LLM-based clustering
+CONCEPT_EXTRACTION_MODEL = "gpt-5-chat-latest"#"gpt-5-2025-08-07"  # gpt-4.1-mini-2025-04-14 # Model for extracting concepts from text
+META_PROMPTING_MODEL = "gpt-5-chat-latest" #"gpt-4o-2024-08-06"      # Model for meta-prompting decisions
+EDGE_INFERENCE_MODEL = "gpt-5-chat-latest"      # Model for inferring causal relationships
+LLM_CLUSTERING_MODEL = "gpt-5-chat-latest"      # Model for LLM-based clustering
 
 # Model temperature settings
 CONCEPT_EXTRACTION_TEMPERATURE = 0.0    # Lower = more deterministic extraction
@@ -177,13 +177,13 @@ EVALUATION_INCLUDE_INTRA_CLUSTER_NODES = False  # Include concept nodes in evalu
 # META-PROMPTING SETTINGS
 # =============================================================================
 
-META_PROMPTING_ENABLED = False          # Use dynamic prompts vs fixed prompts
+META_PROMPTING_ENABLED = True          # Use dynamic prompts vs fixed prompts
 
 # Dynamic prompting settings (advanced meta-prompting)
-DYNAMIC_PROMPTING_ENABLED = False       # Enable dynamic prompt generation (requires META_PROMPTING_ENABLED)
-DYNAMIC_PROMPTING_USE_CACHE = False     # Cache generated prompts for similar contexts
-DYNAMIC_PROMPTING_USE_REFLECTION = False # Use self-reflection to refine prompts
-DYNAMIC_PROMPTING_TRACK_PERFORMANCE = False # Track prompt performance for learning
+DYNAMIC_PROMPTING_ENABLED = True       # Enable dynamic prompt generation (requires META_PROMPTING_ENABLED)
+DYNAMIC_PROMPTING_USE_CACHE = True     # Cache generated prompts for similar contexts
+DYNAMIC_PROMPTING_USE_REFLECTION = True # Use self-reflection to refine prompts
+DYNAMIC_PROMPTING_TRACK_PERFORMANCE = True # Track prompt performance for learning
 
 # =============================================================================
 # PROMPT TEMPLATES
