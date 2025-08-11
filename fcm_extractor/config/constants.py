@@ -12,10 +12,10 @@ edge inference, and post-processing steps.
 
 # Core LLM models for different tasks
 # You can use any Gemini model (1.0, 1.5, 2.0+) or OpenAI model (GPT-3.5, GPT-4, o1, o3, etc.)
-CONCEPT_EXTRACTION_MODEL = "gpt-4o-mini"  # Stable and reliable for academic content
-META_PROMPTING_MODEL = "gpt-4o-mini"
-EDGE_INFERENCE_MODEL = "gpt-4o-mini"  
-LLM_CLUSTERING_MODEL = "gpt-4o-mini"
+CONCEPT_EXTRACTION_MODEL = "gemini-1.5-pro"  # Stable and reliable for academic content
+META_PROMPTING_MODEL = "gemini-1.5-pro"
+EDGE_INFERENCE_MODEL = "gemini-1.5-pro"  
+LLM_CLUSTERING_MODEL = "gemini-1.5-pro"
 
 # Alternative model options (uncomment to use):
 # CONCEPT_EXTRACTION_MODEL = "gpt-4o-mini"     # Fast OpenAI alternative

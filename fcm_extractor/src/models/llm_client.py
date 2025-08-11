@@ -32,6 +32,7 @@ class UnifiedLLMClient:
     def __init__(self):
         self.openai_client = None
         self.google_client = None
+        self.deepseek_client = None
         self._gpt5_warning_shown = False
         
     def _get_openai_client(self):
@@ -52,6 +53,18 @@ class UnifiedLLMClient:
             genai.configure(api_key=api_key)
             self.google_client = genai
         return self.google_client
+    
+    def _get_deepseek_client(self):
+        if self.deepseek_client is None:
+            import openai
+            api_key = os.getenv("DEEPSEEK_API_KEY")
+            if not api_key:
+                raise EnvironmentError("DEEPSEEK_API_KEY environment variable not set.")
+            self.deepseek_client = openai.OpenAI(
+                api_key=api_key,
+                base_url="https://api.deepseek.com"
+            )
+        return self.deepseek_client
     
     def chat_completion(self, model: str, messages: List[Dict[str, str]], temperature: float = 0.0, max_tokens: int = 2000, **kwargs) -> Tuple[str, float]:
         
@@ -218,6 +231,49 @@ class UnifiedLLMClient:
                     print("ERROR: API quota exceeded or rate limited")
                 elif "api key" in error_str or "authentication" in error_str:
                     print("ERROR: Invalid or missing Google API key (GOOGLE_API_KEY environment variable)")
+                
+                # Log the prompt that caused the error for debugging
+                print("--- PROMPT THAT CAUSED ERROR ---")
+                for msg in messages:
+                    print(f"ROLE: {msg['role']}")
+                    print(f"CONTENT:\n{msg['content'][:500]}{'...' if len(msg['content']) > 500 else ''}\n")
+                print("---------------------------------")
+                return "", 0.0
+        
+        elif provider == 'deepseek':
+            client = self._get_deepseek_client()
+            
+            # DeepSeek uses OpenAI-compatible API
+            api_params = {
+                "model": model,
+                "messages": messages,
+                "temperature": temperature,
+                "max_tokens": max_tokens
+            }
+            
+            try:
+                response = client.chat.completions.create(**api_params)
+                content = response.choices[0].message.content
+                confidence = 1.0
+                return content, confidence
+                
+            except Exception as e:
+                print("--- ERROR DURING DEEPSEEK API CALL ---")
+                print(f"Model: {model}")
+                print(f"An exception of type {type(e).__name__} occurred: {e}")
+                print(f"Error details: {str(e)}")
+                
+                # Check for specific DeepSeek error types
+                error_str = str(e).lower()
+                if "model not found" in error_str or "not found" in error_str:
+                    print(f"ERROR: Invalid DeepSeek model name '{model}'")
+                    print("Valid DeepSeek model formats include:")
+                    print("  - deepseek-chat, deepseek-coder")
+                    print("  - Check DeepSeek API documentation for latest available models")
+                elif "quota" in error_str or "rate limit" in error_str:
+                    print("ERROR: API quota exceeded or rate limited")
+                elif "api key" in error_str or "authentication" in error_str:
+                    print("ERROR: Invalid or missing DeepSeek API key (DEEPSEEK_API_KEY environment variable)")
                 
                 # Log the prompt that caused the error for debugging
                 print("--- PROMPT THAT CAUSED ERROR ---")

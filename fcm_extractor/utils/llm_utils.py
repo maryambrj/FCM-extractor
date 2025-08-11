@@ -3,6 +3,8 @@ def get_model_provider(model_name: str) -> str:
         return "google"
     elif model_name.startswith(("gpt", "o1", "o3", "chatgpt")):
         return "openai"
+    elif model_name.startswith("deepseek"):
+        return "deepseek"
     else:
         return "openai"
 
@@ -152,6 +154,18 @@ def get_model_capabilities(model_name: str) -> dict:
             "supports_system_messages": True,
             "requires_detailed_prompts": False,
             "provider": "anthropic"
+        }
+    elif model_lower.startswith("deepseek"):
+        # DeepSeek models
+        return {
+            "reasoning": True,
+            "structured_output": True,
+            "json_mode": True,
+            "max_tokens": 8192,
+            "context_window": 128000,
+            "supports_system_messages": True,
+            "requires_detailed_prompts": False,
+            "provider": "deepseek"
         }
     else:
         # Default capabilities for unknown models - assume mid-tier OpenAI-like
