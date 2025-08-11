@@ -131,7 +131,68 @@ class UnifiedLLMClient:
                     )
                 )
                 
-                content = response.text
+                # Handle Gemini response properly
+                content = ""
+                
+                # Try to get text using the quick accessor first
+                try:
+                    if hasattr(response, 'text') and response.text:
+                        content = response.text
+                except ValueError as ve:
+                    # This happens when response.text fails due to safety filtering
+                    # Check the specific error and candidates
+                    if "finish_reason" in str(ve) and hasattr(response, 'candidates') and response.candidates:
+                        candidate = response.candidates[0]
+                        if hasattr(candidate, 'finish_reason'):
+                            finish_reason = candidate.finish_reason
+                            if finish_reason == 2:  # SAFETY
+                                print(f"Warning: Content blocked by Gemini safety filters (finish_reason=2)")
+                                print("This often happens with long or complex prompts.")
+                                
+                                # Suggest fallback options
+                                print("Recommended solutions:")
+                                print("  1. Use a different Gemini model (e.g., gemini-1.5-flash)")
+                                print("  2. Switch to OpenAI model (e.g., gpt-4o, gpt-4o-mini)")
+                                print("  3. Simplify/shorten the prompt")
+                                print("  4. Remove potentially sensitive content")
+                                
+                                return "", 0.0
+                            elif finish_reason == 3:  # RECITATION  
+                                print(f"Warning: Content blocked for recitation (finish_reason=3)")
+                                return "", 0.0
+                            elif finish_reason == 4:  # OTHER
+                                print(f"Warning: Content blocked for other reasons (finish_reason=4)")
+                                return "", 0.0
+                            else:
+                                print(f"Warning: Unexpected finish_reason: {finish_reason}")
+                        
+                        # Try to extract any partial content if available
+                        if hasattr(candidate, 'content') and candidate.content:
+                            if hasattr(candidate.content, 'parts') and candidate.content.parts:
+                                for part in candidate.content.parts:
+                                    if hasattr(part, 'text') and part.text:
+                                        content += part.text
+                    else:
+                        # Re-raise the original error if we can't handle it
+                        raise ve
+                
+                # Fallback: try to extract from candidates structure
+                if not content and hasattr(response, 'candidates') and response.candidates:
+                    candidate = response.candidates[0]
+                    if hasattr(candidate, 'content') and candidate.content:
+                        if hasattr(candidate.content, 'parts') and candidate.content.parts:
+                            for part in candidate.content.parts:
+                                if hasattr(part, 'text') and part.text:
+                                    content += part.text
+                
+                if not content:
+                    print("Warning: Gemini returned empty response")
+                    if hasattr(response, 'candidates') and response.candidates:
+                        candidate = response.candidates[0]
+                        if hasattr(candidate, 'finish_reason'):
+                            print(f"Finish reason: {candidate.finish_reason}")
+                        if hasattr(candidate, 'safety_ratings'):
+                            print(f"Safety ratings: {candidate.safety_ratings}")
                 
                 confidence_match = re.search(r'confidence:\s*([0-1]\.\d+)', content)
                 confidence = float(confidence_match.group(1)) if confidence_match else 1.0
@@ -139,7 +200,25 @@ class UnifiedLLMClient:
                 return content, confidence
             except Exception as e:
                 print("--- ERROR DURING GEMINI API CALL ---")
+                print(f"Model: {model}")
                 print(f"An exception of type {type(e).__name__} occurred: {e}")
+                print(f"Error details: {str(e)}")
+                
+                # Check for specific Gemini error types
+                error_str = str(e).lower()
+                if "model not found" in error_str or "not found" in error_str:
+                    print(f"ERROR: Invalid Gemini model name '{model}'")
+                    print("Valid Gemini model formats include:")
+                    print("  - gemini-1.0-pro, gemini-1.5-pro, gemini-1.5-flash") 
+                    print("  - gemini-2.0-flash-exp, gemini-2.0-flash-thinking-exp")
+                    print("  - Check Google AI Studio for latest available models")
+                elif "safety" in error_str:
+                    print("ERROR: Content was blocked by Gemini safety filters")
+                elif "quota" in error_str or "rate limit" in error_str:
+                    print("ERROR: API quota exceeded or rate limited")
+                elif "api key" in error_str or "authentication" in error_str:
+                    print("ERROR: Invalid or missing Google API key (GOOGLE_API_KEY environment variable)")
+                
                 # Log the prompt that caused the error for debugging
                 print("--- PROMPT THAT CAUSED ERROR ---")
                 for msg in messages:

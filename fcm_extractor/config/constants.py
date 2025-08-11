@@ -11,10 +11,16 @@ edge inference, and post-processing steps.
 # =============================================================================
 
 # Core LLM models for different tasks
-CONCEPT_EXTRACTION_MODEL = "gpt-5-chat-latest"#"gpt-5-2025-08-07"  # gpt-4.1-mini-2025-04-14 # Model for extracting concepts from text
-META_PROMPTING_MODEL = "gpt-5-chat-latest" #"gpt-4o-2024-08-06"      # Model for meta-prompting decisions
-EDGE_INFERENCE_MODEL = "gpt-5-chat-latest"      # Model for inferring causal relationships
-LLM_CLUSTERING_MODEL = "gpt-5-chat-latest"      # Model for LLM-based clustering
+# You can use any Gemini model (1.0, 1.5, 2.0+) or OpenAI model (GPT-3.5, GPT-4, o1, o3, etc.)
+CONCEPT_EXTRACTION_MODEL = "gpt-4o-mini"  # Stable and reliable for academic content
+META_PROMPTING_MODEL = "gpt-4o-mini"
+EDGE_INFERENCE_MODEL = "gpt-4o-mini"  
+LLM_CLUSTERING_MODEL = "gpt-4o-mini"
+
+# Alternative model options (uncomment to use):
+# CONCEPT_EXTRACTION_MODEL = "gpt-4o-mini"     # Fast OpenAI alternative
+# CONCEPT_EXTRACTION_MODEL = "gpt-4o"         # High-quality OpenAI model
+# CONCEPT_EXTRACTION_MODEL = "gemini-1.5-pro" # Higher quality Gemini model
 
 # Model temperature settings
 CONCEPT_EXTRACTION_TEMPERATURE = 0.0    # Lower = more deterministic extraction
