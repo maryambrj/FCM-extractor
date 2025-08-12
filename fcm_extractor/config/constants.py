@@ -11,16 +11,18 @@ edge inference, and post-processing steps.
 # =============================================================================
 
 # Core LLM models for different tasks
-# You can use any Gemini model (1.0, 1.5, 2.0+) or OpenAI model (GPT-3.5, GPT-4, o1, o3, etc.)
-CONCEPT_EXTRACTION_MODEL = "gemini-1.5-pro"  # Stable and reliable for academic content
-META_PROMPTING_MODEL = "gemini-1.5-pro"
-EDGE_INFERENCE_MODEL = "gemini-1.5-pro"  
-LLM_CLUSTERING_MODEL = "gemini-1.5-pro"
+# You can use any Gemini model (1.0, 1.5, 2.0+), OpenAI model (GPT-3.5, GPT-4, o1, o3, etc.), or Claude model (claude-3.5-sonnet, claude-sonnet-4, etc.)
+CONCEPT_EXTRACTION_MODEL = "claude-sonnet-4-20250514"  # Stable and reliable for academic content
+META_PROMPTING_MODEL = "claude-sonnet-4-20250514"
+EDGE_INFERENCE_MODEL = "claude-sonnet-4-20250514"  
+LLM_CLUSTERING_MODEL = "claude-sonnet-4-20250514"
 
 # Alternative model options (uncomment to use):
 # CONCEPT_EXTRACTION_MODEL = "gpt-4o-mini"     # Fast OpenAI alternative
 # CONCEPT_EXTRACTION_MODEL = "gpt-4o"         # High-quality OpenAI model
 # CONCEPT_EXTRACTION_MODEL = "gemini-1.5-pro" # Higher quality Gemini model
+# CONCEPT_EXTRACTION_MODEL = "claude-3-5-sonnet-20241022"  # High-quality Anthropic model
+# CONCEPT_EXTRACTION_MODEL = "claude-3-opus-20240229"      # Anthropic's most capable model
 
 # Model temperature settings
 CONCEPT_EXTRACTION_TEMPERATURE = 0.0    # Lower = more deterministic extraction

@@ -5,6 +5,8 @@ def get_model_provider(model_name: str) -> str:
         return "openai"
     elif model_name.startswith("deepseek"):
         return "deepseek"
+    elif model_name.startswith(("claude", "anthropic")):
+        return "anthropic"
     else:
         return "openai"
 

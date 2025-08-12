@@ -33,6 +33,7 @@ class UnifiedLLMClient:
         self.openai_client = None
         self.google_client = None
         self.deepseek_client = None
+        self.anthropic_client = None
         self._gpt5_warning_shown = False
         
     def _get_openai_client(self):
@@ -65,6 +66,15 @@ class UnifiedLLMClient:
                 base_url="https://api.deepseek.com"
             )
         return self.deepseek_client
+    
+    def _get_anthropic_client(self):
+        if self.anthropic_client is None:
+            import anthropic
+            api_key = os.getenv("ANTHROPIC_API_KEY")
+            if not api_key:
+                raise EnvironmentError("ANTHROPIC_API_KEY environment variable not set.")
+            self.anthropic_client = anthropic.Anthropic(api_key=api_key)
+        return self.anthropic_client
     
     def chat_completion(self, model: str, messages: List[Dict[str, str]], temperature: float = 0.0, max_tokens: int = 2000, **kwargs) -> Tuple[str, float]:
         
@@ -274,6 +284,75 @@ class UnifiedLLMClient:
                     print("ERROR: API quota exceeded or rate limited")
                 elif "api key" in error_str or "authentication" in error_str:
                     print("ERROR: Invalid or missing DeepSeek API key (DEEPSEEK_API_KEY environment variable)")
+                
+                # Log the prompt that caused the error for debugging
+                print("--- PROMPT THAT CAUSED ERROR ---")
+                for msg in messages:
+                    print(f"ROLE: {msg['role']}")
+                    print(f"CONTENT:\n{msg['content'][:500]}{'...' if len(msg['content']) > 500 else ''}\n")
+                print("---------------------------------")
+                return "", 0.0
+        
+        elif provider == 'anthropic':
+            client = self._get_anthropic_client()
+            
+            try:
+                # Convert messages to Anthropic format
+                anthropic_messages = []
+                system_message = None
+                
+                for message in messages:
+                    if message["role"] == "system":
+                        system_message = message["content"]
+                    elif message["role"] in ["user", "assistant"]:
+                        anthropic_messages.append({
+                            "role": message["role"],
+                            "content": message["content"]
+                        })
+                
+                # Build API call parameters
+                api_params = {
+                    "model": model,
+                    "messages": anthropic_messages,
+                    "temperature": temperature,
+                    "max_tokens": max_tokens
+                }
+                
+                # Add system message if present
+                if system_message:
+                    api_params["system"] = system_message
+                
+                response = client.messages.create(**api_params)
+                
+                # Extract content from response
+                content = ""
+                if hasattr(response, 'content') and response.content:
+                    for block in response.content:
+                        if hasattr(block, 'text'):
+                            content += block.text
+                
+                confidence = 1.0
+                return content, confidence
+                
+            except Exception as e:
+                print("--- ERROR DURING ANTHROPIC API CALL ---")
+                print(f"Model: {model}")
+                print(f"An exception of type {type(e).__name__} occurred: {e}")
+                print(f"Error details: {str(e)}")
+                
+                # Check for specific Anthropic error types
+                error_str = str(e).lower()
+                if "model not found" in error_str or "not found" in error_str:
+                    print(f"ERROR: Invalid Anthropic model name '{model}'")
+                    print("Valid Anthropic model formats include:")
+                    print("  - claude-3-5-sonnet-20241022, claude-3-5-haiku-20241022")
+                    print("  - claude-3-opus-20240229, claude-3-sonnet-20240229, claude-3-haiku-20240307")
+                    print("  - claude-sonnet-4-20250514 (latest)")
+                    print("  - Check Anthropic API documentation for latest available models")
+                elif "quota" in error_str or "rate limit" in error_str:
+                    print("ERROR: API quota exceeded or rate limited")
+                elif "api key" in error_str or "authentication" in error_str:
+                    print("ERROR: Invalid or missing Anthropic API key (ANTHROPIC_API_KEY environment variable)")
                 
                 # Log the prompt that caused the error for debugging
                 print("--- PROMPT THAT CAUSED ERROR ---")
