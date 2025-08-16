@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"fish and wildlife service": {"concepts": "fish and wildlife service", "concept_list": ["fish and wildlife service"], "type": "cluster", "node_size": 18, "label": "fish and wildlife service"}, "fishery species": {"concepts": "fishery species", "concept_list": ["fishery species"], "type": "cluster", "node_size": 18, "label": "fishery species"}, "Biodiversity Conservation Management": {"concepts": "species of conservation concern, species diversity, habitat formation, invasive species, biodiversity, native species, ecological relationships, habitat forming species, habitat, food-web dynamics, key food-web supporting species, shell-forming organisms, ecosystem services, harmful organisms, conservation concern, single species management, species management, florida, habitat restoration, food-web supporting species", "concept_list": ["species of conservation concern", "species diversity", "habitat formation", "invasive species", "biodiversity", "native species", "ecological relationships", "habitat forming species", "habitat", "food-web dynamics", "key food-web supporting species", "shell-forming organisms", "ecosystem services", "harmful organisms", "conservation concern", "single species management", "species management", "florida", "habitat restoration", "food-web supporting species"], "type": "cluster", "node_size": 75, "label": "Biodiversity Conservation Management"}, "Marine Ecosystem Restoration": {"concepts": "marine biodiversity, ocean acidification, marine debris, oyster reef development, oyster reef resiliency, marine biology, oyster reef restoration, resilient oyster reef development", "concept_list": ["marine biodiversity", "ocean acidification", "marine debris", "oyster reef development", "oyster reef resiliency", "marine biology", "oyster reef restoration", "resilient oyster reef development"], "type": "cluster", "node_size": 39, "label": "Marine Ecosystem Restoration"}, "Environmental Impact Relationships": {"concepts": "positive impact, bidirectional relationships, regulatory stance, resilience, negative impact, education outreach, stressors", "concept_list": ["positive impact", "bidirectional relationships", "regulatory stance", "resilience", "negative impact", "education outreach", "stressors"], "type": "cluster", "node_size": 36, "label": "Environmental Impact Relationships"}, "Coastal Development Impacts": {"concepts": "bulkheads, property owners, neutral, management, mississippi, litter work, positive high, oa, alabama, negative mid, negative high, increase low, grains, positive mid, development, increase mid, beach mouse, management approaches, positive low, decrease high, negative low", "concept_list": ["bulkheads", "property owners", "neutral", "management", "mississippi", "litter work", "positive high", "oa", "alabama", "negative mid", "negative high", "increase low", "grains", "positive mid", "development", "increase mid", "beach mouse", "management approaches", "positive low", "decrease high", "negative low"], "type": "cluster", "node_size": 78, "label": "Coastal Development Impacts"}, "Shoreline Ecology Management": {"concepts": "coastal ecology, wetland restoration, wetland ecology, nutrient removal, shoreline management, coastal wetland, shoreline protection, shoreline development, water quality, shoreline restoration", "concept_list": ["coastal ecology", "wetland restoration", "wetland ecology", "nutrient removal", "shoreline management", "coastal wetland", "shoreline protection", "shoreline development", "water quality", "shoreline restoration"], "type": "cluster", "node_size": 45, "label": "Shoreline Ecology Management"}, "Fisheries Habitat": {"concepts": "habitat for fisheries species, habitat for fishery species, fisheries habitat, habitat for fisheries", "concept_list": ["habitat for fisheries species", "habitat for fishery species", "fisheries habitat", "habitat for fisheries"], "type": "cluster", "node_size": 27, "label": "Fisheries Habitat"}};
+        const conceptData = {"species of conservation concern": {"concepts": "species of conservation concern", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "species of conservation concern"}, "species diversity": {"concepts": "species diversity", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "species diversity"}, "habitat formation": {"concepts": "habitat formation", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "habitat formation"}, "invasive species": {"concepts": "invasive species", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "invasive species"}, "biodiversity": {"concepts": "biodiversity", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "biodiversity"}, "native species": {"concepts": "native species", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "native species"}, "ecological relationships": {"concepts": "ecological relationships", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "ecological relationships"}, "habitat forming species": {"concepts": "habitat forming species", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "habitat forming species"}, "habitat": {"concepts": "habitat", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "habitat"}, "food-web dynamics": {"concepts": "food-web dynamics", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "food-web dynamics"}, "key food-web supporting species": {"concepts": "key food-web supporting species", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "key food-web supporting species"}, "shell-forming organisms": {"concepts": "shell-forming organisms", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "shell-forming organisms"}, "ecosystem services": {"concepts": "ecosystem services", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "ecosystem services"}, "harmful organisms": {"concepts": "harmful organisms", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "harmful organisms"}, "conservation concern": {"concepts": "conservation concern", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "conservation concern"}, "single species management": {"concepts": "single species management", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "single species management"}, "species management": {"concepts": "species management", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "species management"}, "florida": {"concepts": "florida", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "florida"}, "habitat restoration": {"concepts": "habitat restoration", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "habitat restoration"}, "food-web supporting species": {"concepts": "food-web supporting species", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "food-web supporting species"}, "marine biodiversity": {"concepts": "marine biodiversity", "type": "concept", "cluster": "Marine Ecosystem Restoration", "node_size": 10, "label": "marine biodiversity"}, "ocean acidification": {"concepts": "ocean acidification", "type": "concept", "cluster": "Marine Ecosystem Restoration", "node_size": 10, "label": "ocean acidification"}, "marine debris": {"concepts": "marine debris", "type": "concept", "cluster": "Marine Ecosystem Restoration", "node_size": 10, "label": "marine debris"}, "oyster reef development": {"concepts": "oyster reef development", "type": "concept", "cluster": "Marine Ecosystem Restoration", "node_size": 10, "label": "oyster reef development"}, "oyster reef resiliency": {"concepts": "oyster reef resiliency", "type": "concept", "cluster": "Marine Ecosystem Restoration", "node_size": 10, "label": "oyster reef resiliency"}, "marine biology": {"concepts": "marine biology", "type": "concept", "cluster": "Marine Ecosystem Restoration", "node_size": 10, "label": "marine biology"}, "oyster reef restoration": {"concepts": "oyster reef restoration", "type": "concept", "cluster": "Marine Ecosystem Restoration", "node_size": 10, "label": "oyster reef restoration"}, "resilient oyster reef development": {"concepts": "resilient oyster reef development", "type": "concept", "cluster": "Marine Ecosystem Restoration", "node_size": 10, "label": "resilient oyster reef development"}, "positive impact": {"concepts": "positive impact", "type": "concept", "cluster": "Environmental Impact Relationships", "node_size": 10, "label": "positive impact"}, "bidirectional relationships": {"concepts": "bidirectional relationships", "type": "concept", "cluster": "Environmental Impact Relationships", "node_size": 10, "label": "bidirectional relationships"}, "regulatory stance": {"concepts": "regulatory stance", "type": "concept", "cluster": "Environmental Impact Relationships", "node_size": 10, "label": "regulatory stance"}, "resilience": {"concepts": "resilience", "type": "concept", "cluster": "Environmental Impact Relationships", "node_size": 10, "label": "resilience"}, "negative impact": {"concepts": "negative impact", "type": "concept", "cluster": "Environmental Impact Relationships", "node_size": 10, "label": "negative impact"}, "education outreach": {"concepts": "education outreach", "type": "concept", "cluster": "Environmental Impact Relationships", "node_size": 10, "label": "education outreach"}, "stressors": {"concepts": "stressors", "type": "concept", "cluster": "Environmental Impact Relationships", "node_size": 10, "label": "stressors"}, "bulkheads": {"concepts": "bulkheads", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "bulkheads"}, "property owners": {"concepts": "property owners", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "property owners"}, "neutral": {"concepts": "neutral", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "neutral"}, "management": {"concepts": "management", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "management"}, "mississippi": {"concepts": "mississippi", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "mississippi"}, "litter work": {"concepts": "litter work", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "litter work"}, "positive high": {"concepts": "positive high", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "positive high"}, "oa": {"concepts": "oa", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "oa"}, "alabama": {"concepts": "alabama", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "alabama"}, "negative mid": {"concepts": "negative mid", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "negative mid"}, "negative high": {"concepts": "negative high", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "negative high"}, "increase low": {"concepts": "increase low", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "increase low"}, "grains": {"concepts": "grains", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "grains"}, "positive mid": {"concepts": "positive mid", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "positive mid"}, "development": {"concepts": "development", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "development"}, "increase mid": {"concepts": "increase mid", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "increase mid"}, "beach mouse": {"concepts": "beach mouse", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "beach mouse"}, "management approaches": {"concepts": "management approaches", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "management approaches"}, "positive low": {"concepts": "positive low", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "positive low"}, "decrease high": {"concepts": "decrease high", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "decrease high"}, "negative low": {"concepts": "negative low", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "negative low"}, "coastal ecology": {"concepts": "coastal ecology", "type": "concept", "cluster": "Shoreline Ecology Management", "node_size": 10, "label": "coastal ecology"}, "wetland restoration": {"concepts": "wetland restoration", "type": "concept", "cluster": "Shoreline Ecology Management", "node_size": 10, "label": "wetland restoration"}, "wetland ecology": {"concepts": "wetland ecology", "type": "concept", "cluster": "Shoreline Ecology Management", "node_size": 10, "label": "wetland ecology"}, "nutrient removal": {"concepts": "nutrient removal", "type": "concept", "cluster": "Shoreline Ecology Management", "node_size": 10, "label": "nutrient removal"}, "shoreline management": {"concepts": "shoreline management", "type": "concept", "cluster": "Shoreline Ecology Management", "node_size": 10, "label": "shoreline management"}, "coastal wetland": {"concepts": "coastal wetland", "type": "concept", "cluster": "Shoreline Ecology Management", "node_size": 10, "label": "coastal wetland"}, "shoreline protection": {"concepts": "shoreline protection", "type": "concept", "cluster": "Shoreline Ecology Management", "node_size": 10, "label": "shoreline protection"}, "shoreline development": {"concepts": "shoreline development", "type": "concept", "cluster": "Shoreline Ecology Management", "node_size": 10, "label": "shoreline development"}, "water quality": {"concepts": "water quality", "type": "concept", "cluster": "Shoreline Ecology Management", "node_size": 10, "label": "water quality"}, "shoreline restoration": {"concepts": "shoreline restoration", "type": "concept", "cluster": "Shoreline Ecology Management", "node_size": 10, "label": "shoreline restoration"}, "habitat for fisheries species": {"concepts": "habitat for fisheries species", "type": "concept", "cluster": "Fisheries Habitat", "node_size": 10, "label": "habitat for fisheries species"}, "habitat for fishery species": {"concepts": "habitat for fishery species", "type": "concept", "cluster": "Fisheries Habitat", "node_size": 10, "label": "habitat for fishery species"}, "fisheries habitat": {"concepts": "fisheries habitat", "type": "concept", "cluster": "Fisheries Habitat", "node_size": 10, "label": "fisheries habitat"}, "habitat for fisheries": {"concepts": "habitat for fisheries", "type": "concept", "cluster": "Fisheries Habitat", "node_size": 10, "label": "habitat for fisheries"}};
+        const interClusterEdges = [["fish and wildlife service", "Biodiversity Conservation Management", {"weight": 1.0, "confidence": 0.8400000000000001, "type": "inter_cluster", "style": "solid"}], ["fish and wildlife service", "Coastal Development Impacts", {"weight": 1.0, "confidence": 0.7799999999999999, "type": "inter_cluster", "style": "solid"}], ["fish and wildlife service", "Shoreline Ecology Management", {"weight": 1.0, "confidence": 0.64, "type": "inter_cluster", "style": "solid"}], ["fish and wildlife service", "fishery species", {"weight": 0.8, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["fish and wildlife service", "Fisheries Habitat", {"weight": 0.8, "confidence": 0.57, "type": "inter_cluster", "style": "solid"}], ["fish and wildlife service", "Environmental Impact Relationships", {"weight": 0.4, "confidence": 0.53, "type": "inter_cluster", "style": "solid"}], ["fish and wildlife service", "Marine Ecosystem Restoration", {"weight": 0.75, "confidence": 0.475, "type": "inter_cluster", "style": "solid"}], ["fishery species", "Biodiversity Conservation Management", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["fishery species", "Shoreline Ecology Management", {"weight": 0.6, "confidence": 0.6699999999999999, "type": "inter_cluster", "style": "solid"}], ["fishery species", "Marine Ecosystem Restoration", {"weight": 0.8, "confidence": 0.5800000000000001, "type": "inter_cluster", "style": "solid"}], ["fishery species", "fish and wildlife service", {"weight": 0.8, "confidence": 0.5800000000000001, "type": "inter_cluster", "style": "solid"}], ["fishery species", "Environmental Impact Relationships", {"weight": 0.6, "confidence": 0.39, "type": "inter_cluster", "style": "solid"}], ["Biodiversity Conservation Management", "Fisheries Habitat", {"weight": 1.0, "confidence": 0.9199999999999999, "type": "inter_cluster", "style": "solid"}], ["Biodiversity Conservation Management", "fishery species", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["Biodiversity Conservation Management", "Shoreline Ecology Management", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Biodiversity Conservation Management", "fish and wildlife service", {"weight": 1.0, "confidence": 0.79, "type": "inter_cluster", "style": "solid"}], ["Biodiversity Conservation Management", "Coastal Development Impacts", {"weight": -0.2, "confidence": 0.74, "type": "inter_cluster", "style": "solid"}], ["Biodiversity Conservation Management", "Environmental Impact Relationships", {"weight": -0.2, "confidence": 0.72, "type": "inter_cluster", "style": "solid"}], ["Marine Ecosystem Restoration", "Fisheries Habitat", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Marine Ecosystem Restoration", "Biodiversity Conservation Management", {"weight": 0.2, "confidence": 0.8399999999999999, "type": "inter_cluster", "style": "solid"}], ["Marine Ecosystem Restoration", "fishery species", {"weight": 1.0, "confidence": 0.8099999999999999, "type": "inter_cluster", "style": "solid"}], ["Marine Ecosystem Restoration", "Environmental Impact Relationships", {"weight": -0.2, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Marine Ecosystem Restoration", "Coastal Development Impacts", {"weight": -0.8, "confidence": 0.64, "type": "inter_cluster", "style": "solid"}], ["Marine Ecosystem Restoration", "fish and wildlife service", {"weight": 0.8, "confidence": 0.52, "type": "inter_cluster", "style": "solid"}], ["Environmental Impact Relationships", "Coastal Development Impacts", {"weight": 1.0, "confidence": 0.79, "type": "inter_cluster", "style": "solid"}], ["Environmental Impact Relationships", "Biodiversity Conservation Management", {"weight": -0.2, "confidence": 0.77, "type": "inter_cluster", "style": "solid"}], ["Environmental Impact Relationships", "Shoreline Ecology Management", {"weight": 0.2, "confidence": 0.76, "type": "inter_cluster", "style": "solid"}], ["Environmental Impact Relationships", "Marine Ecosystem Restoration", {"weight": 0.2, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Environmental Impact Relationships", "Fisheries Habitat", {"weight": -0.25, "confidence": 0.5375000000000001, "type": "inter_cluster", "style": "solid"}], ["Coastal Development Impacts", "Fisheries Habitat", {"weight": -1.0, "confidence": 0.89, "type": "inter_cluster", "style": "solid"}], ["Coastal Development Impacts", "Biodiversity Conservation Management", {"weight": -1.0, "confidence": 0.8800000000000001, "type": "inter_cluster", "style": "solid"}], ["Coastal Development Impacts", "fishery species", {"weight": -1.0, "confidence": 0.82, "type": "inter_cluster", "style": "solid"}], ["Coastal Development Impacts", "Environmental Impact Relationships", {"weight": 1.0, "confidence": 0.82, "type": "inter_cluster", "style": "solid"}], ["Coastal Development Impacts", "Marine Ecosystem Restoration", {"weight": -1.0, "confidence": 0.7699999999999999, "type": "inter_cluster", "style": "solid"}], ["Coastal Development Impacts", "fish and wildlife service", {"weight": 1.0, "confidence": 0.74, "type": "inter_cluster", "style": "solid"}], ["Coastal Development Impacts", "Shoreline Ecology Management", {"weight": -1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Shoreline Ecology Management", "Coastal Development Impacts", {"weight": 0.2, "confidence": 0.8700000000000001, "type": "inter_cluster", "style": "solid"}], ["Shoreline Ecology Management", "Fisheries Habitat", {"weight": 1.0, "confidence": 0.86, "type": "inter_cluster", "style": "solid"}], ["Shoreline Ecology Management", "Environmental Impact Relationships", {"weight": 0.6, "confidence": 0.8200000000000001, "type": "inter_cluster", "style": "solid"}], ["Shoreline Ecology Management", "Marine Ecosystem Restoration", {"weight": 1.0, "confidence": 0.76, "type": "inter_cluster", "style": "solid"}], ["Shoreline Ecology Management", "Biodiversity Conservation Management", {"weight": 0.5, "confidence": 0.875, "type": "inter_cluster", "style": "solid"}], ["Shoreline Ecology Management", "fish and wildlife service", {"weight": 0.6, "confidence": 0.71, "type": "inter_cluster", "style": "solid"}], ["Fisheries Habitat", "fishery species", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["Fisheries Habitat", "Coastal Development Impacts", {"weight": -1.0, "confidence": 0.86, "type": "inter_cluster", "style": "solid"}], ["Fisheries Habitat", "Biodiversity Conservation Management", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Fisheries Habitat", "Marine Ecosystem Restoration", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Fisheries Habitat", "Shoreline Ecology Management", {"weight": 1.0, "confidence": 0.74, "type": "inter_cluster", "style": "solid"}], ["Fisheries Habitat", "fish and wildlife service", {"weight": 0.8, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["Fisheries Habitat", "Environmental Impact Relationships", {"weight": 0.6, "confidence": 0.45999999999999996, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {"Biodiversity Conservation Management": [["species of conservation concern", {"concepts": "species of conservation concern", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "species of conservation concern"}], ["species diversity", {"concepts": "species diversity", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "species diversity"}], ["habitat formation", {"concepts": "habitat formation", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "habitat formation"}], ["invasive species", {"concepts": "invasive species", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "invasive species"}], ["biodiversity", {"concepts": "biodiversity", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "biodiversity"}], ["native species", {"concepts": "native species", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "native species"}], ["ecological relationships", {"concepts": "ecological relationships", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "ecological relationships"}], ["habitat forming species", {"concepts": "habitat forming species", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "habitat forming species"}], ["habitat", {"concepts": "habitat", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "habitat"}], ["food-web dynamics", {"concepts": "food-web dynamics", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "food-web dynamics"}], ["key food-web supporting species", {"concepts": "key food-web supporting species", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "key food-web supporting species"}], ["shell-forming organisms", {"concepts": "shell-forming organisms", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "shell-forming organisms"}], ["ecosystem services", {"concepts": "ecosystem services", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "ecosystem services"}], ["harmful organisms", {"concepts": "harmful organisms", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "harmful organisms"}], ["conservation concern", {"concepts": "conservation concern", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "conservation concern"}], ["single species management", {"concepts": "single species management", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "single species management"}], ["species management", {"concepts": "species management", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "species management"}], ["florida", {"concepts": "florida", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "florida"}], ["habitat restoration", {"concepts": "habitat restoration", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "habitat restoration"}], ["food-web supporting species", {"concepts": "food-web supporting species", "type": "concept", "cluster": "Biodiversity Conservation Management", "node_size": 10, "label": "food-web supporting species"}]], "Marine Ecosystem Restoration": [["marine biodiversity", {"concepts": "marine biodiversity", "type": "concept", "cluster": "Marine Ecosystem Restoration", "node_size": 10, "label": "marine biodiversity"}], ["ocean acidification", {"concepts": "ocean acidification", "type": "concept", "cluster": "Marine Ecosystem Restoration", "node_size": 10, "label": "ocean acidification"}], ["marine debris", {"concepts": "marine debris", "type": "concept", "cluster": "Marine Ecosystem Restoration", "node_size": 10, "label": "marine debris"}], ["oyster reef development", {"concepts": "oyster reef development", "type": "concept", "cluster": "Marine Ecosystem Restoration", "node_size": 10, "label": "oyster reef development"}], ["oyster reef resiliency", {"concepts": "oyster reef resiliency", "type": "concept", "cluster": "Marine Ecosystem Restoration", "node_size": 10, "label": "oyster reef resiliency"}], ["marine biology", {"concepts": "marine biology", "type": "concept", "cluster": "Marine Ecosystem Restoration", "node_size": 10, "label": "marine biology"}], ["oyster reef restoration", {"concepts": "oyster reef restoration", "type": "concept", "cluster": "Marine Ecosystem Restoration", "node_size": 10, "label": "oyster reef restoration"}], ["resilient oyster reef development", {"concepts": "resilient oyster reef development", "type": "concept", "cluster": "Marine Ecosystem Restoration", "node_size": 10, "label": "resilient oyster reef development"}]], "Environmental Impact Relationships": [["positive impact", {"concepts": "positive impact", "type": "concept", "cluster": "Environmental Impact Relationships", "node_size": 10, "label": "positive impact"}], ["bidirectional relationships", {"concepts": "bidirectional relationships", "type": "concept", "cluster": "Environmental Impact Relationships", "node_size": 10, "label": "bidirectional relationships"}], ["regulatory stance", {"concepts": "regulatory stance", "type": "concept", "cluster": "Environmental Impact Relationships", "node_size": 10, "label": "regulatory stance"}], ["resilience", {"concepts": "resilience", "type": "concept", "cluster": "Environmental Impact Relationships", "node_size": 10, "label": "resilience"}], ["negative impact", {"concepts": "negative impact", "type": "concept", "cluster": "Environmental Impact Relationships", "node_size": 10, "label": "negative impact"}], ["education outreach", {"concepts": "education outreach", "type": "concept", "cluster": "Environmental Impact Relationships", "node_size": 10, "label": "education outreach"}], ["stressors", {"concepts": "stressors", "type": "concept", "cluster": "Environmental Impact Relationships", "node_size": 10, "label": "stressors"}]], "Coastal Development Impacts": [["bulkheads", {"concepts": "bulkheads", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "bulkheads"}], ["property owners", {"concepts": "property owners", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "property owners"}], ["neutral", {"concepts": "neutral", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "neutral"}], ["management", {"concepts": "management", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "management"}], ["mississippi", {"concepts": "mississippi", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "mississippi"}], ["litter work", {"concepts": "litter work", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "litter work"}], ["positive high", {"concepts": "positive high", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "positive high"}], ["oa", {"concepts": "oa", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "oa"}], ["alabama", {"concepts": "alabama", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "alabama"}], ["negative mid", {"concepts": "negative mid", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "negative mid"}], ["negative high", {"concepts": "negative high", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "negative high"}], ["increase low", {"concepts": "increase low", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "increase low"}], ["grains", {"concepts": "grains", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "grains"}], ["positive mid", {"concepts": "positive mid", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "positive mid"}], ["development", {"concepts": "development", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "development"}], ["increase mid", {"concepts": "increase mid", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "increase mid"}], ["beach mouse", {"concepts": "beach mouse", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "beach mouse"}], ["management approaches", {"concepts": "management approaches", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "management approaches"}], ["positive low", {"concepts": "positive low", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "positive low"}], ["decrease high", {"concepts": "decrease high", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "decrease high"}], ["negative low", {"concepts": "negative low", "type": "concept", "cluster": "Coastal Development Impacts", "node_size": 10, "label": "negative low"}]], "Shoreline Ecology Management": [["coastal ecology", {"concepts": "coastal ecology", "type": "concept", "cluster": "Shoreline Ecology Management", "node_size": 10, "label": "coastal ecology"}], ["wetland restoration", {"concepts": "wetland restoration", "type": "concept", "cluster": "Shoreline Ecology Management", "node_size": 10, "label": "wetland restoration"}], ["wetland ecology", {"concepts": "wetland ecology", "type": "concept", "cluster": "Shoreline Ecology Management", "node_size": 10, "label": "wetland ecology"}], ["nutrient removal", {"concepts": "nutrient removal", "type": "concept", "cluster": "Shoreline Ecology Management", "node_size": 10, "label": "nutrient removal"}], ["shoreline management", {"concepts": "shoreline management", "type": "concept", "cluster": "Shoreline Ecology Management", "node_size": 10, "label": "shoreline management"}], ["coastal wetland", {"concepts": "coastal wetland", "type": "concept", "cluster": "Shoreline Ecology Management", "node_size": 10, "label": "coastal wetland"}], ["shoreline protection", {"concepts": "shoreline protection", "type": "concept", "cluster": "Shoreline Ecology Management", "node_size": 10, "label": "shoreline protection"}], ["shoreline development", {"concepts": "shoreline development", "type": "concept", "cluster": "Shoreline Ecology Management", "node_size": 10, "label": "shoreline development"}], ["water quality", {"concepts": "water quality", "type": "concept", "cluster": "Shoreline Ecology Management", "node_size": 10, "label": "water quality"}], ["shoreline restoration", {"concepts": "shoreline restoration", "type": "concept", "cluster": "Shoreline Ecology Management", "node_size": 10, "label": "shoreline restoration"}]], "Fisheries Habitat": [["habitat for fisheries species", {"concepts": "habitat for fisheries species", "type": "concept", "cluster": "Fisheries Habitat", "node_size": 10, "label": "habitat for fisheries species"}], ["habitat for fishery species", {"concepts": "habitat for fishery species", "type": "concept", "cluster": "Fisheries Habitat", "node_size": 10, "label": "habitat for fishery species"}], ["fisheries habitat", {"concepts": "fisheries habitat", "type": "concept", "cluster": "Fisheries Habitat", "node_size": 10, "label": "fisheries habitat"}], ["habitat for fisheries", {"concepts": "habitat for fisheries", "type": "concept", "cluster": "Fisheries Habitat", "node_size": 10, "label": "habitat for fisheries"}]]};
+        const clusterEdges = {"Biodiversity Conservation Management": [], "Marine Ecosystem Restoration": [], "Environmental Impact Relationships": [], "Coastal Development Impacts": [], "Shoreline Ecology Management": [], "Fisheries Habitat": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

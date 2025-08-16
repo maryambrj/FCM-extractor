@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"habitat": {"concepts": "habitat", "concept_list": ["habitat"], "type": "cluster", "node_size": 18, "label": "habitat"}, "community engagement": {"concepts": "community engagement", "concept_list": ["community engagement"], "type": "cluster", "node_size": 18, "label": "community engagement"}, "chesapeake bay": {"concepts": "chesapeake bay", "concept_list": ["chesapeake bay"], "type": "cluster", "node_size": 18, "label": "chesapeake bay"}, "food web": {"concepts": "food web", "concept_list": ["food web"], "type": "cluster", "node_size": 18, "label": "food web"}, "wetland permits": {"concepts": "wetland permits", "concept_list": ["wetland permits"], "type": "cluster", "node_size": 18, "label": "wetland permits"}, "fisheries": {"concepts": "fisheries", "concept_list": ["fisheries"], "type": "cluster", "node_size": 18, "label": "fisheries"}, "equity initiatives": {"concepts": "equity initiatives", "concept_list": ["equity initiatives"], "type": "cluster", "node_size": 18, "label": "equity initiatives"}, "grant specialists": {"concepts": "grant specialists", "concept_list": ["grant specialists"], "type": "cluster", "node_size": 18, "label": "grant specialists"}, "stakeholders": {"concepts": "stakeholders", "concept_list": ["stakeholders"], "type": "cluster", "node_size": 18, "label": "stakeholders"}, "green infrastructure": {"concepts": "green infrastructure", "concept_list": ["green infrastructure"], "type": "cluster", "node_size": 18, "label": "green infrastructure"}, "Water Conditions": {"concepts": "precipitation, salinity", "concept_list": ["precipitation", "salinity"], "type": "cluster", "node_size": 21, "label": "Water Conditions"}, "Water Clarity": {"concepts": "turbidity, temperature", "concept_list": ["turbidity", "temperature"], "type": "cluster", "node_size": 21, "label": "Water Clarity"}, "Resilient Communities": {"concepts": "climate change, community resilience, stakeholder engagement, water quality", "concept_list": ["climate change", "community resilience", "stakeholder engagement", "water quality"], "type": "cluster", "node_size": 27, "label": "Resilient Communities"}, "Resource Stewardship": {"concepts": "conservation, restoration, adaptive management", "concept_list": ["conservation", "restoration", "adaptive management"], "type": "cluster", "node_size": 24, "label": "Resource Stewardship"}, "Water Stewardship": {"concepts": "data management, gis modeling, data analysis", "concept_list": ["data management", "gis modeling", "data analysis"], "type": "cluster", "node_size": 24, "label": "Water Stewardship"}, "Public Regulation": {"concepts": "public access, regulatory power", "concept_list": ["public access", "regulatory power"], "type": "cluster", "node_size": 21, "label": "Public Regulation"}, "Adaptive Development": {"concepts": "erosion, adaptability, conceptual model, development, rain", "concept_list": ["erosion", "adaptability", "conceptual model", "development", "rain"], "type": "cluster", "node_size": 30, "label": "Adaptive Development"}, "Coastal Management": {"concepts": "coastal planning, coastal protection", "concept_list": ["coastal planning", "coastal protection"], "type": "cluster", "node_size": 21, "label": "Coastal Management"}, "Coastal Conservation": {"concepts": "land acquisition, outdoor recreation, living shorelines, marsh migration", "concept_list": ["land acquisition", "outdoor recreation", "living shorelines", "marsh migration"], "type": "cluster", "node_size": 27, "label": "Coastal Conservation"}, "Coastal Resilience": {"concepts": "marine resource management, vulnerability assessment, restoration projects, coastal resilience, recreation", "concept_list": ["marine resource management", "vulnerability assessment", "restoration projects", "coastal resilience", "recreation"], "type": "cluster", "node_size": 30, "label": "Coastal Resilience"}, "Equity Research": {"concepts": "research collaboration, dnr employees, equity", "concept_list": ["research collaboration", "dnr employees", "equity"], "type": "cluster", "node_size": 24, "label": "Equity Research"}, "Native Biodiversity": {"concepts": "biodiversity, native species diversity", "concept_list": ["biodiversity", "native species diversity"], "type": "cluster", "node_size": 21, "label": "Native Biodiversity"}, "Invasive Control": {"concepts": "invasive species, species conservation", "concept_list": ["invasive species", "species conservation"], "type": "cluster", "node_size": 21, "label": "Invasive Control"}, "Ecosystem Health": {"concepts": "carbon storage, conservation species, ecosystem services", "concept_list": ["carbon storage", "conservation species", "ecosystem services"], "type": "cluster", "node_size": 24, "label": "Ecosystem Health"}};
+        const conceptData = {"precipitation": {"concepts": "precipitation", "type": "concept", "cluster": "Water Conditions", "node_size": 10, "label": "precipitation"}, "salinity": {"concepts": "salinity", "type": "concept", "cluster": "Water Conditions", "node_size": 10, "label": "salinity"}, "turbidity": {"concepts": "turbidity", "type": "concept", "cluster": "Water Clarity", "node_size": 10, "label": "turbidity"}, "temperature": {"concepts": "temperature", "type": "concept", "cluster": "Water Clarity", "node_size": 10, "label": "temperature"}, "climate change": {"concepts": "climate change", "type": "concept", "cluster": "Resilient Communities", "node_size": 10, "label": "climate change"}, "community resilience": {"concepts": "community resilience", "type": "concept", "cluster": "Resilient Communities", "node_size": 10, "label": "community resilience"}, "stakeholder engagement": {"concepts": "stakeholder engagement", "type": "concept", "cluster": "Resilient Communities", "node_size": 10, "label": "stakeholder engagement"}, "water quality": {"concepts": "water quality", "type": "concept", "cluster": "Resilient Communities", "node_size": 10, "label": "water quality"}, "conservation": {"concepts": "conservation", "type": "concept", "cluster": "Resource Stewardship", "node_size": 10, "label": "conservation"}, "restoration": {"concepts": "restoration", "type": "concept", "cluster": "Resource Stewardship", "node_size": 10, "label": "restoration"}, "adaptive management": {"concepts": "adaptive management", "type": "concept", "cluster": "Resource Stewardship", "node_size": 10, "label": "adaptive management"}, "data management": {"concepts": "data management", "type": "concept", "cluster": "Water Stewardship", "node_size": 10, "label": "data management"}, "gis modeling": {"concepts": "gis modeling", "type": "concept", "cluster": "Water Stewardship", "node_size": 10, "label": "gis modeling"}, "data analysis": {"concepts": "data analysis", "type": "concept", "cluster": "Water Stewardship", "node_size": 10, "label": "data analysis"}, "public access": {"concepts": "public access", "type": "concept", "cluster": "Public Regulation", "node_size": 10, "label": "public access"}, "regulatory power": {"concepts": "regulatory power", "type": "concept", "cluster": "Public Regulation", "node_size": 10, "label": "regulatory power"}, "erosion": {"concepts": "erosion", "type": "concept", "cluster": "Adaptive Development", "node_size": 10, "label": "erosion"}, "adaptability": {"concepts": "adaptability", "type": "concept", "cluster": "Adaptive Development", "node_size": 10, "label": "adaptability"}, "conceptual model": {"concepts": "conceptual model", "type": "concept", "cluster": "Adaptive Development", "node_size": 10, "label": "conceptual model"}, "development": {"concepts": "development", "type": "concept", "cluster": "Adaptive Development", "node_size": 10, "label": "development"}, "rain": {"concepts": "rain", "type": "concept", "cluster": "Adaptive Development", "node_size": 10, "label": "rain"}, "coastal planning": {"concepts": "coastal planning", "type": "concept", "cluster": "Coastal Management", "node_size": 10, "label": "coastal planning"}, "coastal protection": {"concepts": "coastal protection", "type": "concept", "cluster": "Coastal Management", "node_size": 10, "label": "coastal protection"}, "land acquisition": {"concepts": "land acquisition", "type": "concept", "cluster": "Coastal Conservation", "node_size": 10, "label": "land acquisition"}, "outdoor recreation": {"concepts": "outdoor recreation", "type": "concept", "cluster": "Coastal Conservation", "node_size": 10, "label": "outdoor recreation"}, "living shorelines": {"concepts": "living shorelines", "type": "concept", "cluster": "Coastal Conservation", "node_size": 10, "label": "living shorelines"}, "marsh migration": {"concepts": "marsh migration", "type": "concept", "cluster": "Coastal Conservation", "node_size": 10, "label": "marsh migration"}, "marine resource management": {"concepts": "marine resource management", "type": "concept", "cluster": "Coastal Resilience", "node_size": 10, "label": "marine resource management"}, "vulnerability assessment": {"concepts": "vulnerability assessment", "type": "concept", "cluster": "Coastal Resilience", "node_size": 10, "label": "vulnerability assessment"}, "restoration projects": {"concepts": "restoration projects", "type": "concept", "cluster": "Coastal Resilience", "node_size": 10, "label": "restoration projects"}, "coastal resilience": {"concepts": "coastal resilience", "type": "concept", "cluster": "Coastal Resilience", "node_size": 10, "label": "coastal resilience"}, "recreation": {"concepts": "recreation", "type": "concept", "cluster": "Coastal Resilience", "node_size": 10, "label": "recreation"}, "research collaboration": {"concepts": "research collaboration", "type": "concept", "cluster": "Equity Research", "node_size": 10, "label": "research collaboration"}, "dnr employees": {"concepts": "dnr employees", "type": "concept", "cluster": "Equity Research", "node_size": 10, "label": "dnr employees"}, "equity": {"concepts": "equity", "type": "concept", "cluster": "Equity Research", "node_size": 10, "label": "equity"}, "biodiversity": {"concepts": "biodiversity", "type": "concept", "cluster": "Native Biodiversity", "node_size": 10, "label": "biodiversity"}, "native species diversity": {"concepts": "native species diversity", "type": "concept", "cluster": "Native Biodiversity", "node_size": 10, "label": "native species diversity"}, "invasive species": {"concepts": "invasive species", "type": "concept", "cluster": "Invasive Control", "node_size": 10, "label": "invasive species"}, "species conservation": {"concepts": "species conservation", "type": "concept", "cluster": "Invasive Control", "node_size": 10, "label": "species conservation"}, "carbon storage": {"concepts": "carbon storage", "type": "concept", "cluster": "Ecosystem Health", "node_size": 10, "label": "carbon storage"}, "conservation species": {"concepts": "conservation species", "type": "concept", "cluster": "Ecosystem Health", "node_size": 10, "label": "conservation species"}, "ecosystem services": {"concepts": "ecosystem services", "type": "concept", "cluster": "Ecosystem Health", "node_size": 10, "label": "ecosystem services"}};
+        const interClusterEdges = [["habitat", "fisheries", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["habitat", "Coastal Conservation", {"weight": 1.0, "confidence": 0.8625, "type": "inter_cluster", "style": "solid"}], ["habitat", "community engagement", {"weight": 1.0, "confidence": 0.74, "type": "inter_cluster", "style": "solid"}], ["community engagement", "Water Clarity", {"weight": -1.0, "confidence": 0.62, "type": "inter_cluster", "style": "solid"}], ["community engagement", "wetland permits", {"weight": 0.8, "confidence": 0.5700000000000001, "type": "inter_cluster", "style": "solid"}], ["chesapeake bay", "habitat", {"weight": 1.0, "confidence": 0.8700000000000001, "type": "inter_cluster", "style": "solid"}], ["chesapeake bay", "green infrastructure", {"weight": 1.0, "confidence": 0.76, "type": "inter_cluster", "style": "solid"}], ["chesapeake bay", "grant specialists", {"weight": 0.5, "confidence": 0.3125, "type": "inter_cluster", "style": "solid"}], ["chesapeake bay", "food web", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["food web", "Native Biodiversity", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["food web", "Invasive Control", {"weight": -0.6, "confidence": 0.7500000000000001, "type": "inter_cluster", "style": "solid"}], ["food web", "Coastal Management", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food web", "Coastal Resilience", {"weight": 1.0, "confidence": 0.8500000000000001, "type": "inter_cluster", "style": "solid"}], ["food web", "Resource Stewardship", {"weight": 1.0, "confidence": 0.71, "type": "inter_cluster", "style": "solid"}], ["food web", "Water Stewardship", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food web", "community engagement", {"weight": 0.8, "confidence": 0.5199999999999999, "type": "inter_cluster", "style": "solid"}], ["food web", "chesapeake bay", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["wetland permits", "community engagement", {"weight": 0.8, "confidence": 0.6000000000000001, "type": "inter_cluster", "style": "solid"}], ["wetland permits", "chesapeake bay", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["fisheries", "community engagement", {"weight": 0.5, "confidence": 0.475, "type": "inter_cluster", "style": "solid"}], ["equity initiatives", "Invasive Control", {"weight": -0.6, "confidence": 0.6599999999999999, "type": "inter_cluster", "style": "solid"}], ["equity initiatives", "habitat", {"weight": 0.5, "confidence": 0.7124999999999999, "type": "inter_cluster", "style": "solid"}], ["grant specialists", "wetland permits", {"weight": 1.0, "confidence": 0.6375, "type": "inter_cluster", "style": "solid"}], ["stakeholders", "Adaptive Development", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["green infrastructure", "habitat", {"weight": 1.0, "confidence": 0.8299999999999998, "type": "inter_cluster", "style": "solid"}], ["green infrastructure", "Resilient Communities", {"weight": 0.3333333333333333, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["green infrastructure", "Water Stewardship", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["green infrastructure", "Water Clarity", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Water Conditions", "food web", {"weight": -0.6, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Water Conditions", "fisheries", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Resilient Communities", "Water Conditions", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Resilient Communities", "equity initiatives", {"weight": 0.6, "confidence": 0.6899999999999998, "type": "inter_cluster", "style": "solid"}], ["Resilient Communities", "Water Stewardship", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["Resource Stewardship", "Invasive Control", {"weight": -0.6, "confidence": 0.8399999999999999, "type": "inter_cluster", "style": "solid"}], ["Resource Stewardship", "Adaptive Development", {"weight": -1.0, "confidence": 0.76, "type": "inter_cluster", "style": "solid"}], ["Resource Stewardship", "food web", {"weight": 0.5, "confidence": 0.7999999999999999, "type": "inter_cluster", "style": "solid"}], ["Resource Stewardship", "Public Regulation", {"weight": 0.2, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["Water Stewardship", "chesapeake bay", {"weight": 1.0, "confidence": 0.8250000000000001, "type": "inter_cluster", "style": "solid"}], ["Water Stewardship", "Equity Research", {"weight": 1.0, "confidence": 0.8375, "type": "inter_cluster", "style": "solid"}], ["Public Regulation", "Invasive Control", {"weight": -0.6, "confidence": 0.76, "type": "inter_cluster", "style": "solid"}], ["Public Regulation", "Coastal Management", {"weight": 0.4, "confidence": 0.5599999999999999, "type": "inter_cluster", "style": "solid"}], ["Public Regulation", "grant specialists", {"weight": 0.25, "confidence": 0.225, "type": "inter_cluster", "style": "solid"}], ["Adaptive Development", "Water Stewardship", {"weight": 0.6, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Coastal Management", "Water Stewardship", {"weight": 0.6, "confidence": 0.9200000000000002, "type": "inter_cluster", "style": "solid"}], ["Coastal Management", "Coastal Resilience", {"weight": 1.0, "confidence": 0.9099999999999999, "type": "inter_cluster", "style": "solid"}], ["Coastal Management", "Adaptive Development", {"weight": -0.5, "confidence": 0.7749999999999999, "type": "inter_cluster", "style": "solid"}], ["Coastal Management", "Public Regulation", {"weight": 0.8, "confidence": 0.6200000000000001, "type": "inter_cluster", "style": "solid"}], ["Coastal Conservation", "community engagement", {"weight": 0.75, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["Coastal Conservation", "Water Stewardship", {"weight": 1.0, "confidence": 0.7833333333333332, "type": "inter_cluster", "style": "solid"}], ["Coastal Resilience", "fisheries", {"weight": 1.0, "confidence": 0.8300000000000001, "type": "inter_cluster", "style": "solid"}], ["Equity Research", "wetland permits", {"weight": 0.8, "confidence": 0.53, "type": "inter_cluster", "style": "solid"}], ["Equity Research", "Public Regulation", {"weight": 0.8, "confidence": 0.53, "type": "inter_cluster", "style": "solid"}], ["Equity Research", "Coastal Conservation", {"weight": 0.75, "confidence": 0.5125, "type": "inter_cluster", "style": "solid"}], ["Native Biodiversity", "Ecosystem Health", {"weight": 1.0, "confidence": 0.86, "type": "inter_cluster", "style": "solid"}], ["Native Biodiversity", "stakeholders", {"weight": 1.0, "confidence": 0.7333333333333334, "type": "inter_cluster", "style": "solid"}], ["Native Biodiversity", "equity initiatives", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Native Biodiversity", "Resilient Communities", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Invasive Control", "Coastal Resilience", {"weight": -0.6, "confidence": 0.79, "type": "inter_cluster", "style": "solid"}], ["Invasive Control", "community engagement", {"weight": -0.3333333333333333, "confidence": 0.6999999999999998, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Health", "Invasive Control", {"weight": -1.0, "confidence": 0.76, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {"Water Conditions": [["precipitation", {"concepts": "precipitation", "type": "concept", "cluster": "Water Conditions", "node_size": 10, "label": "precipitation"}], ["salinity", {"concepts": "salinity", "type": "concept", "cluster": "Water Conditions", "node_size": 10, "label": "salinity"}]], "Water Clarity": [["turbidity", {"concepts": "turbidity", "type": "concept", "cluster": "Water Clarity", "node_size": 10, "label": "turbidity"}], ["temperature", {"concepts": "temperature", "type": "concept", "cluster": "Water Clarity", "node_size": 10, "label": "temperature"}]], "Resilient Communities": [["climate change", {"concepts": "climate change", "type": "concept", "cluster": "Resilient Communities", "node_size": 10, "label": "climate change"}], ["community resilience", {"concepts": "community resilience", "type": "concept", "cluster": "Resilient Communities", "node_size": 10, "label": "community resilience"}], ["stakeholder engagement", {"concepts": "stakeholder engagement", "type": "concept", "cluster": "Resilient Communities", "node_size": 10, "label": "stakeholder engagement"}], ["water quality", {"concepts": "water quality", "type": "concept", "cluster": "Resilient Communities", "node_size": 10, "label": "water quality"}]], "Resource Stewardship": [["conservation", {"concepts": "conservation", "type": "concept", "cluster": "Resource Stewardship", "node_size": 10, "label": "conservation"}], ["restoration", {"concepts": "restoration", "type": "concept", "cluster": "Resource Stewardship", "node_size": 10, "label": "restoration"}], ["adaptive management", {"concepts": "adaptive management", "type": "concept", "cluster": "Resource Stewardship", "node_size": 10, "label": "adaptive management"}]], "Water Stewardship": [["data management", {"concepts": "data management", "type": "concept", "cluster": "Water Stewardship", "node_size": 10, "label": "data management"}], ["gis modeling", {"concepts": "gis modeling", "type": "concept", "cluster": "Water Stewardship", "node_size": 10, "label": "gis modeling"}], ["data analysis", {"concepts": "data analysis", "type": "concept", "cluster": "Water Stewardship", "node_size": 10, "label": "data analysis"}]], "Public Regulation": [["public access", {"concepts": "public access", "type": "concept", "cluster": "Public Regulation", "node_size": 10, "label": "public access"}], ["regulatory power", {"concepts": "regulatory power", "type": "concept", "cluster": "Public Regulation", "node_size": 10, "label": "regulatory power"}]], "Adaptive Development": [["erosion", {"concepts": "erosion", "type": "concept", "cluster": "Adaptive Development", "node_size": 10, "label": "erosion"}], ["adaptability", {"concepts": "adaptability", "type": "concept", "cluster": "Adaptive Development", "node_size": 10, "label": "adaptability"}], ["conceptual model", {"concepts": "conceptual model", "type": "concept", "cluster": "Adaptive Development", "node_size": 10, "label": "conceptual model"}], ["development", {"concepts": "development", "type": "concept", "cluster": "Adaptive Development", "node_size": 10, "label": "development"}], ["rain", {"concepts": "rain", "type": "concept", "cluster": "Adaptive Development", "node_size": 10, "label": "rain"}]], "Coastal Management": [["coastal planning", {"concepts": "coastal planning", "type": "concept", "cluster": "Coastal Management", "node_size": 10, "label": "coastal planning"}], ["coastal protection", {"concepts": "coastal protection", "type": "concept", "cluster": "Coastal Management", "node_size": 10, "label": "coastal protection"}]], "Coastal Conservation": [["land acquisition", {"concepts": "land acquisition", "type": "concept", "cluster": "Coastal Conservation", "node_size": 10, "label": "land acquisition"}], ["outdoor recreation", {"concepts": "outdoor recreation", "type": "concept", "cluster": "Coastal Conservation", "node_size": 10, "label": "outdoor recreation"}], ["living shorelines", {"concepts": "living shorelines", "type": "concept", "cluster": "Coastal Conservation", "node_size": 10, "label": "living shorelines"}], ["marsh migration", {"concepts": "marsh migration", "type": "concept", "cluster": "Coastal Conservation", "node_size": 10, "label": "marsh migration"}]], "Coastal Resilience": [["marine resource management", {"concepts": "marine resource management", "type": "concept", "cluster": "Coastal Resilience", "node_size": 10, "label": "marine resource management"}], ["vulnerability assessment", {"concepts": "vulnerability assessment", "type": "concept", "cluster": "Coastal Resilience", "node_size": 10, "label": "vulnerability assessment"}], ["restoration projects", {"concepts": "restoration projects", "type": "concept", "cluster": "Coastal Resilience", "node_size": 10, "label": "restoration projects"}], ["coastal resilience", {"concepts": "coastal resilience", "type": "concept", "cluster": "Coastal Resilience", "node_size": 10, "label": "coastal resilience"}], ["recreation", {"concepts": "recreation", "type": "concept", "cluster": "Coastal Resilience", "node_size": 10, "label": "recreation"}]], "Equity Research": [["research collaboration", {"concepts": "research collaboration", "type": "concept", "cluster": "Equity Research", "node_size": 10, "label": "research collaboration"}], ["dnr employees", {"concepts": "dnr employees", "type": "concept", "cluster": "Equity Research", "node_size": 10, "label": "dnr employees"}], ["equity", {"concepts": "equity", "type": "concept", "cluster": "Equity Research", "node_size": 10, "label": "equity"}]], "Native Biodiversity": [["biodiversity", {"concepts": "biodiversity", "type": "concept", "cluster": "Native Biodiversity", "node_size": 10, "label": "biodiversity"}], ["native species diversity", {"concepts": "native species diversity", "type": "concept", "cluster": "Native Biodiversity", "node_size": 10, "label": "native species diversity"}]], "Invasive Control": [["invasive species", {"concepts": "invasive species", "type": "concept", "cluster": "Invasive Control", "node_size": 10, "label": "invasive species"}], ["species conservation", {"concepts": "species conservation", "type": "concept", "cluster": "Invasive Control", "node_size": 10, "label": "species conservation"}]], "Ecosystem Health": [["carbon storage", {"concepts": "carbon storage", "type": "concept", "cluster": "Ecosystem Health", "node_size": 10, "label": "carbon storage"}], ["conservation species", {"concepts": "conservation species", "type": "concept", "cluster": "Ecosystem Health", "node_size": 10, "label": "conservation species"}], ["ecosystem services", {"concepts": "ecosystem services", "type": "concept", "cluster": "Ecosystem Health", "node_size": 10, "label": "ecosystem services"}]]};
+        const clusterEdges = {"Water Conditions": [], "Water Clarity": [], "Resilient Communities": [], "Resource Stewardship": [], "Water Stewardship": [], "Public Regulation": [], "Adaptive Development": [], "Coastal Management": [], "Coastal Conservation": [], "Coastal Resilience": [], "Equity Research": [], "Native Biodiversity": [], "Invasive Control": [], "Ecosystem Health": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

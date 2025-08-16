@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"workshop recruitment": {"concepts": "workshop recruitment", "concept_list": ["workshop recruitment"], "type": "cluster", "node_size": 18, "label": "workshop recruitment"}, "environmental ngos": {"concepts": "environmental ngos", "concept_list": ["environmental ngos"], "type": "cluster", "node_size": 18, "label": "environmental ngos"}, "fishing groups": {"concepts": "fishing groups", "concept_list": ["fishing groups"], "type": "cluster", "node_size": 18, "label": "fishing groups"}, "water quality": {"concepts": "water quality", "concept_list": ["water quality"], "type": "cluster", "node_size": 18, "label": "water quality"}, "harmful algal blooms": {"concepts": "harmful algal blooms", "concept_list": ["harmful algal blooms"], "type": "cluster", "node_size": 18, "label": "harmful algal blooms"}, "marine recreation": {"concepts": "marine recreation", "concept_list": ["marine recreation"], "type": "cluster", "node_size": 18, "label": "marine recreation"}, "oyster reefs": {"concepts": "oyster reefs", "concept_list": ["oyster reefs"], "type": "cluster", "node_size": 18, "label": "oyster reefs"}, "Collaborative Management": {"concepts": "smithsonian, office of science, national systematics lab, agencies, dnr, state agencies, division director, management agencies", "concept_list": ["smithsonian", "office of science", "national systematics lab", "agencies", "dnr", "state agencies", "division director", "management agencies"], "type": "cluster", "node_size": 39, "label": "Collaborative Management"}, "Gulf Research": {"concepts": "management approaches, councils, workshops, meta group, feedback loop, connections, mental modeler, problem solving, system components, group dynamics", "concept_list": ["management approaches", "councils", "workshops", "meta group", "feedback loop", "connections", "mental modeler", "problem solving", "system components", "group dynamics"], "type": "cluster", "node_size": 45, "label": "Gulf Research"}, "Resource Conservation": {"concepts": "gulf rehabilitation, gulf of mexico, research manuscript, scenario analysis, workshop summary", "concept_list": ["gulf rehabilitation", "gulf of mexico", "research manuscript", "scenario analysis", "workshop summary"], "type": "cluster", "node_size": 30, "label": "Resource Conservation"}, "Resource Management": {"concepts": "overharvesting, recruitment, economic value, resiliency, preservation, resource users, society, conservation, stressors, technology, case studies, cca, food web, human consumption", "concept_list": ["overharvesting", "recruitment", "economic value", "resiliency", "preservation", "resource users", "society", "conservation", "stressors", "technology", "case studies", "cca", "food web", "human consumption"], "type": "cluster", "node_size": 57, "label": "Resource Management"}, "Oyster Fisheries": {"concepts": "oyster harvests, fisheries, noaa fisheries, fisheries management", "concept_list": ["oyster harvests", "fisheries", "noaa fisheries", "fisheries management"], "type": "cluster", "node_size": 27, "label": "Oyster Fisheries"}, "Sustainable Fisheries": {"concepts": "fishery agencies, sustainable fisheries", "concept_list": ["fishery agencies", "sustainable fisheries"], "type": "cluster", "node_size": 21, "label": "Sustainable Fisheries"}, "Chesapeake Bay Stakeholders": {"concepts": "chesapeake bay foundation, stakeholders, maryland watermen association, maryland watermen, stakeholder groups, fisher folks, watermen's groups, chesapeake bay, chesapeake funders network", "concept_list": ["chesapeake bay foundation", "stakeholders", "maryland watermen association", "maryland watermen", "stakeholder groups", "fisher folks", "watermen's groups", "chesapeake bay", "chesapeake funders network"], "type": "cluster", "node_size": 42, "label": "Chesapeake Bay Stakeholders"}, "Environmental Contaminants": {"concepts": "harmful organisms, microplastics", "concept_list": ["harmful organisms", "microplastics"], "type": "cluster", "node_size": 21, "label": "Environmental Contaminants"}, "Chesapeake Conservation": {"concepts": "human recreation, protected resources, chesapeake conservation association", "concept_list": ["human recreation", "protected resources", "chesapeake conservation association"], "type": "cluster", "node_size": 24, "label": "Chesapeake Conservation"}, "Chesapeake Stakeholders & Habitat": {"concepts": "stakeholder perspectives, chesapeake network funders, habitat forming species, charismatic species, single species management, non-charismatic species", "concept_list": ["stakeholder perspectives", "chesapeake network funders", "habitat forming species", "charismatic species", "single species management", "non-charismatic species"], "type": "cluster", "node_size": 33, "label": "Chesapeake Stakeholders & Habitat"}, "Ecosystem Sustainability": {"concepts": "ecosystem management, ecosystem function, sustainable ecosystem, ecosystem services, ecosystem based management, ecosystem functions, sustainability, ecosystem roles", "concept_list": ["ecosystem management", "ecosystem function", "sustainable ecosystem", "ecosystem services", "ecosystem based management", "ecosystem functions", "sustainability", "ecosystem roles"], "type": "cluster", "node_size": 39, "label": "Ecosystem Sustainability"}, "Climate & Ecosystems": {"concepts": "ecosystem structure, climate projects, climate change, trophic level, top predators, pollution", "concept_list": ["ecosystem structure", "climate projects", "climate change", "trophic level", "top predators", "pollution"], "type": "cluster", "node_size": 33, "label": "Climate & Ecosystems"}, "Ecosystem Modeling": {"concepts": "ecosystem modeler, ecological models, ecosystem resilience, ecosystem modeling coordinator", "concept_list": ["ecosystem modeler", "ecological models", "ecosystem resilience", "ecosystem modeling coordinator"], "type": "cluster", "node_size": 27, "label": "Ecosystem Modeling"}, "Biodiversity & Indices": {"concepts": "species diversity, biodiversity indices, biodiversity, species indices, biodiversity workshop", "concept_list": ["species diversity", "biodiversity indices", "biodiversity", "species indices", "biodiversity workshop"], "type": "cluster", "node_size": 30, "label": "Biodiversity & Indices"}, "Species Conservation": {"concepts": "protected species, endangered species, target species", "concept_list": ["protected species", "endangered species", "target species"], "type": "cluster", "node_size": 24, "label": "Species Conservation"}, "Ecological Threats": {"concepts": "habitat destruction, invader species, conservation concern", "concept_list": ["habitat destruction", "invader species", "conservation concern"], "type": "cluster", "node_size": 24, "label": "Ecological Threats"}, "Salish Sea Ecosystem": {"concepts": "marine ecosystem, salish sea", "concept_list": ["marine ecosystem", "salish sea"], "type": "cluster", "node_size": 21, "label": "Salish Sea Ecosystem"}, "Marine Resources": {"concepts": "marine resource management, marine resources division, ocean service", "concept_list": ["marine resource management", "marine resources division", "ocean service"], "type": "cluster", "node_size": 24, "label": "Marine Resources"}};
+        const conceptData = {"smithsonian": {"concepts": "smithsonian", "type": "concept", "cluster": "Collaborative Management", "node_size": 10, "label": "smithsonian"}, "office of science": {"concepts": "office of science", "type": "concept", "cluster": "Collaborative Management", "node_size": 10, "label": "office of science"}, "national systematics lab": {"concepts": "national systematics lab", "type": "concept", "cluster": "Collaborative Management", "node_size": 10, "label": "national systematics lab"}, "agencies": {"concepts": "agencies", "type": "concept", "cluster": "Collaborative Management", "node_size": 10, "label": "agencies"}, "dnr": {"concepts": "dnr", "type": "concept", "cluster": "Collaborative Management", "node_size": 10, "label": "dnr"}, "state agencies": {"concepts": "state agencies", "type": "concept", "cluster": "Collaborative Management", "node_size": 10, "label": "state agencies"}, "division director": {"concepts": "division director", "type": "concept", "cluster": "Collaborative Management", "node_size": 10, "label": "division director"}, "management agencies": {"concepts": "management agencies", "type": "concept", "cluster": "Collaborative Management", "node_size": 10, "label": "management agencies"}, "management approaches": {"concepts": "management approaches", "type": "concept", "cluster": "Gulf Research", "node_size": 10, "label": "management approaches"}, "councils": {"concepts": "councils", "type": "concept", "cluster": "Gulf Research", "node_size": 10, "label": "councils"}, "workshops": {"concepts": "workshops", "type": "concept", "cluster": "Gulf Research", "node_size": 10, "label": "workshops"}, "meta group": {"concepts": "meta group", "type": "concept", "cluster": "Gulf Research", "node_size": 10, "label": "meta group"}, "feedback loop": {"concepts": "feedback loop", "type": "concept", "cluster": "Gulf Research", "node_size": 10, "label": "feedback loop"}, "connections": {"concepts": "connections", "type": "concept", "cluster": "Gulf Research", "node_size": 10, "label": "connections"}, "mental modeler": {"concepts": "mental modeler", "type": "concept", "cluster": "Gulf Research", "node_size": 10, "label": "mental modeler"}, "problem solving": {"concepts": "problem solving", "type": "concept", "cluster": "Gulf Research", "node_size": 10, "label": "problem solving"}, "system components": {"concepts": "system components", "type": "concept", "cluster": "Gulf Research", "node_size": 10, "label": "system components"}, "group dynamics": {"concepts": "group dynamics", "type": "concept", "cluster": "Gulf Research", "node_size": 10, "label": "group dynamics"}, "gulf rehabilitation": {"concepts": "gulf rehabilitation", "type": "concept", "cluster": "Resource Conservation", "node_size": 10, "label": "gulf rehabilitation"}, "gulf of mexico": {"concepts": "gulf of mexico", "type": "concept", "cluster": "Resource Conservation", "node_size": 10, "label": "gulf of mexico"}, "research manuscript": {"concepts": "research manuscript", "type": "concept", "cluster": "Resource Conservation", "node_size": 10, "label": "research manuscript"}, "scenario analysis": {"concepts": "scenario analysis", "type": "concept", "cluster": "Resource Conservation", "node_size": 10, "label": "scenario analysis"}, "workshop summary": {"concepts": "workshop summary", "type": "concept", "cluster": "Resource Conservation", "node_size": 10, "label": "workshop summary"}, "overharvesting": {"concepts": "overharvesting", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "overharvesting"}, "recruitment": {"concepts": "recruitment", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "recruitment"}, "economic value": {"concepts": "economic value", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "economic value"}, "resiliency": {"concepts": "resiliency", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "resiliency"}, "preservation": {"concepts": "preservation", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "preservation"}, "resource users": {"concepts": "resource users", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "resource users"}, "society": {"concepts": "society", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "society"}, "conservation": {"concepts": "conservation", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "conservation"}, "stressors": {"concepts": "stressors", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "stressors"}, "technology": {"concepts": "technology", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "technology"}, "case studies": {"concepts": "case studies", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "case studies"}, "cca": {"concepts": "cca", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "cca"}, "food web": {"concepts": "food web", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "food web"}, "human consumption": {"concepts": "human consumption", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "human consumption"}, "oyster harvests": {"concepts": "oyster harvests", "type": "concept", "cluster": "Oyster Fisheries", "node_size": 10, "label": "oyster harvests"}, "fisheries": {"concepts": "fisheries", "type": "concept", "cluster": "Oyster Fisheries", "node_size": 10, "label": "fisheries"}, "noaa fisheries": {"concepts": "noaa fisheries", "type": "concept", "cluster": "Oyster Fisheries", "node_size": 10, "label": "noaa fisheries"}, "fisheries management": {"concepts": "fisheries management", "type": "concept", "cluster": "Oyster Fisheries", "node_size": 10, "label": "fisheries management"}, "fishery agencies": {"concepts": "fishery agencies", "type": "concept", "cluster": "Sustainable Fisheries", "node_size": 10, "label": "fishery agencies"}, "sustainable fisheries": {"concepts": "sustainable fisheries", "type": "concept", "cluster": "Sustainable Fisheries", "node_size": 10, "label": "sustainable fisheries"}, "chesapeake bay foundation": {"concepts": "chesapeake bay foundation", "type": "concept", "cluster": "Chesapeake Bay Stakeholders", "node_size": 10, "label": "chesapeake bay foundation"}, "stakeholders": {"concepts": "stakeholders", "type": "concept", "cluster": "Chesapeake Bay Stakeholders", "node_size": 10, "label": "stakeholders"}, "maryland watermen association": {"concepts": "maryland watermen association", "type": "concept", "cluster": "Chesapeake Bay Stakeholders", "node_size": 10, "label": "maryland watermen association"}, "maryland watermen": {"concepts": "maryland watermen", "type": "concept", "cluster": "Chesapeake Bay Stakeholders", "node_size": 10, "label": "maryland watermen"}, "stakeholder groups": {"concepts": "stakeholder groups", "type": "concept", "cluster": "Chesapeake Bay Stakeholders", "node_size": 10, "label": "stakeholder groups"}, "fisher folks": {"concepts": "fisher folks", "type": "concept", "cluster": "Chesapeake Bay Stakeholders", "node_size": 10, "label": "fisher folks"}, "watermen's groups": {"concepts": "watermen's groups", "type": "concept", "cluster": "Chesapeake Bay Stakeholders", "node_size": 10, "label": "watermen's groups"}, "chesapeake bay": {"concepts": "chesapeake bay", "type": "concept", "cluster": "Chesapeake Bay Stakeholders", "node_size": 10, "label": "chesapeake bay"}, "chesapeake funders network": {"concepts": "chesapeake funders network", "type": "concept", "cluster": "Chesapeake Bay Stakeholders", "node_size": 10, "label": "chesapeake funders network"}, "harmful organisms": {"concepts": "harmful organisms", "type": "concept", "cluster": "Environmental Contaminants", "node_size": 10, "label": "harmful organisms"}, "microplastics": {"concepts": "microplastics", "type": "concept", "cluster": "Environmental Contaminants", "node_size": 10, "label": "microplastics"}, "human recreation": {"concepts": "human recreation", "type": "concept", "cluster": "Chesapeake Conservation", "node_size": 10, "label": "human recreation"}, "protected resources": {"concepts": "protected resources", "type": "concept", "cluster": "Chesapeake Conservation", "node_size": 10, "label": "protected resources"}, "chesapeake conservation association": {"concepts": "chesapeake conservation association", "type": "concept", "cluster": "Chesapeake Conservation", "node_size": 10, "label": "chesapeake conservation association"}, "stakeholder perspectives": {"concepts": "stakeholder perspectives", "type": "concept", "cluster": "Chesapeake Stakeholders & Habitat", "node_size": 10, "label": "stakeholder perspectives"}, "chesapeake network funders": {"concepts": "chesapeake network funders", "type": "concept", "cluster": "Chesapeake Stakeholders & Habitat", "node_size": 10, "label": "chesapeake network funders"}, "habitat forming species": {"concepts": "habitat forming species", "type": "concept", "cluster": "Chesapeake Stakeholders & Habitat", "node_size": 10, "label": "habitat forming species"}, "charismatic species": {"concepts": "charismatic species", "type": "concept", "cluster": "Chesapeake Stakeholders & Habitat", "node_size": 10, "label": "charismatic species"}, "single species management": {"concepts": "single species management", "type": "concept", "cluster": "Chesapeake Stakeholders & Habitat", "node_size": 10, "label": "single species management"}, "non-charismatic species": {"concepts": "non-charismatic species", "type": "concept", "cluster": "Chesapeake Stakeholders & Habitat", "node_size": 10, "label": "non-charismatic species"}, "ecosystem management": {"concepts": "ecosystem management", "type": "concept", "cluster": "Ecosystem Sustainability", "node_size": 10, "label": "ecosystem management"}, "ecosystem function": {"concepts": "ecosystem function", "type": "concept", "cluster": "Ecosystem Sustainability", "node_size": 10, "label": "ecosystem function"}, "sustainable ecosystem": {"concepts": "sustainable ecosystem", "type": "concept", "cluster": "Ecosystem Sustainability", "node_size": 10, "label": "sustainable ecosystem"}, "ecosystem services": {"concepts": "ecosystem services", "type": "concept", "cluster": "Ecosystem Sustainability", "node_size": 10, "label": "ecosystem services"}, "ecosystem based management": {"concepts": "ecosystem based management", "type": "concept", "cluster": "Ecosystem Sustainability", "node_size": 10, "label": "ecosystem based management"}, "ecosystem functions": {"concepts": "ecosystem functions", "type": "concept", "cluster": "Ecosystem Sustainability", "node_size": 10, "label": "ecosystem functions"}, "sustainability": {"concepts": "sustainability", "type": "concept", "cluster": "Ecosystem Sustainability", "node_size": 10, "label": "sustainability"}, "ecosystem roles": {"concepts": "ecosystem roles", "type": "concept", "cluster": "Ecosystem Sustainability", "node_size": 10, "label": "ecosystem roles"}, "ecosystem structure": {"concepts": "ecosystem structure", "type": "concept", "cluster": "Climate & Ecosystems", "node_size": 10, "label": "ecosystem structure"}, "climate projects": {"concepts": "climate projects", "type": "concept", "cluster": "Climate & Ecosystems", "node_size": 10, "label": "climate projects"}, "climate change": {"concepts": "climate change", "type": "concept", "cluster": "Climate & Ecosystems", "node_size": 10, "label": "climate change"}, "trophic level": {"concepts": "trophic level", "type": "concept", "cluster": "Climate & Ecosystems", "node_size": 10, "label": "trophic level"}, "top predators": {"concepts": "top predators", "type": "concept", "cluster": "Climate & Ecosystems", "node_size": 10, "label": "top predators"}, "pollution": {"concepts": "pollution", "type": "concept", "cluster": "Climate & Ecosystems", "node_size": 10, "label": "pollution"}, "ecosystem modeler": {"concepts": "ecosystem modeler", "type": "concept", "cluster": "Ecosystem Modeling", "node_size": 10, "label": "ecosystem modeler"}, "ecological models": {"concepts": "ecological models", "type": "concept", "cluster": "Ecosystem Modeling", "node_size": 10, "label": "ecological models"}, "ecosystem resilience": {"concepts": "ecosystem resilience", "type": "concept", "cluster": "Ecosystem Modeling", "node_size": 10, "label": "ecosystem resilience"}, "ecosystem modeling coordinator": {"concepts": "ecosystem modeling coordinator", "type": "concept", "cluster": "Ecosystem Modeling", "node_size": 10, "label": "ecosystem modeling coordinator"}, "species diversity": {"concepts": "species diversity", "type": "concept", "cluster": "Biodiversity & Indices", "node_size": 10, "label": "species diversity"}, "biodiversity indices": {"concepts": "biodiversity indices", "type": "concept", "cluster": "Biodiversity & Indices", "node_size": 10, "label": "biodiversity indices"}, "biodiversity": {"concepts": "biodiversity", "type": "concept", "cluster": "Biodiversity & Indices", "node_size": 10, "label": "biodiversity"}, "species indices": {"concepts": "species indices", "type": "concept", "cluster": "Biodiversity & Indices", "node_size": 10, "label": "species indices"}, "biodiversity workshop": {"concepts": "biodiversity workshop", "type": "concept", "cluster": "Biodiversity & Indices", "node_size": 10, "label": "biodiversity workshop"}, "protected species": {"concepts": "protected species", "type": "concept", "cluster": "Species Conservation", "node_size": 10, "label": "protected species"}, "endangered species": {"concepts": "endangered species", "type": "concept", "cluster": "Species Conservation", "node_size": 10, "label": "endangered species"}, "target species": {"concepts": "target species", "type": "concept", "cluster": "Species Conservation", "node_size": 10, "label": "target species"}, "habitat destruction": {"concepts": "habitat destruction", "type": "concept", "cluster": "Ecological Threats", "node_size": 10, "label": "habitat destruction"}, "invader species": {"concepts": "invader species", "type": "concept", "cluster": "Ecological Threats", "node_size": 10, "label": "invader species"}, "conservation concern": {"concepts": "conservation concern", "type": "concept", "cluster": "Ecological Threats", "node_size": 10, "label": "conservation concern"}, "marine ecosystem": {"concepts": "marine ecosystem", "type": "concept", "cluster": "Salish Sea Ecosystem", "node_size": 10, "label": "marine ecosystem"}, "salish sea": {"concepts": "salish sea", "type": "concept", "cluster": "Salish Sea Ecosystem", "node_size": 10, "label": "salish sea"}, "marine resource management": {"concepts": "marine resource management", "type": "concept", "cluster": "Marine Resources", "node_size": 10, "label": "marine resource management"}, "marine resources division": {"concepts": "marine resources division", "type": "concept", "cluster": "Marine Resources", "node_size": 10, "label": "marine resources division"}, "ocean service": {"concepts": "ocean service", "type": "concept", "cluster": "Marine Resources", "node_size": 10, "label": "ocean service"}};
+        const interClusterEdges = [["workshop recruitment", "Chesapeake Bay Stakeholders", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["environmental ngos", "Ecosystem Sustainability", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["environmental ngos", "water quality", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["fishing groups", "workshop recruitment", {"weight": 0.75, "confidence": 0.4125, "type": "inter_cluster", "style": "solid"}], ["fishing groups", "Resource Management", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["fishing groups", "Ecological Threats", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["water quality", "marine recreation", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["water quality", "Oyster Fisheries", {"weight": 0.5, "confidence": 0.22499999999999998, "type": "inter_cluster", "style": "solid"}], ["harmful algal blooms", "Oyster Fisheries", {"weight": -0.75, "confidence": 0.5249999999999999, "type": "inter_cluster", "style": "solid"}], ["harmful algal blooms", "Species Conservation", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["marine recreation", "Climate & Ecosystems", {"weight": -0.4, "confidence": 0.33999999999999997, "type": "inter_cluster", "style": "solid"}], ["marine recreation", "water quality", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["marine recreation", "Biodiversity & Indices", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["Collaborative Management", "Marine Resources", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Collaborative Management", "Chesapeake Conservation", {"weight": 0.25, "confidence": 0.1, "type": "inter_cluster", "style": "solid"}], ["Gulf Research", "Ecosystem Sustainability", {"weight": 1.0, "confidence": 0.7166666666666667, "type": "inter_cluster", "style": "solid"}], ["Resource Management", "Ecosystem Sustainability", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["Oyster Fisheries", "Ecosystem Sustainability", {"weight": 1.0, "confidence": 0.6000000000000001, "type": "inter_cluster", "style": "solid"}], ["Sustainable Fisheries", "Collaborative Management", {"weight": 0.5, "confidence": 0.275, "type": "inter_cluster", "style": "solid"}], ["Chesapeake Bay Stakeholders", "Chesapeake Conservation", {"weight": 0.3333333333333333, "confidence": 0.16666666666666666, "type": "inter_cluster", "style": "solid"}], ["Environmental Contaminants", "Ecosystem Sustainability", {"weight": -1.0, "confidence": 0.6199999999999999, "type": "inter_cluster", "style": "solid"}], ["Environmental Contaminants", "Resource Management", {"weight": -1.0, "confidence": 0.6125, "type": "inter_cluster", "style": "solid"}], ["Environmental Contaminants", "fishing groups", {"weight": -1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["Chesapeake Conservation", "Environmental Contaminants", {"weight": -0.5, "confidence": 0.2, "type": "inter_cluster", "style": "solid"}], ["Chesapeake Conservation", "Biodiversity & Indices", {"weight": 0.5, "confidence": 0.1875, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Sustainability", "Ecological Threats", {"weight": -1.0, "confidence": 0.5700000000000001, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Sustainability", "Chesapeake Stakeholders & Habitat", {"weight": 0.5, "confidence": 0.2, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Sustainability", "Resource Conservation", {"weight": 0.4, "confidence": 0.13999999999999999, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Sustainability", "Salish Sea Ecosystem", {"weight": 0.25, "confidence": 0.1, "type": "inter_cluster", "style": "solid"}], ["Climate & Ecosystems", "Environmental Contaminants", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["Climate & Ecosystems", "marine recreation", {"weight": -1.0, "confidence": 0.5375, "type": "inter_cluster", "style": "solid"}], ["Climate & Ecosystems", "Ecological Threats", {"weight": 1.0, "confidence": 0.6000000000000001, "type": "inter_cluster", "style": "solid"}], ["Climate & Ecosystems", "Biodiversity & Indices", {"weight": -1.0, "confidence": 0.5499999999999999, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Modeling", "Marine Resources", {"weight": 1.0, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Modeling", "Gulf Research", {"weight": 1.0, "confidence": 0.6999999999999998, "type": "inter_cluster", "style": "solid"}], ["Species Conservation", "Ecosystem Sustainability", {"weight": 0.8, "confidence": 0.43, "type": "inter_cluster", "style": "solid"}], ["Species Conservation", "fishing groups", {"weight": -1.0, "confidence": 0.45, "type": "inter_cluster", "style": "solid"}], ["Ecological Threats", "oyster reefs", {"weight": -0.75, "confidence": 0.3625, "type": "inter_cluster", "style": "solid"}], ["Ecological Threats", "Species Conservation", {"weight": -0.75, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["Salish Sea Ecosystem", "Ecosystem Sustainability", {"weight": 0.25, "confidence": 0.1, "type": "inter_cluster", "style": "solid"}], ["Marine Resources", "Species Conservation", {"weight": 1.0, "confidence": 0.58, "type": "inter_cluster", "style": "solid"}], ["Marine Resources", "Collaborative Management", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {"Collaborative Management": [["smithsonian", {"concepts": "smithsonian", "type": "concept", "cluster": "Collaborative Management", "node_size": 10, "label": "smithsonian"}], ["office of science", {"concepts": "office of science", "type": "concept", "cluster": "Collaborative Management", "node_size": 10, "label": "office of science"}], ["national systematics lab", {"concepts": "national systematics lab", "type": "concept", "cluster": "Collaborative Management", "node_size": 10, "label": "national systematics lab"}], ["agencies", {"concepts": "agencies", "type": "concept", "cluster": "Collaborative Management", "node_size": 10, "label": "agencies"}], ["dnr", {"concepts": "dnr", "type": "concept", "cluster": "Collaborative Management", "node_size": 10, "label": "dnr"}], ["state agencies", {"concepts": "state agencies", "type": "concept", "cluster": "Collaborative Management", "node_size": 10, "label": "state agencies"}], ["division director", {"concepts": "division director", "type": "concept", "cluster": "Collaborative Management", "node_size": 10, "label": "division director"}], ["management agencies", {"concepts": "management agencies", "type": "concept", "cluster": "Collaborative Management", "node_size": 10, "label": "management agencies"}]], "Gulf Research": [["management approaches", {"concepts": "management approaches", "type": "concept", "cluster": "Gulf Research", "node_size": 10, "label": "management approaches"}], ["councils", {"concepts": "councils", "type": "concept", "cluster": "Gulf Research", "node_size": 10, "label": "councils"}], ["workshops", {"concepts": "workshops", "type": "concept", "cluster": "Gulf Research", "node_size": 10, "label": "workshops"}], ["meta group", {"concepts": "meta group", "type": "concept", "cluster": "Gulf Research", "node_size": 10, "label": "meta group"}], ["feedback loop", {"concepts": "feedback loop", "type": "concept", "cluster": "Gulf Research", "node_size": 10, "label": "feedback loop"}], ["connections", {"concepts": "connections", "type": "concept", "cluster": "Gulf Research", "node_size": 10, "label": "connections"}], ["mental modeler", {"concepts": "mental modeler", "type": "concept", "cluster": "Gulf Research", "node_size": 10, "label": "mental modeler"}], ["problem solving", {"concepts": "problem solving", "type": "concept", "cluster": "Gulf Research", "node_size": 10, "label": "problem solving"}], ["system components", {"concepts": "system components", "type": "concept", "cluster": "Gulf Research", "node_size": 10, "label": "system components"}], ["group dynamics", {"concepts": "group dynamics", "type": "concept", "cluster": "Gulf Research", "node_size": 10, "label": "group dynamics"}]], "Resource Conservation": [["gulf rehabilitation", {"concepts": "gulf rehabilitation", "type": "concept", "cluster": "Resource Conservation", "node_size": 10, "label": "gulf rehabilitation"}], ["gulf of mexico", {"concepts": "gulf of mexico", "type": "concept", "cluster": "Resource Conservation", "node_size": 10, "label": "gulf of mexico"}], ["research manuscript", {"concepts": "research manuscript", "type": "concept", "cluster": "Resource Conservation", "node_size": 10, "label": "research manuscript"}], ["scenario analysis", {"concepts": "scenario analysis", "type": "concept", "cluster": "Resource Conservation", "node_size": 10, "label": "scenario analysis"}], ["workshop summary", {"concepts": "workshop summary", "type": "concept", "cluster": "Resource Conservation", "node_size": 10, "label": "workshop summary"}]], "Resource Management": [["overharvesting", {"concepts": "overharvesting", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "overharvesting"}], ["recruitment", {"concepts": "recruitment", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "recruitment"}], ["economic value", {"concepts": "economic value", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "economic value"}], ["resiliency", {"concepts": "resiliency", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "resiliency"}], ["preservation", {"concepts": "preservation", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "preservation"}], ["resource users", {"concepts": "resource users", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "resource users"}], ["society", {"concepts": "society", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "society"}], ["conservation", {"concepts": "conservation", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "conservation"}], ["stressors", {"concepts": "stressors", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "stressors"}], ["technology", {"concepts": "technology", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "technology"}], ["case studies", {"concepts": "case studies", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "case studies"}], ["cca", {"concepts": "cca", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "cca"}], ["food web", {"concepts": "food web", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "food web"}], ["human consumption", {"concepts": "human consumption", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "human consumption"}]], "Oyster Fisheries": [["oyster harvests", {"concepts": "oyster harvests", "type": "concept", "cluster": "Oyster Fisheries", "node_size": 10, "label": "oyster harvests"}], ["fisheries", {"concepts": "fisheries", "type": "concept", "cluster": "Oyster Fisheries", "node_size": 10, "label": "fisheries"}], ["noaa fisheries", {"concepts": "noaa fisheries", "type": "concept", "cluster": "Oyster Fisheries", "node_size": 10, "label": "noaa fisheries"}], ["fisheries management", {"concepts": "fisheries management", "type": "concept", "cluster": "Oyster Fisheries", "node_size": 10, "label": "fisheries management"}]], "Sustainable Fisheries": [["fishery agencies", {"concepts": "fishery agencies", "type": "concept", "cluster": "Sustainable Fisheries", "node_size": 10, "label": "fishery agencies"}], ["sustainable fisheries", {"concepts": "sustainable fisheries", "type": "concept", "cluster": "Sustainable Fisheries", "node_size": 10, "label": "sustainable fisheries"}]], "Chesapeake Bay Stakeholders": [["chesapeake bay foundation", {"concepts": "chesapeake bay foundation", "type": "concept", "cluster": "Chesapeake Bay Stakeholders", "node_size": 10, "label": "chesapeake bay foundation"}], ["stakeholders", {"concepts": "stakeholders", "type": "concept", "cluster": "Chesapeake Bay Stakeholders", "node_size": 10, "label": "stakeholders"}], ["maryland watermen association", {"concepts": "maryland watermen association", "type": "concept", "cluster": "Chesapeake Bay Stakeholders", "node_size": 10, "label": "maryland watermen association"}], ["maryland watermen", {"concepts": "maryland watermen", "type": "concept", "cluster": "Chesapeake Bay Stakeholders", "node_size": 10, "label": "maryland watermen"}], ["stakeholder groups", {"concepts": "stakeholder groups", "type": "concept", "cluster": "Chesapeake Bay Stakeholders", "node_size": 10, "label": "stakeholder groups"}], ["fisher folks", {"concepts": "fisher folks", "type": "concept", "cluster": "Chesapeake Bay Stakeholders", "node_size": 10, "label": "fisher folks"}], ["watermen's groups", {"concepts": "watermen's groups", "type": "concept", "cluster": "Chesapeake Bay Stakeholders", "node_size": 10, "label": "watermen's groups"}], ["chesapeake bay", {"concepts": "chesapeake bay", "type": "concept", "cluster": "Chesapeake Bay Stakeholders", "node_size": 10, "label": "chesapeake bay"}], ["chesapeake funders network", {"concepts": "chesapeake funders network", "type": "concept", "cluster": "Chesapeake Bay Stakeholders", "node_size": 10, "label": "chesapeake funders network"}]], "Environmental Contaminants": [["harmful organisms", {"concepts": "harmful organisms", "type": "concept", "cluster": "Environmental Contaminants", "node_size": 10, "label": "harmful organisms"}], ["microplastics", {"concepts": "microplastics", "type": "concept", "cluster": "Environmental Contaminants", "node_size": 10, "label": "microplastics"}]], "Chesapeake Conservation": [["human recreation", {"concepts": "human recreation", "type": "concept", "cluster": "Chesapeake Conservation", "node_size": 10, "label": "human recreation"}], ["protected resources", {"concepts": "protected resources", "type": "concept", "cluster": "Chesapeake Conservation", "node_size": 10, "label": "protected resources"}], ["chesapeake conservation association", {"concepts": "chesapeake conservation association", "type": "concept", "cluster": "Chesapeake Conservation", "node_size": 10, "label": "chesapeake conservation association"}]], "Chesapeake Stakeholders & Habitat": [["stakeholder perspectives", {"concepts": "stakeholder perspectives", "type": "concept", "cluster": "Chesapeake Stakeholders & Habitat", "node_size": 10, "label": "stakeholder perspectives"}], ["chesapeake network funders", {"concepts": "chesapeake network funders", "type": "concept", "cluster": "Chesapeake Stakeholders & Habitat", "node_size": 10, "label": "chesapeake network funders"}], ["habitat forming species", {"concepts": "habitat forming species", "type": "concept", "cluster": "Chesapeake Stakeholders & Habitat", "node_size": 10, "label": "habitat forming species"}], ["charismatic species", {"concepts": "charismatic species", "type": "concept", "cluster": "Chesapeake Stakeholders & Habitat", "node_size": 10, "label": "charismatic species"}], ["single species management", {"concepts": "single species management", "type": "concept", "cluster": "Chesapeake Stakeholders & Habitat", "node_size": 10, "label": "single species management"}], ["non-charismatic species", {"concepts": "non-charismatic species", "type": "concept", "cluster": "Chesapeake Stakeholders & Habitat", "node_size": 10, "label": "non-charismatic species"}]], "Ecosystem Sustainability": [["ecosystem management", {"concepts": "ecosystem management", "type": "concept", "cluster": "Ecosystem Sustainability", "node_size": 10, "label": "ecosystem management"}], ["ecosystem function", {"concepts": "ecosystem function", "type": "concept", "cluster": "Ecosystem Sustainability", "node_size": 10, "label": "ecosystem function"}], ["sustainable ecosystem", {"concepts": "sustainable ecosystem", "type": "concept", "cluster": "Ecosystem Sustainability", "node_size": 10, "label": "sustainable ecosystem"}], ["ecosystem services", {"concepts": "ecosystem services", "type": "concept", "cluster": "Ecosystem Sustainability", "node_size": 10, "label": "ecosystem services"}], ["ecosystem based management", {"concepts": "ecosystem based management", "type": "concept", "cluster": "Ecosystem Sustainability", "node_size": 10, "label": "ecosystem based management"}], ["ecosystem functions", {"concepts": "ecosystem functions", "type": "concept", "cluster": "Ecosystem Sustainability", "node_size": 10, "label": "ecosystem functions"}], ["sustainability", {"concepts": "sustainability", "type": "concept", "cluster": "Ecosystem Sustainability", "node_size": 10, "label": "sustainability"}], ["ecosystem roles", {"concepts": "ecosystem roles", "type": "concept", "cluster": "Ecosystem Sustainability", "node_size": 10, "label": "ecosystem roles"}]], "Climate & Ecosystems": [["ecosystem structure", {"concepts": "ecosystem structure", "type": "concept", "cluster": "Climate & Ecosystems", "node_size": 10, "label": "ecosystem structure"}], ["climate projects", {"concepts": "climate projects", "type": "concept", "cluster": "Climate & Ecosystems", "node_size": 10, "label": "climate projects"}], ["climate change", {"concepts": "climate change", "type": "concept", "cluster": "Climate & Ecosystems", "node_size": 10, "label": "climate change"}], ["trophic level", {"concepts": "trophic level", "type": "concept", "cluster": "Climate & Ecosystems", "node_size": 10, "label": "trophic level"}], ["top predators", {"concepts": "top predators", "type": "concept", "cluster": "Climate & Ecosystems", "node_size": 10, "label": "top predators"}], ["pollution", {"concepts": "pollution", "type": "concept", "cluster": "Climate & Ecosystems", "node_size": 10, "label": "pollution"}]], "Ecosystem Modeling": [["ecosystem modeler", {"concepts": "ecosystem modeler", "type": "concept", "cluster": "Ecosystem Modeling", "node_size": 10, "label": "ecosystem modeler"}], ["ecological models", {"concepts": "ecological models", "type": "concept", "cluster": "Ecosystem Modeling", "node_size": 10, "label": "ecological models"}], ["ecosystem resilience", {"concepts": "ecosystem resilience", "type": "concept", "cluster": "Ecosystem Modeling", "node_size": 10, "label": "ecosystem resilience"}], ["ecosystem modeling coordinator", {"concepts": "ecosystem modeling coordinator", "type": "concept", "cluster": "Ecosystem Modeling", "node_size": 10, "label": "ecosystem modeling coordinator"}]], "Biodiversity & Indices": [["species diversity", {"concepts": "species diversity", "type": "concept", "cluster": "Biodiversity & Indices", "node_size": 10, "label": "species diversity"}], ["biodiversity indices", {"concepts": "biodiversity indices", "type": "concept", "cluster": "Biodiversity & Indices", "node_size": 10, "label": "biodiversity indices"}], ["biodiversity", {"concepts": "biodiversity", "type": "concept", "cluster": "Biodiversity & Indices", "node_size": 10, "label": "biodiversity"}], ["species indices", {"concepts": "species indices", "type": "concept", "cluster": "Biodiversity & Indices", "node_size": 10, "label": "species indices"}], ["biodiversity workshop", {"concepts": "biodiversity workshop", "type": "concept", "cluster": "Biodiversity & Indices", "node_size": 10, "label": "biodiversity workshop"}]], "Species Conservation": [["protected species", {"concepts": "protected species", "type": "concept", "cluster": "Species Conservation", "node_size": 10, "label": "protected species"}], ["endangered species", {"concepts": "endangered species", "type": "concept", "cluster": "Species Conservation", "node_size": 10, "label": "endangered species"}], ["target species", {"concepts": "target species", "type": "concept", "cluster": "Species Conservation", "node_size": 10, "label": "target species"}]], "Ecological Threats": [["habitat destruction", {"concepts": "habitat destruction", "type": "concept", "cluster": "Ecological Threats", "node_size": 10, "label": "habitat destruction"}], ["invader species", {"concepts": "invader species", "type": "concept", "cluster": "Ecological Threats", "node_size": 10, "label": "invader species"}], ["conservation concern", {"concepts": "conservation concern", "type": "concept", "cluster": "Ecological Threats", "node_size": 10, "label": "conservation concern"}]], "Salish Sea Ecosystem": [["marine ecosystem", {"concepts": "marine ecosystem", "type": "concept", "cluster": "Salish Sea Ecosystem", "node_size": 10, "label": "marine ecosystem"}], ["salish sea", {"concepts": "salish sea", "type": "concept", "cluster": "Salish Sea Ecosystem", "node_size": 10, "label": "salish sea"}]], "Marine Resources": [["marine resource management", {"concepts": "marine resource management", "type": "concept", "cluster": "Marine Resources", "node_size": 10, "label": "marine resource management"}], ["marine resources division", {"concepts": "marine resources division", "type": "concept", "cluster": "Marine Resources", "node_size": 10, "label": "marine resources division"}], ["ocean service", {"concepts": "ocean service", "type": "concept", "cluster": "Marine Resources", "node_size": 10, "label": "ocean service"}]]};
+        const clusterEdges = {"Collaborative Management": [], "Gulf Research": [], "Resource Conservation": [], "Resource Management": [], "Oyster Fisheries": [], "Sustainable Fisheries": [], "Chesapeake Bay Stakeholders": [], "Environmental Contaminants": [], "Chesapeake Conservation": [], "Chesapeake Stakeholders & Habitat": [], "Ecosystem Sustainability": [], "Climate & Ecosystems": [], "Ecosystem Modeling": [], "Biodiversity & Indices": [], "Species Conservation": [], "Ecological Threats": [], "Salish Sea Ecosystem": [], "Marine Resources": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

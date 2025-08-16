@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"Marine Species": {"concepts": "sawfish, elasmobranchs, sandbar shark, dolphins, shark species, hammerhead species, hammerheads, marine turtles, white sharks, coastal sharks", "concept_list": ["sawfish", "elasmobranchs", "sandbar shark", "dolphins", "shark species", "hammerhead species", "hammerheads", "marine turtles", "white sharks", "coastal sharks"], "type": "cluster", "node_size": 45, "label": "Marine Species"}, "Fishing Operations": {"concepts": "commercial fishing, charter fishing, recreational fishing, fishermen, bottom longline", "concept_list": ["commercial fishing", "charter fishing", "recreational fishing", "fishermen", "bottom longline"], "type": "cluster", "node_size": 30, "label": "Fishing Operations"}, "Management Plans": {"concepts": "management interventions, management plans, harvest moratorium, ecosystem based fishery management, ebfm, quota setting, monitoring program, resource managers, implementation success, extension work, tourism operators", "concept_list": ["management interventions", "management plans", "harvest moratorium", "ecosystem based fishery management", "ebfm", "quota setting", "monitoring program", "resource managers", "implementation success", "extension work", "tourism operators"], "type": "cluster", "node_size": 48, "label": "Management Plans"}, "Stock Assessment": {"concepts": "fishery-independent survey, fisheries assessment, sedar 77, assessment process, sedar reports, stock assessment", "concept_list": ["fishery-independent survey", "fisheries assessment", "sedar 77", "assessment process", "sedar reports", "stock assessment"], "type": "cluster", "node_size": 33, "label": "Stock Assessment"}, "Decision Frameworks": {"concepts": "decision-making frameworks, data requirements, tradeoff decisions, priority assessment, case studies, assessment priority, priority list, workshop, resource tradeoffs", "concept_list": ["decision-making frameworks", "data requirements", "tradeoff decisions", "priority assessment", "case studies", "assessment priority", "priority list", "workshop", "resource tradeoffs"], "type": "cluster", "node_size": 42, "label": "Decision Frameworks"}, "Ecosystem Interactions": {"concepts": "harmful organisms, cascade effects, trajectory analysis, bi-directional relationships, scenario simulations, weak relationships, strong relationships, negative relationships, shark deprivation, cascading effects, relationships, deprivation effects, negative interactions, positive relationships", "concept_list": ["harmful organisms", "cascade effects", "trajectory analysis", "bi-directional relationships", "scenario simulations", "weak relationships", "strong relationships", "negative relationships", "shark deprivation", "cascading effects", "relationships", "deprivation effects", "negative interactions", "positive relationships"], "type": "cluster", "node_size": 57, "label": "Ecosystem Interactions"}, "Stakeholder Engagement": {"concepts": "stakeholder groups, population segments, stakeholders, stakeholder engagement", "concept_list": ["stakeholder groups", "population segments", "stakeholders", "stakeholder engagement"], "type": "cluster", "node_size": 27, "label": "Stakeholder Engagement"}, "Marine Ecology": {"concepts": "living shorelines, life histories, fisheries ecology, atlantic ocean, management difficulty, chesapeake bay, movement patterns, mental modeler, life history, telemetry, reef fish assemblage, report cards, medium weights, marine resources, aquaculture, conceptual model, overfishing", "concept_list": ["living shorelines", "life histories", "fisheries ecology", "atlantic ocean", "management difficulty", "chesapeake bay", "movement patterns", "mental modeler", "life history", "telemetry", "reef fish assemblage", "report cards", "medium weights", "marine resources", "aquaculture", "conceptual model", "overfishing"], "type": "cluster", "node_size": 66, "label": "Marine Ecology"}, "Modeling Challenges": {"concepts": "modeling complexity, squeaky wheel", "concept_list": ["modeling complexity", "squeaky wheel"], "type": "cluster", "node_size": 21, "label": "Modeling Challenges"}, "Management Approaches": {"concepts": "single species management, ecosystem approaches, ecosystem-based management, multi-species management", "concept_list": ["single species management", "ecosystem approaches", "ecosystem-based management", "multi-species management"], "type": "cluster", "node_size": 27, "label": "Management Approaches"}, "Food Web Dynamics": {"concepts": "predator populations, species interactions, food-web species, ecosystem model, food-web supporting, key food-web species, meso-predators, trophic ecology", "concept_list": ["predator populations", "species interactions", "food-web species", "ecosystem model", "food-web supporting", "key food-web species", "meso-predators", "trophic ecology"], "type": "cluster", "node_size": 39, "label": "Food Web Dynamics"}, "Species Diversity": {"concepts": "ecosystem diversity, species abundance, gamma diversity, species complexes, species diversity, species assemblage, habitat forming species, biodiversity", "concept_list": ["ecosystem diversity", "species abundance", "gamma diversity", "species complexes", "species diversity", "species assemblage", "habitat forming species", "biodiversity"], "type": "cluster", "node_size": 39, "label": "Species Diversity"}, "Conservation Management": {"concepts": "conservation concern, biodiversity management, protected species, species conservation, population recovery, human-wildlife conflict", "concept_list": ["conservation concern", "biodiversity management", "protected species", "species conservation", "population recovery", "human-wildlife conflict"], "type": "cluster", "node_size": 33, "label": "Conservation Management"}, "Spatial Scales": {"concepts": "geographic scale, spatial scales", "concept_list": ["geographic scale", "spatial scales"], "type": "cluster", "node_size": 21, "label": "Spatial Scales"}, "Gulf Region": {"concepts": "northern gulf mexico, basin management, north central gulf, geographic diversity", "concept_list": ["northern gulf mexico", "basin management", "north central gulf", "geographic diversity"], "type": "cluster", "node_size": 27, "label": "Gulf Region"}};
+        const conceptData = {"sawfish": {"concepts": "sawfish", "type": "concept", "cluster": "Marine Species", "node_size": 10, "label": "sawfish"}, "elasmobranchs": {"concepts": "elasmobranchs", "type": "concept", "cluster": "Marine Species", "node_size": 10, "label": "elasmobranchs"}, "sandbar shark": {"concepts": "sandbar shark", "type": "concept", "cluster": "Marine Species", "node_size": 10, "label": "sandbar shark"}, "dolphins": {"concepts": "dolphins", "type": "concept", "cluster": "Marine Species", "node_size": 10, "label": "dolphins"}, "shark species": {"concepts": "shark species", "type": "concept", "cluster": "Marine Species", "node_size": 10, "label": "shark species"}, "hammerhead species": {"concepts": "hammerhead species", "type": "concept", "cluster": "Marine Species", "node_size": 10, "label": "hammerhead species"}, "hammerheads": {"concepts": "hammerheads", "type": "concept", "cluster": "Marine Species", "node_size": 10, "label": "hammerheads"}, "marine turtles": {"concepts": "marine turtles", "type": "concept", "cluster": "Marine Species", "node_size": 10, "label": "marine turtles"}, "white sharks": {"concepts": "white sharks", "type": "concept", "cluster": "Marine Species", "node_size": 10, "label": "white sharks"}, "coastal sharks": {"concepts": "coastal sharks", "type": "concept", "cluster": "Marine Species", "node_size": 10, "label": "coastal sharks"}, "commercial fishing": {"concepts": "commercial fishing", "type": "concept", "cluster": "Fishing Operations", "node_size": 10, "label": "commercial fishing"}, "charter fishing": {"concepts": "charter fishing", "type": "concept", "cluster": "Fishing Operations", "node_size": 10, "label": "charter fishing"}, "recreational fishing": {"concepts": "recreational fishing", "type": "concept", "cluster": "Fishing Operations", "node_size": 10, "label": "recreational fishing"}, "fishermen": {"concepts": "fishermen", "type": "concept", "cluster": "Fishing Operations", "node_size": 10, "label": "fishermen"}, "bottom longline": {"concepts": "bottom longline", "type": "concept", "cluster": "Fishing Operations", "node_size": 10, "label": "bottom longline"}, "management interventions": {"concepts": "management interventions", "type": "concept", "cluster": "Management Plans", "node_size": 10, "label": "management interventions"}, "management plans": {"concepts": "management plans", "type": "concept", "cluster": "Management Plans", "node_size": 10, "label": "management plans"}, "harvest moratorium": {"concepts": "harvest moratorium", "type": "concept", "cluster": "Management Plans", "node_size": 10, "label": "harvest moratorium"}, "ecosystem based fishery management": {"concepts": "ecosystem based fishery management", "type": "concept", "cluster": "Management Plans", "node_size": 10, "label": "ecosystem based fishery management"}, "ebfm": {"concepts": "ebfm", "type": "concept", "cluster": "Management Plans", "node_size": 10, "label": "ebfm"}, "quota setting": {"concepts": "quota setting", "type": "concept", "cluster": "Management Plans", "node_size": 10, "label": "quota setting"}, "monitoring program": {"concepts": "monitoring program", "type": "concept", "cluster": "Management Plans", "node_size": 10, "label": "monitoring program"}, "resource managers": {"concepts": "resource managers", "type": "concept", "cluster": "Management Plans", "node_size": 10, "label": "resource managers"}, "implementation success": {"concepts": "implementation success", "type": "concept", "cluster": "Management Plans", "node_size": 10, "label": "implementation success"}, "extension work": {"concepts": "extension work", "type": "concept", "cluster": "Management Plans", "node_size": 10, "label": "extension work"}, "tourism operators": {"concepts": "tourism operators", "type": "concept", "cluster": "Management Plans", "node_size": 10, "label": "tourism operators"}, "fishery-independent survey": {"concepts": "fishery-independent survey", "type": "concept", "cluster": "Stock Assessment", "node_size": 10, "label": "fishery-independent survey"}, "fisheries assessment": {"concepts": "fisheries assessment", "type": "concept", "cluster": "Stock Assessment", "node_size": 10, "label": "fisheries assessment"}, "sedar 77": {"concepts": "sedar 77", "type": "concept", "cluster": "Stock Assessment", "node_size": 10, "label": "sedar 77"}, "assessment process": {"concepts": "assessment process", "type": "concept", "cluster": "Stock Assessment", "node_size": 10, "label": "assessment process"}, "sedar reports": {"concepts": "sedar reports", "type": "concept", "cluster": "Stock Assessment", "node_size": 10, "label": "sedar reports"}, "stock assessment": {"concepts": "stock assessment", "type": "concept", "cluster": "Stock Assessment", "node_size": 10, "label": "stock assessment"}, "decision-making frameworks": {"concepts": "decision-making frameworks", "type": "concept", "cluster": "Decision Frameworks", "node_size": 10, "label": "decision-making frameworks"}, "data requirements": {"concepts": "data requirements", "type": "concept", "cluster": "Decision Frameworks", "node_size": 10, "label": "data requirements"}, "tradeoff decisions": {"concepts": "tradeoff decisions", "type": "concept", "cluster": "Decision Frameworks", "node_size": 10, "label": "tradeoff decisions"}, "priority assessment": {"concepts": "priority assessment", "type": "concept", "cluster": "Decision Frameworks", "node_size": 10, "label": "priority assessment"}, "case studies": {"concepts": "case studies", "type": "concept", "cluster": "Decision Frameworks", "node_size": 10, "label": "case studies"}, "assessment priority": {"concepts": "assessment priority", "type": "concept", "cluster": "Decision Frameworks", "node_size": 10, "label": "assessment priority"}, "priority list": {"concepts": "priority list", "type": "concept", "cluster": "Decision Frameworks", "node_size": 10, "label": "priority list"}, "workshop": {"concepts": "workshop", "type": "concept", "cluster": "Decision Frameworks", "node_size": 10, "label": "workshop"}, "resource tradeoffs": {"concepts": "resource tradeoffs", "type": "concept", "cluster": "Decision Frameworks", "node_size": 10, "label": "resource tradeoffs"}, "harmful organisms": {"concepts": "harmful organisms", "type": "concept", "cluster": "Ecosystem Interactions", "node_size": 10, "label": "harmful organisms"}, "cascade effects": {"concepts": "cascade effects", "type": "concept", "cluster": "Ecosystem Interactions", "node_size": 10, "label": "cascade effects"}, "trajectory analysis": {"concepts": "trajectory analysis", "type": "concept", "cluster": "Ecosystem Interactions", "node_size": 10, "label": "trajectory analysis"}, "bi-directional relationships": {"concepts": "bi-directional relationships", "type": "concept", "cluster": "Ecosystem Interactions", "node_size": 10, "label": "bi-directional relationships"}, "scenario simulations": {"concepts": "scenario simulations", "type": "concept", "cluster": "Ecosystem Interactions", "node_size": 10, "label": "scenario simulations"}, "weak relationships": {"concepts": "weak relationships", "type": "concept", "cluster": "Ecosystem Interactions", "node_size": 10, "label": "weak relationships"}, "strong relationships": {"concepts": "strong relationships", "type": "concept", "cluster": "Ecosystem Interactions", "node_size": 10, "label": "strong relationships"}, "negative relationships": {"concepts": "negative relationships", "type": "concept", "cluster": "Ecosystem Interactions", "node_size": 10, "label": "negative relationships"}, "shark deprivation": {"concepts": "shark deprivation", "type": "concept", "cluster": "Ecosystem Interactions", "node_size": 10, "label": "shark deprivation"}, "cascading effects": {"concepts": "cascading effects", "type": "concept", "cluster": "Ecosystem Interactions", "node_size": 10, "label": "cascading effects"}, "relationships": {"concepts": "relationships", "type": "concept", "cluster": "Ecosystem Interactions", "node_size": 10, "label": "relationships"}, "deprivation effects": {"concepts": "deprivation effects", "type": "concept", "cluster": "Ecosystem Interactions", "node_size": 10, "label": "deprivation effects"}, "negative interactions": {"concepts": "negative interactions", "type": "concept", "cluster": "Ecosystem Interactions", "node_size": 10, "label": "negative interactions"}, "positive relationships": {"concepts": "positive relationships", "type": "concept", "cluster": "Ecosystem Interactions", "node_size": 10, "label": "positive relationships"}, "stakeholder groups": {"concepts": "stakeholder groups", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "stakeholder groups"}, "population segments": {"concepts": "population segments", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "population segments"}, "stakeholders": {"concepts": "stakeholders", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "stakeholders"}, "stakeholder engagement": {"concepts": "stakeholder engagement", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "stakeholder engagement"}, "living shorelines": {"concepts": "living shorelines", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "living shorelines"}, "life histories": {"concepts": "life histories", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "life histories"}, "fisheries ecology": {"concepts": "fisheries ecology", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "fisheries ecology"}, "atlantic ocean": {"concepts": "atlantic ocean", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "atlantic ocean"}, "management difficulty": {"concepts": "management difficulty", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "management difficulty"}, "chesapeake bay": {"concepts": "chesapeake bay", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "chesapeake bay"}, "movement patterns": {"concepts": "movement patterns", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "movement patterns"}, "mental modeler": {"concepts": "mental modeler", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "mental modeler"}, "life history": {"concepts": "life history", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "life history"}, "telemetry": {"concepts": "telemetry", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "telemetry"}, "reef fish assemblage": {"concepts": "reef fish assemblage", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "reef fish assemblage"}, "report cards": {"concepts": "report cards", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "report cards"}, "medium weights": {"concepts": "medium weights", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "medium weights"}, "marine resources": {"concepts": "marine resources", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "marine resources"}, "aquaculture": {"concepts": "aquaculture", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "aquaculture"}, "conceptual model": {"concepts": "conceptual model", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "conceptual model"}, "overfishing": {"concepts": "overfishing", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "overfishing"}, "modeling complexity": {"concepts": "modeling complexity", "type": "concept", "cluster": "Modeling Challenges", "node_size": 10, "label": "modeling complexity"}, "squeaky wheel": {"concepts": "squeaky wheel", "type": "concept", "cluster": "Modeling Challenges", "node_size": 10, "label": "squeaky wheel"}, "single species management": {"concepts": "single species management", "type": "concept", "cluster": "Management Approaches", "node_size": 10, "label": "single species management"}, "ecosystem approaches": {"concepts": "ecosystem approaches", "type": "concept", "cluster": "Management Approaches", "node_size": 10, "label": "ecosystem approaches"}, "ecosystem-based management": {"concepts": "ecosystem-based management", "type": "concept", "cluster": "Management Approaches", "node_size": 10, "label": "ecosystem-based management"}, "multi-species management": {"concepts": "multi-species management", "type": "concept", "cluster": "Management Approaches", "node_size": 10, "label": "multi-species management"}, "predator populations": {"concepts": "predator populations", "type": "concept", "cluster": "Food Web Dynamics", "node_size": 10, "label": "predator populations"}, "species interactions": {"concepts": "species interactions", "type": "concept", "cluster": "Food Web Dynamics", "node_size": 10, "label": "species interactions"}, "food-web species": {"concepts": "food-web species", "type": "concept", "cluster": "Food Web Dynamics", "node_size": 10, "label": "food-web species"}, "ecosystem model": {"concepts": "ecosystem model", "type": "concept", "cluster": "Food Web Dynamics", "node_size": 10, "label": "ecosystem model"}, "food-web supporting": {"concepts": "food-web supporting", "type": "concept", "cluster": "Food Web Dynamics", "node_size": 10, "label": "food-web supporting"}, "key food-web species": {"concepts": "key food-web species", "type": "concept", "cluster": "Food Web Dynamics", "node_size": 10, "label": "key food-web species"}, "meso-predators": {"concepts": "meso-predators", "type": "concept", "cluster": "Food Web Dynamics", "node_size": 10, "label": "meso-predators"}, "trophic ecology": {"concepts": "trophic ecology", "type": "concept", "cluster": "Food Web Dynamics", "node_size": 10, "label": "trophic ecology"}, "ecosystem diversity": {"concepts": "ecosystem diversity", "type": "concept", "cluster": "Species Diversity", "node_size": 10, "label": "ecosystem diversity"}, "species abundance": {"concepts": "species abundance", "type": "concept", "cluster": "Species Diversity", "node_size": 10, "label": "species abundance"}, "gamma diversity": {"concepts": "gamma diversity", "type": "concept", "cluster": "Species Diversity", "node_size": 10, "label": "gamma diversity"}, "species complexes": {"concepts": "species complexes", "type": "concept", "cluster": "Species Diversity", "node_size": 10, "label": "species complexes"}, "species diversity": {"concepts": "species diversity", "type": "concept", "cluster": "Species Diversity", "node_size": 10, "label": "species diversity"}, "species assemblage": {"concepts": "species assemblage", "type": "concept", "cluster": "Species Diversity", "node_size": 10, "label": "species assemblage"}, "habitat forming species": {"concepts": "habitat forming species", "type": "concept", "cluster": "Species Diversity", "node_size": 10, "label": "habitat forming species"}, "biodiversity": {"concepts": "biodiversity", "type": "concept", "cluster": "Species Diversity", "node_size": 10, "label": "biodiversity"}, "conservation concern": {"concepts": "conservation concern", "type": "concept", "cluster": "Conservation Management", "node_size": 10, "label": "conservation concern"}, "biodiversity management": {"concepts": "biodiversity management", "type": "concept", "cluster": "Conservation Management", "node_size": 10, "label": "biodiversity management"}, "protected species": {"concepts": "protected species", "type": "concept", "cluster": "Conservation Management", "node_size": 10, "label": "protected species"}, "species conservation": {"concepts": "species conservation", "type": "concept", "cluster": "Conservation Management", "node_size": 10, "label": "species conservation"}, "population recovery": {"concepts": "population recovery", "type": "concept", "cluster": "Conservation Management", "node_size": 10, "label": "population recovery"}, "human-wildlife conflict": {"concepts": "human-wildlife conflict", "type": "concept", "cluster": "Conservation Management", "node_size": 10, "label": "human-wildlife conflict"}, "geographic scale": {"concepts": "geographic scale", "type": "concept", "cluster": "Spatial Scales", "node_size": 10, "label": "geographic scale"}, "spatial scales": {"concepts": "spatial scales", "type": "concept", "cluster": "Spatial Scales", "node_size": 10, "label": "spatial scales"}, "northern gulf mexico": {"concepts": "northern gulf mexico", "type": "concept", "cluster": "Gulf Region", "node_size": 10, "label": "northern gulf mexico"}, "basin management": {"concepts": "basin management", "type": "concept", "cluster": "Gulf Region", "node_size": 10, "label": "basin management"}, "north central gulf": {"concepts": "north central gulf", "type": "concept", "cluster": "Gulf Region", "node_size": 10, "label": "north central gulf"}, "geographic diversity": {"concepts": "geographic diversity", "type": "concept", "cluster": "Gulf Region", "node_size": 10, "label": "geographic diversity"}};
+        const interClusterEdges = [["Marine Species", "Marine Ecology", {"weight": 0.4, "confidence": 0.5900000000000001, "type": "inter_cluster", "style": "solid"}], ["Marine Species", "Spatial Scales", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Fishing Operations", "Modeling Challenges", {"weight": 0.4, "confidence": 0.29, "type": "inter_cluster", "style": "solid"}], ["Management Plans", "Gulf Region", {"weight": 0.6666666666666666, "confidence": 0.6166666666666667, "type": "inter_cluster", "style": "solid"}], ["Management Plans", "Species Diversity", {"weight": 0.4, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["Stock Assessment", "Marine Species", {"weight": 0.2, "confidence": 0.49000000000000005, "type": "inter_cluster", "style": "solid"}], ["Stock Assessment", "Ecosystem Interactions", {"weight": 0.5, "confidence": 0.425, "type": "inter_cluster", "style": "solid"}], ["Stock Assessment", "Conservation Management", {"weight": 0.5, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["Stock Assessment", "Species Diversity", {"weight": 0.5, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["Decision Frameworks", "Spatial Scales", {"weight": 1.0, "confidence": 0.7000000000000001, "type": "inter_cluster", "style": "solid"}], ["Decision Frameworks", "Stakeholder Engagement", {"weight": 0.25, "confidence": 0.575, "type": "inter_cluster", "style": "solid"}], ["Decision Frameworks", "Conservation Management", {"weight": 0.5, "confidence": 0.4125, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Interactions", "Marine Species", {"weight": 0.75, "confidence": 0.575, "type": "inter_cluster", "style": "solid"}], ["Stakeholder Engagement", "Ecosystem Interactions", {"weight": 0.5, "confidence": 0.3875, "type": "inter_cluster", "style": "solid"}], ["Modeling Challenges", "Food Web Dynamics", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Management Approaches", "Decision Frameworks", {"weight": 0.6, "confidence": 0.79, "type": "inter_cluster", "style": "solid"}], ["Management Approaches", "Stakeholder Engagement", {"weight": 1.0, "confidence": 0.78, "type": "inter_cluster", "style": "solid"}], ["Management Approaches", "Conservation Management", {"weight": 0.5, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["Management Approaches", "Marine Ecology", {"weight": 0.4, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Management Approaches", "Management Plans", {"weight": -0.3333333333333333, "confidence": 0.7333333333333334, "type": "inter_cluster", "style": "solid"}], ["Management Approaches", "Gulf Region", {"weight": 0.75, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Management Approaches", "Food Web Dynamics", {"weight": 0.6, "confidence": 0.48, "type": "inter_cluster", "style": "solid"}], ["Management Approaches", "Modeling Challenges", {"weight": 1.0, "confidence": 0.7250000000000001, "type": "inter_cluster", "style": "solid"}], ["Food Web Dynamics", "Modeling Challenges", {"weight": 0.4, "confidence": 0.66, "type": "inter_cluster", "style": "solid"}], ["Food Web Dynamics", "Gulf Region", {"weight": 0.2, "confidence": 0.45999999999999996, "type": "inter_cluster", "style": "solid"}], ["Food Web Dynamics", "Species Diversity", {"weight": 0.2, "confidence": 0.49000000000000005, "type": "inter_cluster", "style": "solid"}], ["Food Web Dynamics", "Management Approaches", {"weight": 0.4, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["Species Diversity", "Stakeholder Engagement", {"weight": 0.4, "confidence": 0.29, "type": "inter_cluster", "style": "solid"}], ["Species Diversity", "Fishing Operations", {"weight": 0.3333333333333333, "confidence": 0.26666666666666666, "type": "inter_cluster", "style": "solid"}], ["Conservation Management", "Stock Assessment", {"weight": 1.0, "confidence": 0.8166666666666668, "type": "inter_cluster", "style": "solid"}], ["Conservation Management", "Species Diversity", {"weight": 0.75, "confidence": 0.6125, "type": "inter_cluster", "style": "solid"}], ["Conservation Management", "Marine Species", {"weight": 0.6666666666666666, "confidence": 0.5333333333333333, "type": "inter_cluster", "style": "solid"}], ["Spatial Scales", "Management Plans", {"weight": 0.4, "confidence": 0.64, "type": "inter_cluster", "style": "solid"}], ["Spatial Scales", "Fishing Operations", {"weight": -0.2, "confidence": 0.49000000000000005, "type": "inter_cluster", "style": "solid"}], ["Spatial Scales", "Species Diversity", {"weight": 0.2, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["Spatial Scales", "Gulf Region", {"weight": 0.6, "confidence": 0.52, "type": "inter_cluster", "style": "solid"}], ["Spatial Scales", "Management Approaches", {"weight": 0.6666666666666666, "confidence": 0.5333333333333333, "type": "inter_cluster", "style": "solid"}], ["Spatial Scales", "Stock Assessment", {"weight": 0.3333333333333333, "confidence": 0.25, "type": "inter_cluster", "style": "solid"}], ["Spatial Scales", "Ecosystem Interactions", {"weight": 0.25, "confidence": 0.1875, "type": "inter_cluster", "style": "solid"}], ["Gulf Region", "Ecosystem Interactions", {"weight": 0.75, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["Gulf Region", "Decision Frameworks", {"weight": 0.6666666666666666, "confidence": 0.5166666666666666, "type": "inter_cluster", "style": "solid"}], ["Gulf Region", "Fishing Operations", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {"Marine Species": [["sawfish", {"concepts": "sawfish", "type": "concept", "cluster": "Marine Species", "node_size": 10, "label": "sawfish"}], ["elasmobranchs", {"concepts": "elasmobranchs", "type": "concept", "cluster": "Marine Species", "node_size": 10, "label": "elasmobranchs"}], ["sandbar shark", {"concepts": "sandbar shark", "type": "concept", "cluster": "Marine Species", "node_size": 10, "label": "sandbar shark"}], ["dolphins", {"concepts": "dolphins", "type": "concept", "cluster": "Marine Species", "node_size": 10, "label": "dolphins"}], ["shark species", {"concepts": "shark species", "type": "concept", "cluster": "Marine Species", "node_size": 10, "label": "shark species"}], ["hammerhead species", {"concepts": "hammerhead species", "type": "concept", "cluster": "Marine Species", "node_size": 10, "label": "hammerhead species"}], ["hammerheads", {"concepts": "hammerheads", "type": "concept", "cluster": "Marine Species", "node_size": 10, "label": "hammerheads"}], ["marine turtles", {"concepts": "marine turtles", "type": "concept", "cluster": "Marine Species", "node_size": 10, "label": "marine turtles"}], ["white sharks", {"concepts": "white sharks", "type": "concept", "cluster": "Marine Species", "node_size": 10, "label": "white sharks"}], ["coastal sharks", {"concepts": "coastal sharks", "type": "concept", "cluster": "Marine Species", "node_size": 10, "label": "coastal sharks"}]], "Fishing Operations": [["commercial fishing", {"concepts": "commercial fishing", "type": "concept", "cluster": "Fishing Operations", "node_size": 10, "label": "commercial fishing"}], ["charter fishing", {"concepts": "charter fishing", "type": "concept", "cluster": "Fishing Operations", "node_size": 10, "label": "charter fishing"}], ["recreational fishing", {"concepts": "recreational fishing", "type": "concept", "cluster": "Fishing Operations", "node_size": 10, "label": "recreational fishing"}], ["fishermen", {"concepts": "fishermen", "type": "concept", "cluster": "Fishing Operations", "node_size": 10, "label": "fishermen"}], ["bottom longline", {"concepts": "bottom longline", "type": "concept", "cluster": "Fishing Operations", "node_size": 10, "label": "bottom longline"}]], "Management Plans": [["management interventions", {"concepts": "management interventions", "type": "concept", "cluster": "Management Plans", "node_size": 10, "label": "management interventions"}], ["management plans", {"concepts": "management plans", "type": "concept", "cluster": "Management Plans", "node_size": 10, "label": "management plans"}], ["harvest moratorium", {"concepts": "harvest moratorium", "type": "concept", "cluster": "Management Plans", "node_size": 10, "label": "harvest moratorium"}], ["ecosystem based fishery management", {"concepts": "ecosystem based fishery management", "type": "concept", "cluster": "Management Plans", "node_size": 10, "label": "ecosystem based fishery management"}], ["ebfm", {"concepts": "ebfm", "type": "concept", "cluster": "Management Plans", "node_size": 10, "label": "ebfm"}], ["quota setting", {"concepts": "quota setting", "type": "concept", "cluster": "Management Plans", "node_size": 10, "label": "quota setting"}], ["monitoring program", {"concepts": "monitoring program", "type": "concept", "cluster": "Management Plans", "node_size": 10, "label": "monitoring program"}], ["resource managers", {"concepts": "resource managers", "type": "concept", "cluster": "Management Plans", "node_size": 10, "label": "resource managers"}], ["implementation success", {"concepts": "implementation success", "type": "concept", "cluster": "Management Plans", "node_size": 10, "label": "implementation success"}], ["extension work", {"concepts": "extension work", "type": "concept", "cluster": "Management Plans", "node_size": 10, "label": "extension work"}], ["tourism operators", {"concepts": "tourism operators", "type": "concept", "cluster": "Management Plans", "node_size": 10, "label": "tourism operators"}]], "Stock Assessment": [["fishery-independent survey", {"concepts": "fishery-independent survey", "type": "concept", "cluster": "Stock Assessment", "node_size": 10, "label": "fishery-independent survey"}], ["fisheries assessment", {"concepts": "fisheries assessment", "type": "concept", "cluster": "Stock Assessment", "node_size": 10, "label": "fisheries assessment"}], ["sedar 77", {"concepts": "sedar 77", "type": "concept", "cluster": "Stock Assessment", "node_size": 10, "label": "sedar 77"}], ["assessment process", {"concepts": "assessment process", "type": "concept", "cluster": "Stock Assessment", "node_size": 10, "label": "assessment process"}], ["sedar reports", {"concepts": "sedar reports", "type": "concept", "cluster": "Stock Assessment", "node_size": 10, "label": "sedar reports"}], ["stock assessment", {"concepts": "stock assessment", "type": "concept", "cluster": "Stock Assessment", "node_size": 10, "label": "stock assessment"}]], "Decision Frameworks": [["decision-making frameworks", {"concepts": "decision-making frameworks", "type": "concept", "cluster": "Decision Frameworks", "node_size": 10, "label": "decision-making frameworks"}], ["data requirements", {"concepts": "data requirements", "type": "concept", "cluster": "Decision Frameworks", "node_size": 10, "label": "data requirements"}], ["tradeoff decisions", {"concepts": "tradeoff decisions", "type": "concept", "cluster": "Decision Frameworks", "node_size": 10, "label": "tradeoff decisions"}], ["priority assessment", {"concepts": "priority assessment", "type": "concept", "cluster": "Decision Frameworks", "node_size": 10, "label": "priority assessment"}], ["case studies", {"concepts": "case studies", "type": "concept", "cluster": "Decision Frameworks", "node_size": 10, "label": "case studies"}], ["assessment priority", {"concepts": "assessment priority", "type": "concept", "cluster": "Decision Frameworks", "node_size": 10, "label": "assessment priority"}], ["priority list", {"concepts": "priority list", "type": "concept", "cluster": "Decision Frameworks", "node_size": 10, "label": "priority list"}], ["workshop", {"concepts": "workshop", "type": "concept", "cluster": "Decision Frameworks", "node_size": 10, "label": "workshop"}], ["resource tradeoffs", {"concepts": "resource tradeoffs", "type": "concept", "cluster": "Decision Frameworks", "node_size": 10, "label": "resource tradeoffs"}]], "Ecosystem Interactions": [["harmful organisms", {"concepts": "harmful organisms", "type": "concept", "cluster": "Ecosystem Interactions", "node_size": 10, "label": "harmful organisms"}], ["cascade effects", {"concepts": "cascade effects", "type": "concept", "cluster": "Ecosystem Interactions", "node_size": 10, "label": "cascade effects"}], ["trajectory analysis", {"concepts": "trajectory analysis", "type": "concept", "cluster": "Ecosystem Interactions", "node_size": 10, "label": "trajectory analysis"}], ["bi-directional relationships", {"concepts": "bi-directional relationships", "type": "concept", "cluster": "Ecosystem Interactions", "node_size": 10, "label": "bi-directional relationships"}], ["scenario simulations", {"concepts": "scenario simulations", "type": "concept", "cluster": "Ecosystem Interactions", "node_size": 10, "label": "scenario simulations"}], ["weak relationships", {"concepts": "weak relationships", "type": "concept", "cluster": "Ecosystem Interactions", "node_size": 10, "label": "weak relationships"}], ["strong relationships", {"concepts": "strong relationships", "type": "concept", "cluster": "Ecosystem Interactions", "node_size": 10, "label": "strong relationships"}], ["negative relationships", {"concepts": "negative relationships", "type": "concept", "cluster": "Ecosystem Interactions", "node_size": 10, "label": "negative relationships"}], ["shark deprivation", {"concepts": "shark deprivation", "type": "concept", "cluster": "Ecosystem Interactions", "node_size": 10, "label": "shark deprivation"}], ["cascading effects", {"concepts": "cascading effects", "type": "concept", "cluster": "Ecosystem Interactions", "node_size": 10, "label": "cascading effects"}], ["relationships", {"concepts": "relationships", "type": "concept", "cluster": "Ecosystem Interactions", "node_size": 10, "label": "relationships"}], ["deprivation effects", {"concepts": "deprivation effects", "type": "concept", "cluster": "Ecosystem Interactions", "node_size": 10, "label": "deprivation effects"}], ["negative interactions", {"concepts": "negative interactions", "type": "concept", "cluster": "Ecosystem Interactions", "node_size": 10, "label": "negative interactions"}], ["positive relationships", {"concepts": "positive relationships", "type": "concept", "cluster": "Ecosystem Interactions", "node_size": 10, "label": "positive relationships"}]], "Stakeholder Engagement": [["stakeholder groups", {"concepts": "stakeholder groups", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "stakeholder groups"}], ["population segments", {"concepts": "population segments", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "population segments"}], ["stakeholders", {"concepts": "stakeholders", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "stakeholders"}], ["stakeholder engagement", {"concepts": "stakeholder engagement", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "stakeholder engagement"}]], "Marine Ecology": [["living shorelines", {"concepts": "living shorelines", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "living shorelines"}], ["life histories", {"concepts": "life histories", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "life histories"}], ["fisheries ecology", {"concepts": "fisheries ecology", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "fisheries ecology"}], ["atlantic ocean", {"concepts": "atlantic ocean", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "atlantic ocean"}], ["management difficulty", {"concepts": "management difficulty", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "management difficulty"}], ["chesapeake bay", {"concepts": "chesapeake bay", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "chesapeake bay"}], ["movement patterns", {"concepts": "movement patterns", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "movement patterns"}], ["mental modeler", {"concepts": "mental modeler", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "mental modeler"}], ["life history", {"concepts": "life history", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "life history"}], ["telemetry", {"concepts": "telemetry", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "telemetry"}], ["reef fish assemblage", {"concepts": "reef fish assemblage", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "reef fish assemblage"}], ["report cards", {"concepts": "report cards", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "report cards"}], ["medium weights", {"concepts": "medium weights", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "medium weights"}], ["marine resources", {"concepts": "marine resources", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "marine resources"}], ["aquaculture", {"concepts": "aquaculture", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "aquaculture"}], ["conceptual model", {"concepts": "conceptual model", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "conceptual model"}], ["overfishing", {"concepts": "overfishing", "type": "concept", "cluster": "Marine Ecology", "node_size": 10, "label": "overfishing"}]], "Modeling Challenges": [["modeling complexity", {"concepts": "modeling complexity", "type": "concept", "cluster": "Modeling Challenges", "node_size": 10, "label": "modeling complexity"}], ["squeaky wheel", {"concepts": "squeaky wheel", "type": "concept", "cluster": "Modeling Challenges", "node_size": 10, "label": "squeaky wheel"}]], "Management Approaches": [["single species management", {"concepts": "single species management", "type": "concept", "cluster": "Management Approaches", "node_size": 10, "label": "single species management"}], ["ecosystem approaches", {"concepts": "ecosystem approaches", "type": "concept", "cluster": "Management Approaches", "node_size": 10, "label": "ecosystem approaches"}], ["ecosystem-based management", {"concepts": "ecosystem-based management", "type": "concept", "cluster": "Management Approaches", "node_size": 10, "label": "ecosystem-based management"}], ["multi-species management", {"concepts": "multi-species management", "type": "concept", "cluster": "Management Approaches", "node_size": 10, "label": "multi-species management"}]], "Food Web Dynamics": [["predator populations", {"concepts": "predator populations", "type": "concept", "cluster": "Food Web Dynamics", "node_size": 10, "label": "predator populations"}], ["species interactions", {"concepts": "species interactions", "type": "concept", "cluster": "Food Web Dynamics", "node_size": 10, "label": "species interactions"}], ["food-web species", {"concepts": "food-web species", "type": "concept", "cluster": "Food Web Dynamics", "node_size": 10, "label": "food-web species"}], ["ecosystem model", {"concepts": "ecosystem model", "type": "concept", "cluster": "Food Web Dynamics", "node_size": 10, "label": "ecosystem model"}], ["food-web supporting", {"concepts": "food-web supporting", "type": "concept", "cluster": "Food Web Dynamics", "node_size": 10, "label": "food-web supporting"}], ["key food-web species", {"concepts": "key food-web species", "type": "concept", "cluster": "Food Web Dynamics", "node_size": 10, "label": "key food-web species"}], ["meso-predators", {"concepts": "meso-predators", "type": "concept", "cluster": "Food Web Dynamics", "node_size": 10, "label": "meso-predators"}], ["trophic ecology", {"concepts": "trophic ecology", "type": "concept", "cluster": "Food Web Dynamics", "node_size": 10, "label": "trophic ecology"}]], "Species Diversity": [["ecosystem diversity", {"concepts": "ecosystem diversity", "type": "concept", "cluster": "Species Diversity", "node_size": 10, "label": "ecosystem diversity"}], ["species abundance", {"concepts": "species abundance", "type": "concept", "cluster": "Species Diversity", "node_size": 10, "label": "species abundance"}], ["gamma diversity", {"concepts": "gamma diversity", "type": "concept", "cluster": "Species Diversity", "node_size": 10, "label": "gamma diversity"}], ["species complexes", {"concepts": "species complexes", "type": "concept", "cluster": "Species Diversity", "node_size": 10, "label": "species complexes"}], ["species diversity", {"concepts": "species diversity", "type": "concept", "cluster": "Species Diversity", "node_size": 10, "label": "species diversity"}], ["species assemblage", {"concepts": "species assemblage", "type": "concept", "cluster": "Species Diversity", "node_size": 10, "label": "species assemblage"}], ["habitat forming species", {"concepts": "habitat forming species", "type": "concept", "cluster": "Species Diversity", "node_size": 10, "label": "habitat forming species"}], ["biodiversity", {"concepts": "biodiversity", "type": "concept", "cluster": "Species Diversity", "node_size": 10, "label": "biodiversity"}]], "Conservation Management": [["conservation concern", {"concepts": "conservation concern", "type": "concept", "cluster": "Conservation Management", "node_size": 10, "label": "conservation concern"}], ["biodiversity management", {"concepts": "biodiversity management", "type": "concept", "cluster": "Conservation Management", "node_size": 10, "label": "biodiversity management"}], ["protected species", {"concepts": "protected species", "type": "concept", "cluster": "Conservation Management", "node_size": 10, "label": "protected species"}], ["species conservation", {"concepts": "species conservation", "type": "concept", "cluster": "Conservation Management", "node_size": 10, "label": "species conservation"}], ["population recovery", {"concepts": "population recovery", "type": "concept", "cluster": "Conservation Management", "node_size": 10, "label": "population recovery"}], ["human-wildlife conflict", {"concepts": "human-wildlife conflict", "type": "concept", "cluster": "Conservation Management", "node_size": 10, "label": "human-wildlife conflict"}]], "Spatial Scales": [["geographic scale", {"concepts": "geographic scale", "type": "concept", "cluster": "Spatial Scales", "node_size": 10, "label": "geographic scale"}], ["spatial scales", {"concepts": "spatial scales", "type": "concept", "cluster": "Spatial Scales", "node_size": 10, "label": "spatial scales"}]], "Gulf Region": [["northern gulf mexico", {"concepts": "northern gulf mexico", "type": "concept", "cluster": "Gulf Region", "node_size": 10, "label": "northern gulf mexico"}], ["basin management", {"concepts": "basin management", "type": "concept", "cluster": "Gulf Region", "node_size": 10, "label": "basin management"}], ["north central gulf", {"concepts": "north central gulf", "type": "concept", "cluster": "Gulf Region", "node_size": 10, "label": "north central gulf"}], ["geographic diversity", {"concepts": "geographic diversity", "type": "concept", "cluster": "Gulf Region", "node_size": 10, "label": "geographic diversity"}]]};
+        const clusterEdges = {"Marine Species": [], "Fishing Operations": [], "Management Plans": [], "Stock Assessment": [], "Decision Frameworks": [], "Ecosystem Interactions": [], "Stakeholder Engagement": [], "Marine Ecology": [], "Modeling Challenges": [], "Management Approaches": [], "Food Web Dynamics": [], "Species Diversity": [], "Conservation Management": [], "Spatial Scales": [], "Gulf Region": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

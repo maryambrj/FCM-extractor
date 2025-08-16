@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"ocean plastics": {"concepts": "ocean plastics", "concept_list": ["ocean plastics"], "type": "cluster", "node_size": 18, "label": "ocean plastics"}, "Research Focus": {"concepts": "policy, power, decision makers, administrations, interpretation of laws, policy management, framework, resource management, management plans, key actors, power differentials", "concept_list": ["policy", "power", "decision makers", "administrations", "interpretation of laws", "policy management", "framework", "resource management", "management plans", "key actors", "power differentials"], "type": "cluster", "node_size": 48, "label": "Research Focus"}, "Indigenous Knowledge": {"concepts": "research institutions, research program, research, helicopter research, research abilities", "concept_list": ["research institutions", "research program", "research", "helicopter research", "research abilities"], "type": "cluster", "node_size": 30, "label": "Indigenous Knowledge"}, "Colonization Impacts": {"concepts": "indigenize, place-based knowledge, elders, intergenerational trauma, stewardship, hawaiian worldview, stewardship efforts, aina, reciprocation services, reciprocal relationships, accurate reflection, relational relationship, holistic perspective, ancestral relationships, reciprocation", "concept_list": ["indigenize", "place-based knowledge", "elders", "intergenerational trauma", "stewardship", "hawaiian worldview", "stewardship efforts", "aina", "reciprocation services", "reciprocal relationships", "accurate reflection", "relational relationship", "holistic perspective", "ancestral relationships", "reciprocation"], "type": "cluster", "node_size": 60, "label": "Colonization Impacts"}, "Positive Relationships": {"concepts": "colonizing tools, social injustice, manifest destiny, white men, severed relationships, tourism, two-way arrows, stressors, endangered species act, human dimensions, environmental injustice, negative impacts, food webs, co-evolutionary relationships, nature reserve, genocide, co-management, social constructs, paradigm, collaborative management, system's perspective, co-management frameworks, humans nature, species diversity, colonizer, mental modular, interested parties, environmentalism, mental map, allies, adversarial relationships, mentalmodeller.com, negative relationship, social construct, species conservation, stakeholders, colonization, ecosystem services, biodiversity, negative relationships, virtual meeting, human environment, positive relationship, affected stakeholders, pristine nature, conservation concern, effective conservation, social injustices, conservation, environmental injustices", "concept_list": ["colonizing tools", "social injustice", "manifest destiny", "white men", "severed relationships", "tourism", "two-way arrows", "stressors", "endangered species act", "human dimensions", "environmental injustice", "negative impacts", "food webs", "co-evolutionary relationships", "nature reserve", "genocide", "co-management", "social constructs", "paradigm", "collaborative management", "system's perspective", "co-management frameworks", "humans nature", "species diversity", "colonizer", "mental modular", "interested parties", "environmentalism", "mental map", "allies", "adversarial relationships", "mentalmodeller.com", "negative relationship", "social construct", "species conservation", "stakeholders", "colonization", "ecosystem services", "biodiversity", "negative relationships", "virtual meeting", "human environment", "positive relationship", "affected stakeholders", "pristine nature", "conservation concern", "effective conservation", "social injustices", "conservation", "environmental injustices"], "type": "cluster", "node_size": 165, "label": "Positive Relationships"}, "Policy & Power": {"concepts": "positive relationships, hawaiian cosmology, relationships", "concept_list": ["positive relationships", "hawaiian cosmology", "relationships"], "type": "cluster", "node_size": 24, "label": "Policy & Power"}, "Fishing Sectors": {"concepts": "indigenous fishers, commercial fishing, recreational fishing", "concept_list": ["indigenous fishers", "commercial fishing", "recreational fishing"], "type": "cluster", "node_size": 24, "label": "Fishing Sectors"}, "Marine Resource Management": {"concepts": "marine resource management, marine management, marine resources", "concept_list": ["marine resource management", "marine management", "marine resources"], "type": "cluster", "node_size": 24, "label": "Marine Resource Management"}, "Colonial Erasure": {"concepts": "colonial history, cultural genocide", "concept_list": ["colonial history", "cultural genocide"], "type": "cluster", "node_size": 21, "label": "Colonial Erasure"}, "Biocultural Focus": {"concepts": "biocultural diversity, biocultural restoration", "concept_list": ["biocultural diversity", "biocultural restoration"], "type": "cluster", "node_size": 21, "label": "Biocultural Focus"}, "[Fishing Types]": {"concepts": "indigenous people, indigenous perspectives, indigenous relationship, indigenous worldviews, indigenous knowledge, indigenous-led conservation, indigenous peoples, indigenous stewardship", "concept_list": ["indigenous people", "indigenous perspectives", "indigenous relationship", "indigenous worldviews", "indigenous knowledge", "indigenous-led conservation", "indigenous peoples", "indigenous stewardship"], "type": "cluster", "node_size": 39, "label": "[Fishing Types]"}, "Hawaiian Community Culture": {"concepts": "native hawaiian, community culture, cultural identities, indigenous community, native hawaiian communities, community-based subsistence, local communities", "concept_list": ["native hawaiian", "community culture", "cultural identities", "indigenous community", "native hawaiian communities", "community-based subsistence", "local communities"], "type": "cluster", "node_size": 36, "label": "Hawaiian Community Culture"}, "Legal Framework": {"concepts": "state laws, federal law", "concept_list": ["state laws", "federal law"], "type": "cluster", "node_size": 21, "label": "Legal Framework"}, "Federal Governance": {"concepts": "judicial branch, federal system, federal agencies", "concept_list": ["judicial branch", "federal system", "federal agencies"], "type": "cluster", "node_size": 24, "label": "Federal Governance"}};
+        const conceptData = {"policy": {"concepts": "policy", "type": "concept", "cluster": "Research Focus", "node_size": 10, "label": "policy"}, "power": {"concepts": "power", "type": "concept", "cluster": "Research Focus", "node_size": 10, "label": "power"}, "decision makers": {"concepts": "decision makers", "type": "concept", "cluster": "Research Focus", "node_size": 10, "label": "decision makers"}, "administrations": {"concepts": "administrations", "type": "concept", "cluster": "Research Focus", "node_size": 10, "label": "administrations"}, "interpretation of laws": {"concepts": "interpretation of laws", "type": "concept", "cluster": "Research Focus", "node_size": 10, "label": "interpretation of laws"}, "policy management": {"concepts": "policy management", "type": "concept", "cluster": "Research Focus", "node_size": 10, "label": "policy management"}, "framework": {"concepts": "framework", "type": "concept", "cluster": "Research Focus", "node_size": 10, "label": "framework"}, "resource management": {"concepts": "resource management", "type": "concept", "cluster": "Research Focus", "node_size": 10, "label": "resource management"}, "management plans": {"concepts": "management plans", "type": "concept", "cluster": "Research Focus", "node_size": 10, "label": "management plans"}, "key actors": {"concepts": "key actors", "type": "concept", "cluster": "Research Focus", "node_size": 10, "label": "key actors"}, "power differentials": {"concepts": "power differentials", "type": "concept", "cluster": "Research Focus", "node_size": 10, "label": "power differentials"}, "research institutions": {"concepts": "research institutions", "type": "concept", "cluster": "Indigenous Knowledge", "node_size": 10, "label": "research institutions"}, "research program": {"concepts": "research program", "type": "concept", "cluster": "Indigenous Knowledge", "node_size": 10, "label": "research program"}, "research": {"concepts": "research", "type": "concept", "cluster": "Indigenous Knowledge", "node_size": 10, "label": "research"}, "helicopter research": {"concepts": "helicopter research", "type": "concept", "cluster": "Indigenous Knowledge", "node_size": 10, "label": "helicopter research"}, "research abilities": {"concepts": "research abilities", "type": "concept", "cluster": "Indigenous Knowledge", "node_size": 10, "label": "research abilities"}, "indigenize": {"concepts": "indigenize", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "indigenize"}, "place-based knowledge": {"concepts": "place-based knowledge", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "place-based knowledge"}, "elders": {"concepts": "elders", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "elders"}, "intergenerational trauma": {"concepts": "intergenerational trauma", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "intergenerational trauma"}, "stewardship": {"concepts": "stewardship", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "stewardship"}, "hawaiian worldview": {"concepts": "hawaiian worldview", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "hawaiian worldview"}, "stewardship efforts": {"concepts": "stewardship efforts", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "stewardship efforts"}, "aina": {"concepts": "aina", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "aina"}, "reciprocation services": {"concepts": "reciprocation services", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "reciprocation services"}, "reciprocal relationships": {"concepts": "reciprocal relationships", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "reciprocal relationships"}, "accurate reflection": {"concepts": "accurate reflection", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "accurate reflection"}, "relational relationship": {"concepts": "relational relationship", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "relational relationship"}, "holistic perspective": {"concepts": "holistic perspective", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "holistic perspective"}, "ancestral relationships": {"concepts": "ancestral relationships", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "ancestral relationships"}, "reciprocation": {"concepts": "reciprocation", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "reciprocation"}, "colonizing tools": {"concepts": "colonizing tools", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "colonizing tools"}, "social injustice": {"concepts": "social injustice", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "social injustice"}, "manifest destiny": {"concepts": "manifest destiny", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "manifest destiny"}, "white men": {"concepts": "white men", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "white men"}, "severed relationships": {"concepts": "severed relationships", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "severed relationships"}, "tourism": {"concepts": "tourism", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "tourism"}, "two-way arrows": {"concepts": "two-way arrows", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "two-way arrows"}, "stressors": {"concepts": "stressors", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "stressors"}, "endangered species act": {"concepts": "endangered species act", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "endangered species act"}, "human dimensions": {"concepts": "human dimensions", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "human dimensions"}, "environmental injustice": {"concepts": "environmental injustice", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "environmental injustice"}, "negative impacts": {"concepts": "negative impacts", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "negative impacts"}, "food webs": {"concepts": "food webs", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "food webs"}, "co-evolutionary relationships": {"concepts": "co-evolutionary relationships", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "co-evolutionary relationships"}, "nature reserve": {"concepts": "nature reserve", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "nature reserve"}, "genocide": {"concepts": "genocide", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "genocide"}, "co-management": {"concepts": "co-management", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "co-management"}, "social constructs": {"concepts": "social constructs", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "social constructs"}, "paradigm": {"concepts": "paradigm", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "paradigm"}, "collaborative management": {"concepts": "collaborative management", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "collaborative management"}, "system's perspective": {"concepts": "system's perspective", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "system's perspective"}, "co-management frameworks": {"concepts": "co-management frameworks", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "co-management frameworks"}, "humans nature": {"concepts": "humans nature", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "humans nature"}, "species diversity": {"concepts": "species diversity", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "species diversity"}, "colonizer": {"concepts": "colonizer", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "colonizer"}, "mental modular": {"concepts": "mental modular", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "mental modular"}, "interested parties": {"concepts": "interested parties", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "interested parties"}, "environmentalism": {"concepts": "environmentalism", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "environmentalism"}, "mental map": {"concepts": "mental map", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "mental map"}, "allies": {"concepts": "allies", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "allies"}, "adversarial relationships": {"concepts": "adversarial relationships", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "adversarial relationships"}, "mentalmodeller.com": {"concepts": "mentalmodeller.com", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "mentalmodeller.com"}, "negative relationship": {"concepts": "negative relationship", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "negative relationship"}, "social construct": {"concepts": "social construct", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "social construct"}, "species conservation": {"concepts": "species conservation", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "species conservation"}, "stakeholders": {"concepts": "stakeholders", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "stakeholders"}, "colonization": {"concepts": "colonization", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "colonization"}, "ecosystem services": {"concepts": "ecosystem services", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "ecosystem services"}, "biodiversity": {"concepts": "biodiversity", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "biodiversity"}, "negative relationships": {"concepts": "negative relationships", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "negative relationships"}, "virtual meeting": {"concepts": "virtual meeting", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "virtual meeting"}, "human environment": {"concepts": "human environment", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "human environment"}, "positive relationship": {"concepts": "positive relationship", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "positive relationship"}, "affected stakeholders": {"concepts": "affected stakeholders", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "affected stakeholders"}, "pristine nature": {"concepts": "pristine nature", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "pristine nature"}, "conservation concern": {"concepts": "conservation concern", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "conservation concern"}, "effective conservation": {"concepts": "effective conservation", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "effective conservation"}, "social injustices": {"concepts": "social injustices", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "social injustices"}, "conservation": {"concepts": "conservation", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "conservation"}, "environmental injustices": {"concepts": "environmental injustices", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "environmental injustices"}, "positive relationships": {"concepts": "positive relationships", "type": "concept", "cluster": "Policy & Power", "node_size": 10, "label": "positive relationships"}, "hawaiian cosmology": {"concepts": "hawaiian cosmology", "type": "concept", "cluster": "Policy & Power", "node_size": 10, "label": "hawaiian cosmology"}, "relationships": {"concepts": "relationships", "type": "concept", "cluster": "Policy & Power", "node_size": 10, "label": "relationships"}, "indigenous fishers": {"concepts": "indigenous fishers", "type": "concept", "cluster": "Fishing Sectors", "node_size": 10, "label": "indigenous fishers"}, "commercial fishing": {"concepts": "commercial fishing", "type": "concept", "cluster": "Fishing Sectors", "node_size": 10, "label": "commercial fishing"}, "recreational fishing": {"concepts": "recreational fishing", "type": "concept", "cluster": "Fishing Sectors", "node_size": 10, "label": "recreational fishing"}, "marine resource management": {"concepts": "marine resource management", "type": "concept", "cluster": "Marine Resource Management", "node_size": 10, "label": "marine resource management"}, "marine management": {"concepts": "marine management", "type": "concept", "cluster": "Marine Resource Management", "node_size": 10, "label": "marine management"}, "marine resources": {"concepts": "marine resources", "type": "concept", "cluster": "Marine Resource Management", "node_size": 10, "label": "marine resources"}, "colonial history": {"concepts": "colonial history", "type": "concept", "cluster": "Colonial Erasure", "node_size": 10, "label": "colonial history"}, "cultural genocide": {"concepts": "cultural genocide", "type": "concept", "cluster": "Colonial Erasure", "node_size": 10, "label": "cultural genocide"}, "biocultural diversity": {"concepts": "biocultural diversity", "type": "concept", "cluster": "Biocultural Focus", "node_size": 10, "label": "biocultural diversity"}, "biocultural restoration": {"concepts": "biocultural restoration", "type": "concept", "cluster": "Biocultural Focus", "node_size": 10, "label": "biocultural restoration"}, "indigenous people": {"concepts": "indigenous people", "type": "concept", "cluster": "[Fishing Types]", "node_size": 10, "label": "indigenous people"}, "indigenous perspectives": {"concepts": "indigenous perspectives", "type": "concept", "cluster": "[Fishing Types]", "node_size": 10, "label": "indigenous perspectives"}, "indigenous relationship": {"concepts": "indigenous relationship", "type": "concept", "cluster": "[Fishing Types]", "node_size": 10, "label": "indigenous relationship"}, "indigenous worldviews": {"concepts": "indigenous worldviews", "type": "concept", "cluster": "[Fishing Types]", "node_size": 10, "label": "indigenous worldviews"}, "indigenous knowledge": {"concepts": "indigenous knowledge", "type": "concept", "cluster": "[Fishing Types]", "node_size": 10, "label": "indigenous knowledge"}, "indigenous-led conservation": {"concepts": "indigenous-led conservation", "type": "concept", "cluster": "[Fishing Types]", "node_size": 10, "label": "indigenous-led conservation"}, "indigenous peoples": {"concepts": "indigenous peoples", "type": "concept", "cluster": "[Fishing Types]", "node_size": 10, "label": "indigenous peoples"}, "indigenous stewardship": {"concepts": "indigenous stewardship", "type": "concept", "cluster": "[Fishing Types]", "node_size": 10, "label": "indigenous stewardship"}, "native hawaiian": {"concepts": "native hawaiian", "type": "concept", "cluster": "Hawaiian Community Culture", "node_size": 10, "label": "native hawaiian"}, "community culture": {"concepts": "community culture", "type": "concept", "cluster": "Hawaiian Community Culture", "node_size": 10, "label": "community culture"}, "cultural identities": {"concepts": "cultural identities", "type": "concept", "cluster": "Hawaiian Community Culture", "node_size": 10, "label": "cultural identities"}, "indigenous community": {"concepts": "indigenous community", "type": "concept", "cluster": "Hawaiian Community Culture", "node_size": 10, "label": "indigenous community"}, "native hawaiian communities": {"concepts": "native hawaiian communities", "type": "concept", "cluster": "Hawaiian Community Culture", "node_size": 10, "label": "native hawaiian communities"}, "community-based subsistence": {"concepts": "community-based subsistence", "type": "concept", "cluster": "Hawaiian Community Culture", "node_size": 10, "label": "community-based subsistence"}, "local communities": {"concepts": "local communities", "type": "concept", "cluster": "Hawaiian Community Culture", "node_size": 10, "label": "local communities"}, "state laws": {"concepts": "state laws", "type": "concept", "cluster": "Legal Framework", "node_size": 10, "label": "state laws"}, "federal law": {"concepts": "federal law", "type": "concept", "cluster": "Legal Framework", "node_size": 10, "label": "federal law"}, "judicial branch": {"concepts": "judicial branch", "type": "concept", "cluster": "Federal Governance", "node_size": 10, "label": "judicial branch"}, "federal system": {"concepts": "federal system", "type": "concept", "cluster": "Federal Governance", "node_size": 10, "label": "federal system"}, "federal agencies": {"concepts": "federal agencies", "type": "concept", "cluster": "Federal Governance", "node_size": 10, "label": "federal agencies"}};
+        const interClusterEdges = [["ocean plastics", "Marine Resource Management", {"weight": -0.6, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["ocean plastics", "Hawaiian Community Culture", {"weight": -1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["Research Focus", "Federal Governance", {"weight": 0.8, "confidence": 0.5599999999999999, "type": "inter_cluster", "style": "solid"}], ["Research Focus", "Marine Resource Management", {"weight": 0.8, "confidence": 0.5800000000000001, "type": "inter_cluster", "style": "solid"}], ["Indigenous Knowledge", "Hawaiian Community Culture", {"weight": -1.0, "confidence": 0.48, "type": "inter_cluster", "style": "solid"}], ["Colonization Impacts", "Legal Framework", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["Positive Relationships", "Colonial Erasure", {"weight": 1.0, "confidence": 0.86, "type": "inter_cluster", "style": "solid"}], ["Positive Relationships", "[Fishing Types]", {"weight": -1.0, "confidence": 0.78, "type": "inter_cluster", "style": "solid"}], ["Positive Relationships", "Colonization Impacts", {"weight": -1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["Positive Relationships", "Policy & Power", {"weight": -0.5, "confidence": 0.2, "type": "inter_cluster", "style": "solid"}], ["Policy & Power", "Hawaiian Community Culture", {"weight": 1.0, "confidence": 0.8200000000000001, "type": "inter_cluster", "style": "solid"}], ["Policy & Power", "Research Focus", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["Policy & Power", "Fishing Sectors", {"weight": -0.3333333333333333, "confidence": 0.13333333333333333, "type": "inter_cluster", "style": "solid"}], ["Fishing Sectors", "Legal Framework", {"weight": 0.25, "confidence": 0.30000000000000004, "type": "inter_cluster", "style": "solid"}], ["Marine Resource Management", "[Fishing Types]", {"weight": 0.4, "confidence": 0.43999999999999995, "type": "inter_cluster", "style": "solid"}], ["Marine Resource Management", "Biocultural Focus", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Marine Resource Management", "Federal Governance", {"weight": 0.6666666666666666, "confidence": 0.4666666666666666, "type": "inter_cluster", "style": "solid"}], ["Colonial Erasure", "[Fishing Types]", {"weight": -1.0, "confidence": 0.8400000000000001, "type": "inter_cluster", "style": "solid"}], ["Colonial Erasure", "Federal Governance", {"weight": 0.5, "confidence": 0.45, "type": "inter_cluster", "style": "solid"}], ["Colonial Erasure", "Legal Framework", {"weight": -0.25, "confidence": 0.25, "type": "inter_cluster", "style": "solid"}], ["Colonial Erasure", "Indigenous Knowledge", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["Biocultural Focus", "Hawaiian Community Culture", {"weight": 1.0, "confidence": 0.8200000000000001, "type": "inter_cluster", "style": "solid"}], ["[Fishing Types]", "Biocultural Focus", {"weight": 1.0, "confidence": 0.8200000000000001, "type": "inter_cluster", "style": "solid"}], ["[Fishing Types]", "Research Focus", {"weight": 0.2, "confidence": 0.45999999999999996, "type": "inter_cluster", "style": "solid"}], ["Hawaiian Community Culture", "Policy & Power", {"weight": 1.0, "confidence": 0.7899999999999999, "type": "inter_cluster", "style": "solid"}], ["Hawaiian Community Culture", "[Fishing Types]", {"weight": 1.0, "confidence": 0.9125000000000001, "type": "inter_cluster", "style": "solid"}], ["Hawaiian Community Culture", "Positive Relationships", {"weight": -1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["Hawaiian Community Culture", "Colonization Impacts", {"weight": 1.0, "confidence": 0.8000000000000002, "type": "inter_cluster", "style": "solid"}], ["Hawaiian Community Culture", "ocean plastics", {"weight": -1.0, "confidence": 0.35000000000000003, "type": "inter_cluster", "style": "solid"}], ["Legal Framework", "Marine Resource Management", {"weight": 1.0, "confidence": 0.64, "type": "inter_cluster", "style": "solid"}], ["Federal Governance", "Research Focus", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["Federal Governance", "Legal Framework", {"weight": 1.0, "confidence": 0.6749999999999999, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {"Research Focus": [["policy", {"concepts": "policy", "type": "concept", "cluster": "Research Focus", "node_size": 10, "label": "policy"}], ["power", {"concepts": "power", "type": "concept", "cluster": "Research Focus", "node_size": 10, "label": "power"}], ["decision makers", {"concepts": "decision makers", "type": "concept", "cluster": "Research Focus", "node_size": 10, "label": "decision makers"}], ["administrations", {"concepts": "administrations", "type": "concept", "cluster": "Research Focus", "node_size": 10, "label": "administrations"}], ["interpretation of laws", {"concepts": "interpretation of laws", "type": "concept", "cluster": "Research Focus", "node_size": 10, "label": "interpretation of laws"}], ["policy management", {"concepts": "policy management", "type": "concept", "cluster": "Research Focus", "node_size": 10, "label": "policy management"}], ["framework", {"concepts": "framework", "type": "concept", "cluster": "Research Focus", "node_size": 10, "label": "framework"}], ["resource management", {"concepts": "resource management", "type": "concept", "cluster": "Research Focus", "node_size": 10, "label": "resource management"}], ["management plans", {"concepts": "management plans", "type": "concept", "cluster": "Research Focus", "node_size": 10, "label": "management plans"}], ["key actors", {"concepts": "key actors", "type": "concept", "cluster": "Research Focus", "node_size": 10, "label": "key actors"}], ["power differentials", {"concepts": "power differentials", "type": "concept", "cluster": "Research Focus", "node_size": 10, "label": "power differentials"}]], "Indigenous Knowledge": [["research institutions", {"concepts": "research institutions", "type": "concept", "cluster": "Indigenous Knowledge", "node_size": 10, "label": "research institutions"}], ["research program", {"concepts": "research program", "type": "concept", "cluster": "Indigenous Knowledge", "node_size": 10, "label": "research program"}], ["research", {"concepts": "research", "type": "concept", "cluster": "Indigenous Knowledge", "node_size": 10, "label": "research"}], ["helicopter research", {"concepts": "helicopter research", "type": "concept", "cluster": "Indigenous Knowledge", "node_size": 10, "label": "helicopter research"}], ["research abilities", {"concepts": "research abilities", "type": "concept", "cluster": "Indigenous Knowledge", "node_size": 10, "label": "research abilities"}]], "Colonization Impacts": [["indigenize", {"concepts": "indigenize", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "indigenize"}], ["place-based knowledge", {"concepts": "place-based knowledge", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "place-based knowledge"}], ["elders", {"concepts": "elders", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "elders"}], ["intergenerational trauma", {"concepts": "intergenerational trauma", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "intergenerational trauma"}], ["stewardship", {"concepts": "stewardship", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "stewardship"}], ["hawaiian worldview", {"concepts": "hawaiian worldview", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "hawaiian worldview"}], ["stewardship efforts", {"concepts": "stewardship efforts", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "stewardship efforts"}], ["aina", {"concepts": "aina", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "aina"}], ["reciprocation services", {"concepts": "reciprocation services", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "reciprocation services"}], ["reciprocal relationships", {"concepts": "reciprocal relationships", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "reciprocal relationships"}], ["accurate reflection", {"concepts": "accurate reflection", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "accurate reflection"}], ["relational relationship", {"concepts": "relational relationship", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "relational relationship"}], ["holistic perspective", {"concepts": "holistic perspective", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "holistic perspective"}], ["ancestral relationships", {"concepts": "ancestral relationships", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "ancestral relationships"}], ["reciprocation", {"concepts": "reciprocation", "type": "concept", "cluster": "Colonization Impacts", "node_size": 10, "label": "reciprocation"}]], "Positive Relationships": [["colonizing tools", {"concepts": "colonizing tools", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "colonizing tools"}], ["social injustice", {"concepts": "social injustice", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "social injustice"}], ["manifest destiny", {"concepts": "manifest destiny", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "manifest destiny"}], ["white men", {"concepts": "white men", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "white men"}], ["severed relationships", {"concepts": "severed relationships", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "severed relationships"}], ["tourism", {"concepts": "tourism", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "tourism"}], ["two-way arrows", {"concepts": "two-way arrows", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "two-way arrows"}], ["stressors", {"concepts": "stressors", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "stressors"}], ["endangered species act", {"concepts": "endangered species act", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "endangered species act"}], ["human dimensions", {"concepts": "human dimensions", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "human dimensions"}], ["environmental injustice", {"concepts": "environmental injustice", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "environmental injustice"}], ["negative impacts", {"concepts": "negative impacts", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "negative impacts"}], ["food webs", {"concepts": "food webs", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "food webs"}], ["co-evolutionary relationships", {"concepts": "co-evolutionary relationships", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "co-evolutionary relationships"}], ["nature reserve", {"concepts": "nature reserve", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "nature reserve"}], ["genocide", {"concepts": "genocide", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "genocide"}], ["co-management", {"concepts": "co-management", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "co-management"}], ["social constructs", {"concepts": "social constructs", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "social constructs"}], ["paradigm", {"concepts": "paradigm", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "paradigm"}], ["collaborative management", {"concepts": "collaborative management", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "collaborative management"}], ["system's perspective", {"concepts": "system's perspective", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "system's perspective"}], ["co-management frameworks", {"concepts": "co-management frameworks", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "co-management frameworks"}], ["humans nature", {"concepts": "humans nature", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "humans nature"}], ["species diversity", {"concepts": "species diversity", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "species diversity"}], ["colonizer", {"concepts": "colonizer", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "colonizer"}], ["mental modular", {"concepts": "mental modular", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "mental modular"}], ["interested parties", {"concepts": "interested parties", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "interested parties"}], ["environmentalism", {"concepts": "environmentalism", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "environmentalism"}], ["mental map", {"concepts": "mental map", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "mental map"}], ["allies", {"concepts": "allies", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "allies"}], ["adversarial relationships", {"concepts": "adversarial relationships", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "adversarial relationships"}], ["mentalmodeller.com", {"concepts": "mentalmodeller.com", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "mentalmodeller.com"}], ["negative relationship", {"concepts": "negative relationship", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "negative relationship"}], ["social construct", {"concepts": "social construct", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "social construct"}], ["species conservation", {"concepts": "species conservation", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "species conservation"}], ["stakeholders", {"concepts": "stakeholders", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "stakeholders"}], ["colonization", {"concepts": "colonization", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "colonization"}], ["ecosystem services", {"concepts": "ecosystem services", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "ecosystem services"}], ["biodiversity", {"concepts": "biodiversity", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "biodiversity"}], ["negative relationships", {"concepts": "negative relationships", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "negative relationships"}], ["virtual meeting", {"concepts": "virtual meeting", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "virtual meeting"}], ["human environment", {"concepts": "human environment", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "human environment"}], ["positive relationship", {"concepts": "positive relationship", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "positive relationship"}], ["affected stakeholders", {"concepts": "affected stakeholders", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "affected stakeholders"}], ["pristine nature", {"concepts": "pristine nature", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "pristine nature"}], ["conservation concern", {"concepts": "conservation concern", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "conservation concern"}], ["effective conservation", {"concepts": "effective conservation", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "effective conservation"}], ["social injustices", {"concepts": "social injustices", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "social injustices"}], ["conservation", {"concepts": "conservation", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "conservation"}], ["environmental injustices", {"concepts": "environmental injustices", "type": "concept", "cluster": "Positive Relationships", "node_size": 10, "label": "environmental injustices"}]], "Policy & Power": [["positive relationships", {"concepts": "positive relationships", "type": "concept", "cluster": "Policy & Power", "node_size": 10, "label": "positive relationships"}], ["hawaiian cosmology", {"concepts": "hawaiian cosmology", "type": "concept", "cluster": "Policy & Power", "node_size": 10, "label": "hawaiian cosmology"}], ["relationships", {"concepts": "relationships", "type": "concept", "cluster": "Policy & Power", "node_size": 10, "label": "relationships"}]], "Fishing Sectors": [["indigenous fishers", {"concepts": "indigenous fishers", "type": "concept", "cluster": "Fishing Sectors", "node_size": 10, "label": "indigenous fishers"}], ["commercial fishing", {"concepts": "commercial fishing", "type": "concept", "cluster": "Fishing Sectors", "node_size": 10, "label": "commercial fishing"}], ["recreational fishing", {"concepts": "recreational fishing", "type": "concept", "cluster": "Fishing Sectors", "node_size": 10, "label": "recreational fishing"}]], "Marine Resource Management": [["marine resource management", {"concepts": "marine resource management", "type": "concept", "cluster": "Marine Resource Management", "node_size": 10, "label": "marine resource management"}], ["marine management", {"concepts": "marine management", "type": "concept", "cluster": "Marine Resource Management", "node_size": 10, "label": "marine management"}], ["marine resources", {"concepts": "marine resources", "type": "concept", "cluster": "Marine Resource Management", "node_size": 10, "label": "marine resources"}]], "Colonial Erasure": [["colonial history", {"concepts": "colonial history", "type": "concept", "cluster": "Colonial Erasure", "node_size": 10, "label": "colonial history"}], ["cultural genocide", {"concepts": "cultural genocide", "type": "concept", "cluster": "Colonial Erasure", "node_size": 10, "label": "cultural genocide"}]], "Biocultural Focus": [["biocultural diversity", {"concepts": "biocultural diversity", "type": "concept", "cluster": "Biocultural Focus", "node_size": 10, "label": "biocultural diversity"}], ["biocultural restoration", {"concepts": "biocultural restoration", "type": "concept", "cluster": "Biocultural Focus", "node_size": 10, "label": "biocultural restoration"}]], "[Fishing Types]": [["indigenous people", {"concepts": "indigenous people", "type": "concept", "cluster": "[Fishing Types]", "node_size": 10, "label": "indigenous people"}], ["indigenous perspectives", {"concepts": "indigenous perspectives", "type": "concept", "cluster": "[Fishing Types]", "node_size": 10, "label": "indigenous perspectives"}], ["indigenous relationship", {"concepts": "indigenous relationship", "type": "concept", "cluster": "[Fishing Types]", "node_size": 10, "label": "indigenous relationship"}], ["indigenous worldviews", {"concepts": "indigenous worldviews", "type": "concept", "cluster": "[Fishing Types]", "node_size": 10, "label": "indigenous worldviews"}], ["indigenous knowledge", {"concepts": "indigenous knowledge", "type": "concept", "cluster": "[Fishing Types]", "node_size": 10, "label": "indigenous knowledge"}], ["indigenous-led conservation", {"concepts": "indigenous-led conservation", "type": "concept", "cluster": "[Fishing Types]", "node_size": 10, "label": "indigenous-led conservation"}], ["indigenous peoples", {"concepts": "indigenous peoples", "type": "concept", "cluster": "[Fishing Types]", "node_size": 10, "label": "indigenous peoples"}], ["indigenous stewardship", {"concepts": "indigenous stewardship", "type": "concept", "cluster": "[Fishing Types]", "node_size": 10, "label": "indigenous stewardship"}]], "Hawaiian Community Culture": [["native hawaiian", {"concepts": "native hawaiian", "type": "concept", "cluster": "Hawaiian Community Culture", "node_size": 10, "label": "native hawaiian"}], ["community culture", {"concepts": "community culture", "type": "concept", "cluster": "Hawaiian Community Culture", "node_size": 10, "label": "community culture"}], ["cultural identities", {"concepts": "cultural identities", "type": "concept", "cluster": "Hawaiian Community Culture", "node_size": 10, "label": "cultural identities"}], ["indigenous community", {"concepts": "indigenous community", "type": "concept", "cluster": "Hawaiian Community Culture", "node_size": 10, "label": "indigenous community"}], ["native hawaiian communities", {"concepts": "native hawaiian communities", "type": "concept", "cluster": "Hawaiian Community Culture", "node_size": 10, "label": "native hawaiian communities"}], ["community-based subsistence", {"concepts": "community-based subsistence", "type": "concept", "cluster": "Hawaiian Community Culture", "node_size": 10, "label": "community-based subsistence"}], ["local communities", {"concepts": "local communities", "type": "concept", "cluster": "Hawaiian Community Culture", "node_size": 10, "label": "local communities"}]], "Legal Framework": [["state laws", {"concepts": "state laws", "type": "concept", "cluster": "Legal Framework", "node_size": 10, "label": "state laws"}], ["federal law", {"concepts": "federal law", "type": "concept", "cluster": "Legal Framework", "node_size": 10, "label": "federal law"}]], "Federal Governance": [["judicial branch", {"concepts": "judicial branch", "type": "concept", "cluster": "Federal Governance", "node_size": 10, "label": "judicial branch"}], ["federal system", {"concepts": "federal system", "type": "concept", "cluster": "Federal Governance", "node_size": 10, "label": "federal system"}], ["federal agencies", {"concepts": "federal agencies", "type": "concept", "cluster": "Federal Governance", "node_size": 10, "label": "federal agencies"}]]};
+        const clusterEdges = {"Research Focus": [], "Indigenous Knowledge": [], "Colonization Impacts": [], "Positive Relationships": [], "Policy & Power": [], "Fishing Sectors": [], "Marine Resource Management": [], "Colonial Erasure": [], "Biocultural Focus": [], "[Fishing Types]": [], "Hawaiian Community Culture": [], "Legal Framework": [], "Federal Governance": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

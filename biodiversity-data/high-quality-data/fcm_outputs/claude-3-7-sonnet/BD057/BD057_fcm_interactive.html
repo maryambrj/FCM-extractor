@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"Wind Energy Impacts": {"concepts": "wind energy, harmful organisms", "concept_list": ["wind energy", "harmful organisms"], "type": "cluster", "node_size": 21, "label": "Wind Energy Impacts"}, "Non-Regulatory Decisions": {"concepts": "decision making, social: non-regulatory decisions", "concept_list": ["decision making", "social: non-regulatory decisions"], "type": "cluster", "node_size": 21, "label": "Non-Regulatory Decisions"}, "Hypoxia Research Management": {"concepts": "hypoxia, office of research, willingness to support, medical: hypoxia, anoxia, psychological: decision making, management decisions, dissolved oxygen", "concept_list": ["hypoxia", "office of research", "willingness to support", "medical: hypoxia", "anoxia", "psychological: decision making", "management decisions", "dissolved oxygen"], "type": "cluster", "node_size": 39, "label": "Hypoxia Research Management"}, "Ecosystem Health Indicators": {"concepts": "functional group biodiversity, ecological condition, species tolerance, functional groups, tube building fauna, habitat forming species, index of biotic integrity, habitat diversity, functional group diversity, bioassessment, biodiversity, species of conservation concern, enjoyment of nature, condition indicators, key food web supporting species, environmental improvement, ecosystems, food web, direct habitat destruction, habitat biodiversity, beauty of nature, species tolerance indices, ecosystem health, healthy ecosystem", "concept_list": ["functional group biodiversity", "ecological condition", "species tolerance", "functional groups", "tube building fauna", "habitat forming species", "index of biotic integrity", "habitat diversity", "functional group diversity", "bioassessment", "biodiversity", "species of conservation concern", "enjoyment of nature", "condition indicators", "key food web supporting species", "environmental improvement", "ecosystems", "food web", "direct habitat destruction", "habitat biodiversity", "beauty of nature", "species tolerance indices", "ecosystem health", "healthy ecosystem"], "type": "cluster", "node_size": 87, "label": "Ecosystem Health Indicators"}, "Coastal Benthic Ecology": {"concepts": "salt marshes, plankton growth, benthic ecology, benthic bioassessment, salt marsh, surface burrowing fauna, nutrient input level, benthic diversity, benthos, coastal marine ecological classification standard, deep-burrowing fauna, nutrient input, macroalgae, seagrass, benthos diversity, estuarine", "concept_list": ["salt marshes", "plankton growth", "benthic ecology", "benthic bioassessment", "salt marsh", "surface burrowing fauna", "nutrient input level", "benthic diversity", "benthos", "coastal marine ecological classification standard", "deep-burrowing fauna", "nutrient input", "macroalgae", "seagrass", "benthos diversity", "estuarine"], "type": "cluster", "node_size": 63, "label": "Coastal Benthic Ecology"}, "Environmental Research Methods": {"concepts": "fishing, research focus, trust, conservation, plankton, human effects, epa, creeks, scoring system, cartography, cmecs, stratification, revolutionary war, causal link, development, assessment framework", "concept_list": ["fishing", "research focus", "trust", "conservation", "plankton", "human effects", "epa", "creeks", "scoring system", "cartography", "cmecs", "stratification", "revolutionary war", "causal link", "development", "assessment framework"], "type": "cluster", "node_size": 63, "label": "Environmental Research Methods"}};
+        const conceptData = {"wind energy": {"concepts": "wind energy", "type": "concept", "cluster": "Wind Energy Impacts", "node_size": 10, "label": "wind energy"}, "harmful organisms": {"concepts": "harmful organisms", "type": "concept", "cluster": "Wind Energy Impacts", "node_size": 10, "label": "harmful organisms"}, "decision making": {"concepts": "decision making", "type": "concept", "cluster": "Non-Regulatory Decisions", "node_size": 10, "label": "decision making"}, "social: non-regulatory decisions": {"concepts": "social: non-regulatory decisions", "type": "concept", "cluster": "Non-Regulatory Decisions", "node_size": 10, "label": "social: non-regulatory decisions"}, "hypoxia": {"concepts": "hypoxia", "type": "concept", "cluster": "Hypoxia Research Management", "node_size": 10, "label": "hypoxia"}, "office of research": {"concepts": "office of research", "type": "concept", "cluster": "Hypoxia Research Management", "node_size": 10, "label": "office of research"}, "willingness to support": {"concepts": "willingness to support", "type": "concept", "cluster": "Hypoxia Research Management", "node_size": 10, "label": "willingness to support"}, "medical: hypoxia": {"concepts": "medical: hypoxia", "type": "concept", "cluster": "Hypoxia Research Management", "node_size": 10, "label": "medical: hypoxia"}, "anoxia": {"concepts": "anoxia", "type": "concept", "cluster": "Hypoxia Research Management", "node_size": 10, "label": "anoxia"}, "psychological: decision making": {"concepts": "psychological: decision making", "type": "concept", "cluster": "Hypoxia Research Management", "node_size": 10, "label": "psychological: decision making"}, "management decisions": {"concepts": "management decisions", "type": "concept", "cluster": "Hypoxia Research Management", "node_size": 10, "label": "management decisions"}, "dissolved oxygen": {"concepts": "dissolved oxygen", "type": "concept", "cluster": "Hypoxia Research Management", "node_size": 10, "label": "dissolved oxygen"}, "functional group biodiversity": {"concepts": "functional group biodiversity", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "functional group biodiversity"}, "ecological condition": {"concepts": "ecological condition", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "ecological condition"}, "species tolerance": {"concepts": "species tolerance", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "species tolerance"}, "functional groups": {"concepts": "functional groups", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "functional groups"}, "tube building fauna": {"concepts": "tube building fauna", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "tube building fauna"}, "habitat forming species": {"concepts": "habitat forming species", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "habitat forming species"}, "index of biotic integrity": {"concepts": "index of biotic integrity", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "index of biotic integrity"}, "habitat diversity": {"concepts": "habitat diversity", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "habitat diversity"}, "functional group diversity": {"concepts": "functional group diversity", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "functional group diversity"}, "bioassessment": {"concepts": "bioassessment", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "bioassessment"}, "biodiversity": {"concepts": "biodiversity", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "biodiversity"}, "species of conservation concern": {"concepts": "species of conservation concern", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "species of conservation concern"}, "enjoyment of nature": {"concepts": "enjoyment of nature", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "enjoyment of nature"}, "condition indicators": {"concepts": "condition indicators", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "condition indicators"}, "key food web supporting species": {"concepts": "key food web supporting species", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "key food web supporting species"}, "environmental improvement": {"concepts": "environmental improvement", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "environmental improvement"}, "ecosystems": {"concepts": "ecosystems", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "ecosystems"}, "food web": {"concepts": "food web", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "food web"}, "direct habitat destruction": {"concepts": "direct habitat destruction", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "direct habitat destruction"}, "habitat biodiversity": {"concepts": "habitat biodiversity", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "habitat biodiversity"}, "beauty of nature": {"concepts": "beauty of nature", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "beauty of nature"}, "species tolerance indices": {"concepts": "species tolerance indices", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "species tolerance indices"}, "ecosystem health": {"concepts": "ecosystem health", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "ecosystem health"}, "healthy ecosystem": {"concepts": "healthy ecosystem", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "healthy ecosystem"}, "salt marshes": {"concepts": "salt marshes", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "salt marshes"}, "plankton growth": {"concepts": "plankton growth", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "plankton growth"}, "benthic ecology": {"concepts": "benthic ecology", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "benthic ecology"}, "benthic bioassessment": {"concepts": "benthic bioassessment", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "benthic bioassessment"}, "salt marsh": {"concepts": "salt marsh", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "salt marsh"}, "surface burrowing fauna": {"concepts": "surface burrowing fauna", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "surface burrowing fauna"}, "nutrient input level": {"concepts": "nutrient input level", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "nutrient input level"}, "benthic diversity": {"concepts": "benthic diversity", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "benthic diversity"}, "benthos": {"concepts": "benthos", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "benthos"}, "coastal marine ecological classification standard": {"concepts": "coastal marine ecological classification standard", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "coastal marine ecological classification standard"}, "deep-burrowing fauna": {"concepts": "deep-burrowing fauna", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "deep-burrowing fauna"}, "nutrient input": {"concepts": "nutrient input", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "nutrient input"}, "macroalgae": {"concepts": "macroalgae", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "macroalgae"}, "seagrass": {"concepts": "seagrass", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "seagrass"}, "benthos diversity": {"concepts": "benthos diversity", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "benthos diversity"}, "estuarine": {"concepts": "estuarine", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "estuarine"}, "fishing": {"concepts": "fishing", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "fishing"}, "research focus": {"concepts": "research focus", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "research focus"}, "trust": {"concepts": "trust", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "trust"}, "conservation": {"concepts": "conservation", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "conservation"}, "plankton": {"concepts": "plankton", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "plankton"}, "human effects": {"concepts": "human effects", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "human effects"}, "epa": {"concepts": "epa", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "epa"}, "creeks": {"concepts": "creeks", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "creeks"}, "scoring system": {"concepts": "scoring system", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "scoring system"}, "cartography": {"concepts": "cartography", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "cartography"}, "cmecs": {"concepts": "cmecs", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "cmecs"}, "stratification": {"concepts": "stratification", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "stratification"}, "revolutionary war": {"concepts": "revolutionary war", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "revolutionary war"}, "causal link": {"concepts": "causal link", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "causal link"}, "development": {"concepts": "development", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "development"}, "assessment framework": {"concepts": "assessment framework", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "assessment framework"}};
+        const interClusterEdges = [["Wind Energy Impacts", "Hypoxia Research Management", {"weight": -1.0, "confidence": 0.61, "type": "inter_cluster", "style": "solid"}], ["Wind Energy Impacts", "Ecosystem Health Indicators", {"weight": -0.8, "confidence": 0.53, "type": "inter_cluster", "style": "solid"}], ["Wind Energy Impacts", "Coastal Benthic Ecology", {"weight": 0.2, "confidence": 0.38, "type": "inter_cluster", "style": "solid"}], ["Non-Regulatory Decisions", "Ecosystem Health Indicators", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Non-Regulatory Decisions", "Coastal Benthic Ecology", {"weight": -0.6, "confidence": 0.7699999999999999, "type": "inter_cluster", "style": "solid"}], ["Non-Regulatory Decisions", "Hypoxia Research Management", {"weight": 0.6, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Non-Regulatory Decisions", "Environmental Research Methods", {"weight": -0.6, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Non-Regulatory Decisions", "Wind Energy Impacts", {"weight": -0.4, "confidence": 0.26, "type": "inter_cluster", "style": "solid"}], ["Hypoxia Research Management", "Coastal Benthic Ecology", {"weight": -1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["Hypoxia Research Management", "Ecosystem Health Indicators", {"weight": -0.6, "confidence": 0.8800000000000001, "type": "inter_cluster", "style": "solid"}], ["Hypoxia Research Management", "Non-Regulatory Decisions", {"weight": 1.0, "confidence": 0.8400000000000001, "type": "inter_cluster", "style": "solid"}], ["Hypoxia Research Management", "Environmental Research Methods", {"weight": -0.6, "confidence": 0.7799999999999999, "type": "inter_cluster", "style": "solid"}], ["Hypoxia Research Management", "Wind Energy Impacts", {"weight": -0.2, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Health Indicators", "Coastal Benthic Ecology", {"weight": 1.0, "confidence": 0.8299999999999998, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Health Indicators", "Environmental Research Methods", {"weight": 1.0, "confidence": 0.82, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Health Indicators", "Hypoxia Research Management", {"weight": 0.2, "confidence": 0.82, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Health Indicators", "Non-Regulatory Decisions", {"weight": 1.0, "confidence": 0.8099999999999999, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Health Indicators", "Wind Energy Impacts", {"weight": -0.8, "confidence": 0.5199999999999999, "type": "inter_cluster", "style": "solid"}], ["Coastal Benthic Ecology", "Hypoxia Research Management", {"weight": 0.6, "confidence": 0.9299999999999999, "type": "inter_cluster", "style": "solid"}], ["Coastal Benthic Ecology", "Ecosystem Health Indicators", {"weight": -0.6, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["Coastal Benthic Ecology", "Environmental Research Methods", {"weight": 0.4, "confidence": 0.6900000000000001, "type": "inter_cluster", "style": "solid"}], ["Coastal Benthic Ecology", "Non-Regulatory Decisions", {"weight": 0.8, "confidence": 0.62, "type": "inter_cluster", "style": "solid"}], ["Coastal Benthic Ecology", "Wind Energy Impacts", {"weight": -0.4, "confidence": 0.54, "type": "inter_cluster", "style": "solid"}], ["Environmental Research Methods", "Ecosystem Health Indicators", {"weight": -1.0, "confidence": 0.8799999999999999, "type": "inter_cluster", "style": "solid"}], ["Environmental Research Methods", "Hypoxia Research Management", {"weight": 1.0, "confidence": 0.8099999999999999, "type": "inter_cluster", "style": "solid"}], ["Environmental Research Methods", "Coastal Benthic Ecology", {"weight": -0.6, "confidence": 0.7500000000000001, "type": "inter_cluster", "style": "solid"}], ["Environmental Research Methods", "Non-Regulatory Decisions", {"weight": 0.8, "confidence": 0.5700000000000001, "type": "inter_cluster", "style": "solid"}], ["Environmental Research Methods", "Wind Energy Impacts", {"weight": 0.2, "confidence": 0.12, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {"Wind Energy Impacts": [["wind energy", {"concepts": "wind energy", "type": "concept", "cluster": "Wind Energy Impacts", "node_size": 10, "label": "wind energy"}], ["harmful organisms", {"concepts": "harmful organisms", "type": "concept", "cluster": "Wind Energy Impacts", "node_size": 10, "label": "harmful organisms"}]], "Non-Regulatory Decisions": [["decision making", {"concepts": "decision making", "type": "concept", "cluster": "Non-Regulatory Decisions", "node_size": 10, "label": "decision making"}], ["social: non-regulatory decisions", {"concepts": "social: non-regulatory decisions", "type": "concept", "cluster": "Non-Regulatory Decisions", "node_size": 10, "label": "social: non-regulatory decisions"}]], "Hypoxia Research Management": [["hypoxia", {"concepts": "hypoxia", "type": "concept", "cluster": "Hypoxia Research Management", "node_size": 10, "label": "hypoxia"}], ["office of research", {"concepts": "office of research", "type": "concept", "cluster": "Hypoxia Research Management", "node_size": 10, "label": "office of research"}], ["willingness to support", {"concepts": "willingness to support", "type": "concept", "cluster": "Hypoxia Research Management", "node_size": 10, "label": "willingness to support"}], ["medical: hypoxia", {"concepts": "medical: hypoxia", "type": "concept", "cluster": "Hypoxia Research Management", "node_size": 10, "label": "medical: hypoxia"}], ["anoxia", {"concepts": "anoxia", "type": "concept", "cluster": "Hypoxia Research Management", "node_size": 10, "label": "anoxia"}], ["psychological: decision making", {"concepts": "psychological: decision making", "type": "concept", "cluster": "Hypoxia Research Management", "node_size": 10, "label": "psychological: decision making"}], ["management decisions", {"concepts": "management decisions", "type": "concept", "cluster": "Hypoxia Research Management", "node_size": 10, "label": "management decisions"}], ["dissolved oxygen", {"concepts": "dissolved oxygen", "type": "concept", "cluster": "Hypoxia Research Management", "node_size": 10, "label": "dissolved oxygen"}]], "Ecosystem Health Indicators": [["functional group biodiversity", {"concepts": "functional group biodiversity", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "functional group biodiversity"}], ["ecological condition", {"concepts": "ecological condition", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "ecological condition"}], ["species tolerance", {"concepts": "species tolerance", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "species tolerance"}], ["functional groups", {"concepts": "functional groups", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "functional groups"}], ["tube building fauna", {"concepts": "tube building fauna", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "tube building fauna"}], ["habitat forming species", {"concepts": "habitat forming species", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "habitat forming species"}], ["index of biotic integrity", {"concepts": "index of biotic integrity", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "index of biotic integrity"}], ["habitat diversity", {"concepts": "habitat diversity", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "habitat diversity"}], ["functional group diversity", {"concepts": "functional group diversity", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "functional group diversity"}], ["bioassessment", {"concepts": "bioassessment", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "bioassessment"}], ["biodiversity", {"concepts": "biodiversity", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "biodiversity"}], ["species of conservation concern", {"concepts": "species of conservation concern", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "species of conservation concern"}], ["enjoyment of nature", {"concepts": "enjoyment of nature", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "enjoyment of nature"}], ["condition indicators", {"concepts": "condition indicators", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "condition indicators"}], ["key food web supporting species", {"concepts": "key food web supporting species", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "key food web supporting species"}], ["environmental improvement", {"concepts": "environmental improvement", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "environmental improvement"}], ["ecosystems", {"concepts": "ecosystems", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "ecosystems"}], ["food web", {"concepts": "food web", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "food web"}], ["direct habitat destruction", {"concepts": "direct habitat destruction", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "direct habitat destruction"}], ["habitat biodiversity", {"concepts": "habitat biodiversity", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "habitat biodiversity"}], ["beauty of nature", {"concepts": "beauty of nature", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "beauty of nature"}], ["species tolerance indices", {"concepts": "species tolerance indices", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "species tolerance indices"}], ["ecosystem health", {"concepts": "ecosystem health", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "ecosystem health"}], ["healthy ecosystem", {"concepts": "healthy ecosystem", "type": "concept", "cluster": "Ecosystem Health Indicators", "node_size": 10, "label": "healthy ecosystem"}]], "Coastal Benthic Ecology": [["salt marshes", {"concepts": "salt marshes", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "salt marshes"}], ["plankton growth", {"concepts": "plankton growth", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "plankton growth"}], ["benthic ecology", {"concepts": "benthic ecology", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "benthic ecology"}], ["benthic bioassessment", {"concepts": "benthic bioassessment", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "benthic bioassessment"}], ["salt marsh", {"concepts": "salt marsh", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "salt marsh"}], ["surface burrowing fauna", {"concepts": "surface burrowing fauna", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "surface burrowing fauna"}], ["nutrient input level", {"concepts": "nutrient input level", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "nutrient input level"}], ["benthic diversity", {"concepts": "benthic diversity", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "benthic diversity"}], ["benthos", {"concepts": "benthos", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "benthos"}], ["coastal marine ecological classification standard", {"concepts": "coastal marine ecological classification standard", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "coastal marine ecological classification standard"}], ["deep-burrowing fauna", {"concepts": "deep-burrowing fauna", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "deep-burrowing fauna"}], ["nutrient input", {"concepts": "nutrient input", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "nutrient input"}], ["macroalgae", {"concepts": "macroalgae", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "macroalgae"}], ["seagrass", {"concepts": "seagrass", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "seagrass"}], ["benthos diversity", {"concepts": "benthos diversity", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "benthos diversity"}], ["estuarine", {"concepts": "estuarine", "type": "concept", "cluster": "Coastal Benthic Ecology", "node_size": 10, "label": "estuarine"}]], "Environmental Research Methods": [["fishing", {"concepts": "fishing", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "fishing"}], ["research focus", {"concepts": "research focus", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "research focus"}], ["trust", {"concepts": "trust", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "trust"}], ["conservation", {"concepts": "conservation", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "conservation"}], ["plankton", {"concepts": "plankton", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "plankton"}], ["human effects", {"concepts": "human effects", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "human effects"}], ["epa", {"concepts": "epa", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "epa"}], ["creeks", {"concepts": "creeks", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "creeks"}], ["scoring system", {"concepts": "scoring system", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "scoring system"}], ["cartography", {"concepts": "cartography", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "cartography"}], ["cmecs", {"concepts": "cmecs", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "cmecs"}], ["stratification", {"concepts": "stratification", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "stratification"}], ["revolutionary war", {"concepts": "revolutionary war", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "revolutionary war"}], ["causal link", {"concepts": "causal link", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "causal link"}], ["development", {"concepts": "development", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "development"}], ["assessment framework", {"concepts": "assessment framework", "type": "concept", "cluster": "Environmental Research Methods", "node_size": 10, "label": "assessment framework"}]]};
+        const clusterEdges = {"Wind Energy Impacts": [], "Non-Regulatory Decisions": [], "Hypoxia Research Management": [], "Ecosystem Health Indicators": [], "Coastal Benthic Ecology": [], "Environmental Research Methods": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

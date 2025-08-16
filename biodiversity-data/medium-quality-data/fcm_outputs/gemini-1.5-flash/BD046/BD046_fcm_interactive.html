@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"habitat restoration": {"concepts": "habitat restoration", "concept_list": ["habitat restoration"], "type": "cluster", "node_size": 18, "label": "habitat restoration"}, "forage fish": {"concepts": "forage fish", "concept_list": ["forage fish"], "type": "cluster", "node_size": 18, "label": "forage fish"}, "oyster restoration": {"concepts": "oyster restoration", "concept_list": ["oyster restoration"], "type": "cluster", "node_size": 18, "label": "oyster restoration"}, "fisheries research": {"concepts": "fisheries research", "concept_list": ["fisheries research"], "type": "cluster", "node_size": 18, "label": "fisheries research"}, "Ecosystem Health": {"concepts": "habitat, food webs", "concept_list": ["habitat", "food webs"], "type": "cluster", "node_size": 21, "label": "Ecosystem Health"}, "Dolphin Habitat Loss": {"concepts": "habitat loss, bottlenose dolphins", "concept_list": ["habitat loss", "bottlenose dolphins"], "type": "cluster", "node_size": 21, "label": "Dolphin Habitat Loss"}, "Species Conservation": {"concepts": "single-species approach, species conservation, conservation species", "concept_list": ["single-species approach", "species conservation", "conservation species"], "type": "cluster", "node_size": 24, "label": "Species Conservation"}, "Bay Forage Species": {"concepts": "sav beds, atlantic sturgeon, forage species, striped bass, menhaden, harmful organisms", "concept_list": ["sav beds", "atlantic sturgeon", "forage species", "striped bass", "menhaden", "harmful organisms"], "type": "cluster", "node_size": 33, "label": "Bay Forage Species"}, "Chesapeake Bay Stakeholders": {"concepts": "noaa chesapeake bay office, chesapeake bay, stakeholder engagement, work groups", "concept_list": ["noaa chesapeake bay office", "chesapeake bay", "stakeholder engagement", "work groups"], "type": "cluster", "node_size": 27, "label": "Chesapeake Bay Stakeholders"}, "Edu-Eco Grants": {"concepts": "telemetry, grant programs, k-12 education, environmental literacy", "concept_list": ["telemetry", "grant programs", "k-12 education", "environmental literacy"], "type": "cluster", "node_size": 27, "label": "Edu-Eco Grants"}, "Conservation Partnerships": {"concepts": "state-federal partnership, invasive species, conservation, biodiversity, conservation banking", "concept_list": ["state-federal partnership", "invasive species", "conservation", "biodiversity", "conservation banking"], "type": "cluster", "node_size": 30, "label": "Conservation Partnerships"}, "Oyster Aquaculture": {"concepts": "fisheries management, oysters, water quality", "concept_list": ["fisheries management", "oysters", "water quality"], "type": "cluster", "node_size": 24, "label": "Oyster Aquaculture"}, "Ecosystem Species": {"concepts": "habitat species, food web species", "concept_list": ["habitat species", "food web species"], "type": "cluster", "node_size": 21, "label": "Ecosystem Species"}, "Climate Impacts": {"concepts": "ecosystem services, climate change", "concept_list": ["ecosystem services", "climate change"], "type": "cluster", "node_size": 21, "label": "Climate Impacts"}, "Ecosystem Dynamics": {"concepts": "ecosystem modeling, trophic levels", "concept_list": ["ecosystem modeling", "trophic levels"], "type": "cluster", "node_size": 21, "label": "Ecosystem Dynamics"}};
+        const conceptData = {"habitat": {"concepts": "habitat", "type": "concept", "cluster": "Ecosystem Health", "node_size": 10, "label": "habitat"}, "food webs": {"concepts": "food webs", "type": "concept", "cluster": "Ecosystem Health", "node_size": 10, "label": "food webs"}, "habitat loss": {"concepts": "habitat loss", "type": "concept", "cluster": "Dolphin Habitat Loss", "node_size": 10, "label": "habitat loss"}, "bottlenose dolphins": {"concepts": "bottlenose dolphins", "type": "concept", "cluster": "Dolphin Habitat Loss", "node_size": 10, "label": "bottlenose dolphins"}, "single-species approach": {"concepts": "single-species approach", "type": "concept", "cluster": "Species Conservation", "node_size": 10, "label": "single-species approach"}, "species conservation": {"concepts": "species conservation", "type": "concept", "cluster": "Species Conservation", "node_size": 10, "label": "species conservation"}, "conservation species": {"concepts": "conservation species", "type": "concept", "cluster": "Species Conservation", "node_size": 10, "label": "conservation species"}, "sav beds": {"concepts": "sav beds", "type": "concept", "cluster": "Bay Forage Species", "node_size": 10, "label": "sav beds"}, "atlantic sturgeon": {"concepts": "atlantic sturgeon", "type": "concept", "cluster": "Bay Forage Species", "node_size": 10, "label": "atlantic sturgeon"}, "forage species": {"concepts": "forage species", "type": "concept", "cluster": "Bay Forage Species", "node_size": 10, "label": "forage species"}, "striped bass": {"concepts": "striped bass", "type": "concept", "cluster": "Bay Forage Species", "node_size": 10, "label": "striped bass"}, "menhaden": {"concepts": "menhaden", "type": "concept", "cluster": "Bay Forage Species", "node_size": 10, "label": "menhaden"}, "harmful organisms": {"concepts": "harmful organisms", "type": "concept", "cluster": "Bay Forage Species", "node_size": 10, "label": "harmful organisms"}, "noaa chesapeake bay office": {"concepts": "noaa chesapeake bay office", "type": "concept", "cluster": "Chesapeake Bay Stakeholders", "node_size": 10, "label": "noaa chesapeake bay office"}, "chesapeake bay": {"concepts": "chesapeake bay", "type": "concept", "cluster": "Chesapeake Bay Stakeholders", "node_size": 10, "label": "chesapeake bay"}, "stakeholder engagement": {"concepts": "stakeholder engagement", "type": "concept", "cluster": "Chesapeake Bay Stakeholders", "node_size": 10, "label": "stakeholder engagement"}, "work groups": {"concepts": "work groups", "type": "concept", "cluster": "Chesapeake Bay Stakeholders", "node_size": 10, "label": "work groups"}, "telemetry": {"concepts": "telemetry", "type": "concept", "cluster": "Edu-Eco Grants", "node_size": 10, "label": "telemetry"}, "grant programs": {"concepts": "grant programs", "type": "concept", "cluster": "Edu-Eco Grants", "node_size": 10, "label": "grant programs"}, "k-12 education": {"concepts": "k-12 education", "type": "concept", "cluster": "Edu-Eco Grants", "node_size": 10, "label": "k-12 education"}, "environmental literacy": {"concepts": "environmental literacy", "type": "concept", "cluster": "Edu-Eco Grants", "node_size": 10, "label": "environmental literacy"}, "state-federal partnership": {"concepts": "state-federal partnership", "type": "concept", "cluster": "Conservation Partnerships", "node_size": 10, "label": "state-federal partnership"}, "invasive species": {"concepts": "invasive species", "type": "concept", "cluster": "Conservation Partnerships", "node_size": 10, "label": "invasive species"}, "conservation": {"concepts": "conservation", "type": "concept", "cluster": "Conservation Partnerships", "node_size": 10, "label": "conservation"}, "biodiversity": {"concepts": "biodiversity", "type": "concept", "cluster": "Conservation Partnerships", "node_size": 10, "label": "biodiversity"}, "conservation banking": {"concepts": "conservation banking", "type": "concept", "cluster": "Conservation Partnerships", "node_size": 10, "label": "conservation banking"}, "fisheries management": {"concepts": "fisheries management", "type": "concept", "cluster": "Oyster Aquaculture", "node_size": 10, "label": "fisheries management"}, "oysters": {"concepts": "oysters", "type": "concept", "cluster": "Oyster Aquaculture", "node_size": 10, "label": "oysters"}, "water quality": {"concepts": "water quality", "type": "concept", "cluster": "Oyster Aquaculture", "node_size": 10, "label": "water quality"}, "habitat species": {"concepts": "habitat species", "type": "concept", "cluster": "Ecosystem Species", "node_size": 10, "label": "habitat species"}, "food web species": {"concepts": "food web species", "type": "concept", "cluster": "Ecosystem Species", "node_size": 10, "label": "food web species"}, "ecosystem services": {"concepts": "ecosystem services", "type": "concept", "cluster": "Climate Impacts", "node_size": 10, "label": "ecosystem services"}, "climate change": {"concepts": "climate change", "type": "concept", "cluster": "Climate Impacts", "node_size": 10, "label": "climate change"}, "ecosystem modeling": {"concepts": "ecosystem modeling", "type": "concept", "cluster": "Ecosystem Dynamics", "node_size": 10, "label": "ecosystem modeling"}, "trophic levels": {"concepts": "trophic levels", "type": "concept", "cluster": "Ecosystem Dynamics", "node_size": 10, "label": "trophic levels"}};
+        const interClusterEdges = [["habitat restoration", "oyster restoration", {"weight": 1.0, "confidence": 0.9199999999999999, "type": "inter_cluster", "style": "solid"}], ["habitat restoration", "Bay Forage Species", {"weight": 1.0, "confidence": 0.8400000000000001, "type": "inter_cluster", "style": "solid"}], ["habitat restoration", "Ecosystem Health", {"weight": 1.0, "confidence": 0.925, "type": "inter_cluster", "style": "solid"}], ["habitat restoration", "fisheries research", {"weight": 1.0, "confidence": 0.71, "type": "inter_cluster", "style": "solid"}], ["habitat restoration", "Climate Impacts", {"weight": 1.0, "confidence": 0.7749999999999999, "type": "inter_cluster", "style": "solid"}], ["habitat restoration", "forage fish", {"weight": 1.0, "confidence": 0.7625, "type": "inter_cluster", "style": "solid"}], ["habitat restoration", "Conservation Partnerships", {"weight": 1.0, "confidence": 0.8333333333333334, "type": "inter_cluster", "style": "solid"}], ["forage fish", "Bay Forage Species", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["forage fish", "fisheries research", {"weight": 1.0, "confidence": 0.8099999999999999, "type": "inter_cluster", "style": "solid"}], ["forage fish", "Species Conservation", {"weight": -1.0, "confidence": 0.5875, "type": "inter_cluster", "style": "solid"}], ["forage fish", "Oyster Aquaculture", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["oyster restoration", "Oyster Aquaculture", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["oyster restoration", "Ecosystem Dynamics", {"weight": 1.0, "confidence": 0.76, "type": "inter_cluster", "style": "solid"}], ["oyster restoration", "Climate Impacts", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["fisheries research", "Ecosystem Dynamics", {"weight": 1.0, "confidence": 0.7799999999999999, "type": "inter_cluster", "style": "solid"}], ["fisheries research", "Climate Impacts", {"weight": 1.0, "confidence": 0.6599999999999999, "type": "inter_cluster", "style": "solid"}], ["fisheries research", "Edu-Eco Grants", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["fisheries research", "forage fish", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Health", "oyster restoration", {"weight": 1.0, "confidence": 0.875, "type": "inter_cluster", "style": "solid"}], ["Dolphin Habitat Loss", "habitat restoration", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Dolphin Habitat Loss", "fisheries research", {"weight": 0.3333333333333333, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Species Conservation", "Oyster Aquaculture", {"weight": 0.2, "confidence": 0.6799999999999999, "type": "inter_cluster", "style": "solid"}], ["Species Conservation", "Conservation Partnerships", {"weight": -0.6, "confidence": 0.63, "type": "inter_cluster", "style": "solid"}], ["Species Conservation", "Chesapeake Bay Stakeholders", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Bay Forage Species", "Conservation Partnerships", {"weight": 0.6, "confidence": 0.74, "type": "inter_cluster", "style": "solid"}], ["Bay Forage Species", "Climate Impacts", {"weight": 0.5, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["Bay Forage Species", "oyster restoration", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["Bay Forage Species", "Ecosystem Dynamics", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Chesapeake Bay Stakeholders", "Conservation Partnerships", {"weight": 1.0, "confidence": 0.8800000000000001, "type": "inter_cluster", "style": "solid"}], ["Chesapeake Bay Stakeholders", "Bay Forage Species", {"weight": 1.0, "confidence": 0.82, "type": "inter_cluster", "style": "solid"}], ["Chesapeake Bay Stakeholders", "Ecosystem Dynamics", {"weight": 1.0, "confidence": 0.76, "type": "inter_cluster", "style": "solid"}], ["Chesapeake Bay Stakeholders", "Ecosystem Species", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["Chesapeake Bay Stakeholders", "oyster restoration", {"weight": 1.0, "confidence": 0.9249999999999999, "type": "inter_cluster", "style": "solid"}], ["Chesapeake Bay Stakeholders", "Climate Impacts", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["Edu-Eco Grants", "Ecosystem Health", {"weight": 1.0, "confidence": 0.6199999999999999, "type": "inter_cluster", "style": "solid"}], ["Edu-Eco Grants", "Ecosystem Species", {"weight": 1.0, "confidence": 0.5800000000000001, "type": "inter_cluster", "style": "solid"}], ["Edu-Eco Grants", "Bay Forage Species", {"weight": 1.0, "confidence": 0.58, "type": "inter_cluster", "style": "solid"}], ["Edu-Eco Grants", "habitat restoration", {"weight": 1.0, "confidence": 0.5625, "type": "inter_cluster", "style": "solid"}], ["Edu-Eco Grants", "Dolphin Habitat Loss", {"weight": -1.0, "confidence": 0.4833333333333334, "type": "inter_cluster", "style": "solid"}], ["Conservation Partnerships", "Ecosystem Dynamics", {"weight": 1.0, "confidence": 0.6599999999999999, "type": "inter_cluster", "style": "solid"}], ["Conservation Partnerships", "forage fish", {"weight": 0.2, "confidence": 0.61, "type": "inter_cluster", "style": "solid"}], ["Oyster Aquaculture", "Species Conservation", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Oyster Aquaculture", "Bay Forage Species", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Oyster Aquaculture", "habitat restoration", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Species", "habitat restoration", {"weight": 1.0, "confidence": 0.8800000000000001, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Species", "oyster restoration", {"weight": 1.0, "confidence": 0.8699999999999999, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Species", "Dolphin Habitat Loss", {"weight": -0.6, "confidence": 0.6799999999999999, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Species", "Climate Impacts", {"weight": 0.3333333333333333, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Species", "Edu-Eco Grants", {"weight": 0.8, "confidence": 0.4699999999999999, "type": "inter_cluster", "style": "solid"}], ["Climate Impacts", "habitat restoration", {"weight": -0.2, "confidence": 0.72, "type": "inter_cluster", "style": "solid"}], ["Climate Impacts", "forage fish", {"weight": -1.0, "confidence": 0.63, "type": "inter_cluster", "style": "solid"}], ["Climate Impacts", "fisheries research", {"weight": -0.5, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Dynamics", "Ecosystem Species", {"weight": 1.0, "confidence": 0.76, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Dynamics", "fisheries research", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Dynamics", "Chesapeake Bay Stakeholders", {"weight": 1.0, "confidence": 0.7100000000000001, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Dynamics", "Ecosystem Health", {"weight": 1.0, "confidence": 0.8374999999999999, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Dynamics", "Bay Forage Species", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Dynamics", "Species Conservation", {"weight": 0.3333333333333333, "confidence": 0.5833333333333334, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {"Ecosystem Health": [["habitat", {"concepts": "habitat", "type": "concept", "cluster": "Ecosystem Health", "node_size": 10, "label": "habitat"}], ["food webs", {"concepts": "food webs", "type": "concept", "cluster": "Ecosystem Health", "node_size": 10, "label": "food webs"}]], "Dolphin Habitat Loss": [["habitat loss", {"concepts": "habitat loss", "type": "concept", "cluster": "Dolphin Habitat Loss", "node_size": 10, "label": "habitat loss"}], ["bottlenose dolphins", {"concepts": "bottlenose dolphins", "type": "concept", "cluster": "Dolphin Habitat Loss", "node_size": 10, "label": "bottlenose dolphins"}]], "Species Conservation": [["single-species approach", {"concepts": "single-species approach", "type": "concept", "cluster": "Species Conservation", "node_size": 10, "label": "single-species approach"}], ["species conservation", {"concepts": "species conservation", "type": "concept", "cluster": "Species Conservation", "node_size": 10, "label": "species conservation"}], ["conservation species", {"concepts": "conservation species", "type": "concept", "cluster": "Species Conservation", "node_size": 10, "label": "conservation species"}]], "Bay Forage Species": [["sav beds", {"concepts": "sav beds", "type": "concept", "cluster": "Bay Forage Species", "node_size": 10, "label": "sav beds"}], ["atlantic sturgeon", {"concepts": "atlantic sturgeon", "type": "concept", "cluster": "Bay Forage Species", "node_size": 10, "label": "atlantic sturgeon"}], ["forage species", {"concepts": "forage species", "type": "concept", "cluster": "Bay Forage Species", "node_size": 10, "label": "forage species"}], ["striped bass", {"concepts": "striped bass", "type": "concept", "cluster": "Bay Forage Species", "node_size": 10, "label": "striped bass"}], ["menhaden", {"concepts": "menhaden", "type": "concept", "cluster": "Bay Forage Species", "node_size": 10, "label": "menhaden"}], ["harmful organisms", {"concepts": "harmful organisms", "type": "concept", "cluster": "Bay Forage Species", "node_size": 10, "label": "harmful organisms"}]], "Chesapeake Bay Stakeholders": [["noaa chesapeake bay office", {"concepts": "noaa chesapeake bay office", "type": "concept", "cluster": "Chesapeake Bay Stakeholders", "node_size": 10, "label": "noaa chesapeake bay office"}], ["chesapeake bay", {"concepts": "chesapeake bay", "type": "concept", "cluster": "Chesapeake Bay Stakeholders", "node_size": 10, "label": "chesapeake bay"}], ["stakeholder engagement", {"concepts": "stakeholder engagement", "type": "concept", "cluster": "Chesapeake Bay Stakeholders", "node_size": 10, "label": "stakeholder engagement"}], ["work groups", {"concepts": "work groups", "type": "concept", "cluster": "Chesapeake Bay Stakeholders", "node_size": 10, "label": "work groups"}]], "Edu-Eco Grants": [["telemetry", {"concepts": "telemetry", "type": "concept", "cluster": "Edu-Eco Grants", "node_size": 10, "label": "telemetry"}], ["grant programs", {"concepts": "grant programs", "type": "concept", "cluster": "Edu-Eco Grants", "node_size": 10, "label": "grant programs"}], ["k-12 education", {"concepts": "k-12 education", "type": "concept", "cluster": "Edu-Eco Grants", "node_size": 10, "label": "k-12 education"}], ["environmental literacy", {"concepts": "environmental literacy", "type": "concept", "cluster": "Edu-Eco Grants", "node_size": 10, "label": "environmental literacy"}]], "Conservation Partnerships": [["state-federal partnership", {"concepts": "state-federal partnership", "type": "concept", "cluster": "Conservation Partnerships", "node_size": 10, "label": "state-federal partnership"}], ["invasive species", {"concepts": "invasive species", "type": "concept", "cluster": "Conservation Partnerships", "node_size": 10, "label": "invasive species"}], ["conservation", {"concepts": "conservation", "type": "concept", "cluster": "Conservation Partnerships", "node_size": 10, "label": "conservation"}], ["biodiversity", {"concepts": "biodiversity", "type": "concept", "cluster": "Conservation Partnerships", "node_size": 10, "label": "biodiversity"}], ["conservation banking", {"concepts": "conservation banking", "type": "concept", "cluster": "Conservation Partnerships", "node_size": 10, "label": "conservation banking"}]], "Oyster Aquaculture": [["fisheries management", {"concepts": "fisheries management", "type": "concept", "cluster": "Oyster Aquaculture", "node_size": 10, "label": "fisheries management"}], ["oysters", {"concepts": "oysters", "type": "concept", "cluster": "Oyster Aquaculture", "node_size": 10, "label": "oysters"}], ["water quality", {"concepts": "water quality", "type": "concept", "cluster": "Oyster Aquaculture", "node_size": 10, "label": "water quality"}]], "Ecosystem Species": [["habitat species", {"concepts": "habitat species", "type": "concept", "cluster": "Ecosystem Species", "node_size": 10, "label": "habitat species"}], ["food web species", {"concepts": "food web species", "type": "concept", "cluster": "Ecosystem Species", "node_size": 10, "label": "food web species"}]], "Climate Impacts": [["ecosystem services", {"concepts": "ecosystem services", "type": "concept", "cluster": "Climate Impacts", "node_size": 10, "label": "ecosystem services"}], ["climate change", {"concepts": "climate change", "type": "concept", "cluster": "Climate Impacts", "node_size": 10, "label": "climate change"}]], "Ecosystem Dynamics": [["ecosystem modeling", {"concepts": "ecosystem modeling", "type": "concept", "cluster": "Ecosystem Dynamics", "node_size": 10, "label": "ecosystem modeling"}], ["trophic levels", {"concepts": "trophic levels", "type": "concept", "cluster": "Ecosystem Dynamics", "node_size": 10, "label": "trophic levels"}]]};
+        const clusterEdges = {"Ecosystem Health": [], "Dolphin Habitat Loss": [], "Species Conservation": [], "Bay Forage Species": [], "Chesapeake Bay Stakeholders": [], "Edu-Eco Grants": [], "Conservation Partnerships": [], "Oyster Aquaculture": [], "Ecosystem Species": [], "Climate Impacts": [], "Ecosystem Dynamics": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

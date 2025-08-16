@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"living shorelines": {"concepts": "living shorelines", "concept_list": ["living shorelines"], "type": "cluster", "node_size": 18, "label": "living shorelines"}, "tourism types": {"concepts": "tourism types", "concept_list": ["tourism types"], "type": "cluster", "node_size": 18, "label": "tourism types"}, "ecosystem services flow": {"concepts": "ecosystem services flow", "concept_list": ["ecosystem services flow"], "type": "cluster", "node_size": 18, "label": "ecosystem services flow"}, "Marine Biodiversity": {"concepts": "northern gulf of mexico, charter fishermen", "concept_list": ["northern gulf of mexico", "charter fishermen"], "type": "cluster", "node_size": 21, "label": "Marine Biodiversity"}, "Marine Biodiversity Conservation": {"concepts": "marine biodiversity, biodiversity conservation", "concept_list": ["marine biodiversity", "biodiversity conservation"], "type": "cluster", "node_size": 21, "label": "Marine Biodiversity Conservation"}, "Coastal Marine Industries": {"concepts": "whale watching, commercial fishermen, oyster farmers", "concept_list": ["whale watching", "commercial fishermen", "oyster farmers"], "type": "cluster", "node_size": 24, "label": "Coastal Marine Industries"}, "Marine Resource Use": {"concepts": "marine resource management, coastal biodiversity, recreational fishermen", "concept_list": ["marine resource management", "coastal biodiversity", "recreational fishermen"], "type": "cluster", "node_size": 24, "label": "Marine Resource Use"}, "Coastal Stakeholders": {"concepts": "community members, resource users, tribal communities, resource managers, naturalists, waterfront homeowners", "concept_list": ["community members", "resource users", "tribal communities", "resource managers", "naturalists", "waterfront homeowners"], "type": "cluster", "node_size": 33, "label": "Coastal Stakeholders"}, "Marine Tourism Professionals": {"concepts": "dive instructors, ecotourism operators", "concept_list": ["dive instructors", "ecotourism operators"], "type": "cluster", "node_size": 21, "label": "Marine Tourism Professionals"}, "Collaborative System Modeling": {"concepts": "model validation, system dynamics, participatory modeling, mental modeler, stakeholder workshops, community models, community model, collaborative modeling, system components", "concept_list": ["model validation", "system dynamics", "participatory modeling", "mental modeler", "stakeholder workshops", "community models", "community model", "collaborative modeling", "system components"], "type": "cluster", "node_size": 42, "label": "Collaborative System Modeling"}, "Scenario-Based Decision Making": {"concepts": "management trade-offs, local values, decision-making, hypothetical interventions, scenario simulations, indirect impacts", "concept_list": ["management trade-offs", "local values", "decision-making", "hypothetical interventions", "scenario simulations", "indirect impacts"], "type": "cluster", "node_size": 33, "label": "Scenario-Based Decision Making"}, "Coastal Bays & Sounds": {"concepts": "chesapeake bay, mobile bay, puget sound", "concept_list": ["chesapeake bay", "mobile bay", "puget sound"], "type": "cluster", "node_size": 24, "label": "Coastal Bays & Sounds"}, "Socio-Ecological Management": {"concepts": "case study approach, social-ecological dynamics, conceptual models, value alignment, resource management", "concept_list": ["case study approach", "social-ecological dynamics", "conceptual models", "value alignment", "resource management"], "type": "cluster", "node_size": 30, "label": "Socio-Ecological Management"}, "Biodiversity Importance": {"concepts": "biodiversity reliance, biodiversity values", "concept_list": ["biodiversity reliance", "biodiversity values"], "type": "cluster", "node_size": 21, "label": "Biodiversity Importance"}, "Sustainable Tourism & Biodiversity": {"concepts": "tourism variation, biodiversity access, ecosystem services", "concept_list": ["tourism variation", "biodiversity access", "ecosystem services"], "type": "cluster", "node_size": 24, "label": "Sustainable Tourism & Biodiversity"}};
+        const conceptData = {"northern gulf of mexico": {"concepts": "northern gulf of mexico", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "northern gulf of mexico"}, "charter fishermen": {"concepts": "charter fishermen", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "charter fishermen"}, "marine biodiversity": {"concepts": "marine biodiversity", "type": "concept", "cluster": "Marine Biodiversity Conservation", "node_size": 10, "label": "marine biodiversity"}, "biodiversity conservation": {"concepts": "biodiversity conservation", "type": "concept", "cluster": "Marine Biodiversity Conservation", "node_size": 10, "label": "biodiversity conservation"}, "whale watching": {"concepts": "whale watching", "type": "concept", "cluster": "Coastal Marine Industries", "node_size": 10, "label": "whale watching"}, "commercial fishermen": {"concepts": "commercial fishermen", "type": "concept", "cluster": "Coastal Marine Industries", "node_size": 10, "label": "commercial fishermen"}, "oyster farmers": {"concepts": "oyster farmers", "type": "concept", "cluster": "Coastal Marine Industries", "node_size": 10, "label": "oyster farmers"}, "marine resource management": {"concepts": "marine resource management", "type": "concept", "cluster": "Marine Resource Use", "node_size": 10, "label": "marine resource management"}, "coastal biodiversity": {"concepts": "coastal biodiversity", "type": "concept", "cluster": "Marine Resource Use", "node_size": 10, "label": "coastal biodiversity"}, "recreational fishermen": {"concepts": "recreational fishermen", "type": "concept", "cluster": "Marine Resource Use", "node_size": 10, "label": "recreational fishermen"}, "community members": {"concepts": "community members", "type": "concept", "cluster": "Coastal Stakeholders", "node_size": 10, "label": "community members"}, "resource users": {"concepts": "resource users", "type": "concept", "cluster": "Coastal Stakeholders", "node_size": 10, "label": "resource users"}, "tribal communities": {"concepts": "tribal communities", "type": "concept", "cluster": "Coastal Stakeholders", "node_size": 10, "label": "tribal communities"}, "resource managers": {"concepts": "resource managers", "type": "concept", "cluster": "Coastal Stakeholders", "node_size": 10, "label": "resource managers"}, "naturalists": {"concepts": "naturalists", "type": "concept", "cluster": "Coastal Stakeholders", "node_size": 10, "label": "naturalists"}, "waterfront homeowners": {"concepts": "waterfront homeowners", "type": "concept", "cluster": "Coastal Stakeholders", "node_size": 10, "label": "waterfront homeowners"}, "dive instructors": {"concepts": "dive instructors", "type": "concept", "cluster": "Marine Tourism Professionals", "node_size": 10, "label": "dive instructors"}, "ecotourism operators": {"concepts": "ecotourism operators", "type": "concept", "cluster": "Marine Tourism Professionals", "node_size": 10, "label": "ecotourism operators"}, "model validation": {"concepts": "model validation", "type": "concept", "cluster": "Collaborative System Modeling", "node_size": 10, "label": "model validation"}, "system dynamics": {"concepts": "system dynamics", "type": "concept", "cluster": "Collaborative System Modeling", "node_size": 10, "label": "system dynamics"}, "participatory modeling": {"concepts": "participatory modeling", "type": "concept", "cluster": "Collaborative System Modeling", "node_size": 10, "label": "participatory modeling"}, "mental modeler": {"concepts": "mental modeler", "type": "concept", "cluster": "Collaborative System Modeling", "node_size": 10, "label": "mental modeler"}, "stakeholder workshops": {"concepts": "stakeholder workshops", "type": "concept", "cluster": "Collaborative System Modeling", "node_size": 10, "label": "stakeholder workshops"}, "community models": {"concepts": "community models", "type": "concept", "cluster": "Collaborative System Modeling", "node_size": 10, "label": "community models"}, "community model": {"concepts": "community model", "type": "concept", "cluster": "Collaborative System Modeling", "node_size": 10, "label": "community model"}, "collaborative modeling": {"concepts": "collaborative modeling", "type": "concept", "cluster": "Collaborative System Modeling", "node_size": 10, "label": "collaborative modeling"}, "system components": {"concepts": "system components", "type": "concept", "cluster": "Collaborative System Modeling", "node_size": 10, "label": "system components"}, "management trade-offs": {"concepts": "management trade-offs", "type": "concept", "cluster": "Scenario-Based Decision Making", "node_size": 10, "label": "management trade-offs"}, "local values": {"concepts": "local values", "type": "concept", "cluster": "Scenario-Based Decision Making", "node_size": 10, "label": "local values"}, "decision-making": {"concepts": "decision-making", "type": "concept", "cluster": "Scenario-Based Decision Making", "node_size": 10, "label": "decision-making"}, "hypothetical interventions": {"concepts": "hypothetical interventions", "type": "concept", "cluster": "Scenario-Based Decision Making", "node_size": 10, "label": "hypothetical interventions"}, "scenario simulations": {"concepts": "scenario simulations", "type": "concept", "cluster": "Scenario-Based Decision Making", "node_size": 10, "label": "scenario simulations"}, "indirect impacts": {"concepts": "indirect impacts", "type": "concept", "cluster": "Scenario-Based Decision Making", "node_size": 10, "label": "indirect impacts"}, "chesapeake bay": {"concepts": "chesapeake bay", "type": "concept", "cluster": "Coastal Bays & Sounds", "node_size": 10, "label": "chesapeake bay"}, "mobile bay": {"concepts": "mobile bay", "type": "concept", "cluster": "Coastal Bays & Sounds", "node_size": 10, "label": "mobile bay"}, "puget sound": {"concepts": "puget sound", "type": "concept", "cluster": "Coastal Bays & Sounds", "node_size": 10, "label": "puget sound"}, "case study approach": {"concepts": "case study approach", "type": "concept", "cluster": "Socio-Ecological Management", "node_size": 10, "label": "case study approach"}, "social-ecological dynamics": {"concepts": "social-ecological dynamics", "type": "concept", "cluster": "Socio-Ecological Management", "node_size": 10, "label": "social-ecological dynamics"}, "conceptual models": {"concepts": "conceptual models", "type": "concept", "cluster": "Socio-Ecological Management", "node_size": 10, "label": "conceptual models"}, "value alignment": {"concepts": "value alignment", "type": "concept", "cluster": "Socio-Ecological Management", "node_size": 10, "label": "value alignment"}, "resource management": {"concepts": "resource management", "type": "concept", "cluster": "Socio-Ecological Management", "node_size": 10, "label": "resource management"}, "biodiversity reliance": {"concepts": "biodiversity reliance", "type": "concept", "cluster": "Biodiversity Importance", "node_size": 10, "label": "biodiversity reliance"}, "biodiversity values": {"concepts": "biodiversity values", "type": "concept", "cluster": "Biodiversity Importance", "node_size": 10, "label": "biodiversity values"}, "tourism variation": {"concepts": "tourism variation", "type": "concept", "cluster": "Sustainable Tourism & Biodiversity", "node_size": 10, "label": "tourism variation"}, "biodiversity access": {"concepts": "biodiversity access", "type": "concept", "cluster": "Sustainable Tourism & Biodiversity", "node_size": 10, "label": "biodiversity access"}, "ecosystem services": {"concepts": "ecosystem services", "type": "concept", "cluster": "Sustainable Tourism & Biodiversity", "node_size": 10, "label": "ecosystem services"}};
+        const interClusterEdges = [["living shorelines", "Marine Biodiversity Conservation", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["living shorelines", "tourism types", {"weight": 1.0, "confidence": 0.5833333333333334, "type": "inter_cluster", "style": "solid"}], ["living shorelines", "Biodiversity Importance", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["tourism types", "ecosystem services flow", {"weight": 1.0, "confidence": 0.7333333333333334, "type": "inter_cluster", "style": "solid"}], ["tourism types", "Coastal Stakeholders", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["ecosystem services flow", "Marine Biodiversity", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["Marine Biodiversity", "Marine Resource Use", {"weight": 1.0, "confidence": 0.71, "type": "inter_cluster", "style": "solid"}], ["Marine Biodiversity", "Scenario-Based Decision Making", {"weight": 1.0, "confidence": 0.6900000000000001, "type": "inter_cluster", "style": "solid"}], ["Marine Biodiversity", "Marine Biodiversity Conservation", {"weight": 1.0, "confidence": 0.68, "type": "inter_cluster", "style": "solid"}], ["Marine Biodiversity", "Collaborative System Modeling", {"weight": 1.0, "confidence": 0.6599999999999999, "type": "inter_cluster", "style": "solid"}], ["Marine Biodiversity", "Coastal Stakeholders", {"weight": 1.0, "confidence": 0.6399999999999999, "type": "inter_cluster", "style": "solid"}], ["Marine Biodiversity", "tourism types", {"weight": 1.0, "confidence": 0.63, "type": "inter_cluster", "style": "solid"}], ["Marine Biodiversity Conservation", "Marine Resource Use", {"weight": 1.0, "confidence": 0.8300000000000001, "type": "inter_cluster", "style": "solid"}], ["Marine Biodiversity Conservation", "Sustainable Tourism & Biodiversity", {"weight": 1.0, "confidence": 0.8300000000000001, "type": "inter_cluster", "style": "solid"}], ["Marine Biodiversity Conservation", "Coastal Marine Industries", {"weight": 1.0, "confidence": 0.78, "type": "inter_cluster", "style": "solid"}], ["Marine Biodiversity Conservation", "Socio-Ecological Management", {"weight": 1.0, "confidence": 0.7699999999999999, "type": "inter_cluster", "style": "solid"}], ["Marine Biodiversity Conservation", "tourism types", {"weight": 1.0, "confidence": 0.7399999999999999, "type": "inter_cluster", "style": "solid"}], ["Marine Biodiversity Conservation", "Scenario-Based Decision Making", {"weight": 1.0, "confidence": 0.8125000000000001, "type": "inter_cluster", "style": "solid"}], ["Coastal Marine Industries", "Socio-Ecological Management", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Coastal Marine Industries", "Marine Resource Use", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Coastal Marine Industries", "Coastal Stakeholders", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Marine Resource Use", "Socio-Ecological Management", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Marine Resource Use", "living shorelines", {"weight": 1.0, "confidence": 0.71, "type": "inter_cluster", "style": "solid"}], ["Marine Resource Use", "tourism types", {"weight": 1.0, "confidence": 0.6699999999999999, "type": "inter_cluster", "style": "solid"}], ["Marine Resource Use", "Marine Tourism Professionals", {"weight": 1.0, "confidence": 0.67, "type": "inter_cluster", "style": "solid"}], ["Marine Resource Use", "Collaborative System Modeling", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Marine Resource Use", "Sustainable Tourism & Biodiversity", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Marine Resource Use", "Coastal Marine Industries", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Coastal Stakeholders", "Biodiversity Importance", {"weight": 1.0, "confidence": 0.8699999999999999, "type": "inter_cluster", "style": "solid"}], ["Coastal Stakeholders", "Scenario-Based Decision Making", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Coastal Stakeholders", "ecosystem services flow", {"weight": 1.0, "confidence": 0.82, "type": "inter_cluster", "style": "solid"}], ["Coastal Stakeholders", "Sustainable Tourism & Biodiversity", {"weight": 1.0, "confidence": 0.7699999999999999, "type": "inter_cluster", "style": "solid"}], ["Coastal Stakeholders", "Marine Tourism Professionals", {"weight": 1.0, "confidence": 0.6749999999999999, "type": "inter_cluster", "style": "solid"}], ["Coastal Stakeholders", "tourism types", {"weight": 1.0, "confidence": 0.7166666666666667, "type": "inter_cluster", "style": "solid"}], ["Coastal Stakeholders", "Marine Biodiversity", {"weight": 1.0, "confidence": 0.6333333333333333, "type": "inter_cluster", "style": "solid"}], ["Marine Tourism Professionals", "Biodiversity Importance", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Marine Tourism Professionals", "Coastal Bays & Sounds", {"weight": 1.0, "confidence": 0.66, "type": "inter_cluster", "style": "solid"}], ["Marine Tourism Professionals", "Coastal Stakeholders", {"weight": 1.0, "confidence": 0.66, "type": "inter_cluster", "style": "solid"}], ["Marine Tourism Professionals", "Marine Biodiversity Conservation", {"weight": 1.0, "confidence": 0.7375, "type": "inter_cluster", "style": "solid"}], ["Collaborative System Modeling", "Biodiversity Importance", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Collaborative System Modeling", "Sustainable Tourism & Biodiversity", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Collaborative System Modeling", "Coastal Bays & Sounds", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Collaborative System Modeling", "Marine Biodiversity", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Scenario-Based Decision Making", "Collaborative System Modeling", {"weight": 1.0, "confidence": 0.8299999999999998, "type": "inter_cluster", "style": "solid"}], ["Scenario-Based Decision Making", "tourism types", {"weight": 1.0, "confidence": 0.6375, "type": "inter_cluster", "style": "solid"}], ["Scenario-Based Decision Making", "Coastal Bays & Sounds", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Scenario-Based Decision Making", "Marine Tourism Professionals", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Coastal Bays & Sounds", "Biodiversity Importance", {"weight": 1.0, "confidence": 0.7799999999999999, "type": "inter_cluster", "style": "solid"}], ["Coastal Bays & Sounds", "Marine Biodiversity Conservation", {"weight": 1.0, "confidence": 0.7699999999999999, "type": "inter_cluster", "style": "solid"}], ["Coastal Bays & Sounds", "Marine Resource Use", {"weight": 1.0, "confidence": 0.7625, "type": "inter_cluster", "style": "solid"}], ["Coastal Bays & Sounds", "ecosystem services flow", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Socio-Ecological Management", "Marine Biodiversity Conservation", {"weight": 1.0, "confidence": 0.8125000000000001, "type": "inter_cluster", "style": "solid"}], ["Socio-Ecological Management", "ecosystem services flow", {"weight": 1.0, "confidence": 0.7875000000000001, "type": "inter_cluster", "style": "solid"}], ["Socio-Ecological Management", "Biodiversity Importance", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Biodiversity Importance", "Marine Biodiversity Conservation", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Biodiversity Importance", "Socio-Ecological Management", {"weight": 1.0, "confidence": 0.77, "type": "inter_cluster", "style": "solid"}], ["Biodiversity Importance", "Marine Biodiversity", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Biodiversity Importance", "Marine Tourism Professionals", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Biodiversity Importance", "Coastal Marine Industries", {"weight": 1.0, "confidence": 0.7000000000000001, "type": "inter_cluster", "style": "solid"}], ["Biodiversity Importance", "Marine Resource Use", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Sustainable Tourism & Biodiversity", "Marine Tourism Professionals", {"weight": 1.0, "confidence": 0.79, "type": "inter_cluster", "style": "solid"}], ["Sustainable Tourism & Biodiversity", "Coastal Bays & Sounds", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Sustainable Tourism & Biodiversity", "living shorelines", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {"Marine Biodiversity": [["northern gulf of mexico", {"concepts": "northern gulf of mexico", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "northern gulf of mexico"}], ["charter fishermen", {"concepts": "charter fishermen", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "charter fishermen"}]], "Marine Biodiversity Conservation": [["marine biodiversity", {"concepts": "marine biodiversity", "type": "concept", "cluster": "Marine Biodiversity Conservation", "node_size": 10, "label": "marine biodiversity"}], ["biodiversity conservation", {"concepts": "biodiversity conservation", "type": "concept", "cluster": "Marine Biodiversity Conservation", "node_size": 10, "label": "biodiversity conservation"}]], "Coastal Marine Industries": [["whale watching", {"concepts": "whale watching", "type": "concept", "cluster": "Coastal Marine Industries", "node_size": 10, "label": "whale watching"}], ["commercial fishermen", {"concepts": "commercial fishermen", "type": "concept", "cluster": "Coastal Marine Industries", "node_size": 10, "label": "commercial fishermen"}], ["oyster farmers", {"concepts": "oyster farmers", "type": "concept", "cluster": "Coastal Marine Industries", "node_size": 10, "label": "oyster farmers"}]], "Marine Resource Use": [["marine resource management", {"concepts": "marine resource management", "type": "concept", "cluster": "Marine Resource Use", "node_size": 10, "label": "marine resource management"}], ["coastal biodiversity", {"concepts": "coastal biodiversity", "type": "concept", "cluster": "Marine Resource Use", "node_size": 10, "label": "coastal biodiversity"}], ["recreational fishermen", {"concepts": "recreational fishermen", "type": "concept", "cluster": "Marine Resource Use", "node_size": 10, "label": "recreational fishermen"}]], "Coastal Stakeholders": [["community members", {"concepts": "community members", "type": "concept", "cluster": "Coastal Stakeholders", "node_size": 10, "label": "community members"}], ["resource users", {"concepts": "resource users", "type": "concept", "cluster": "Coastal Stakeholders", "node_size": 10, "label": "resource users"}], ["tribal communities", {"concepts": "tribal communities", "type": "concept", "cluster": "Coastal Stakeholders", "node_size": 10, "label": "tribal communities"}], ["resource managers", {"concepts": "resource managers", "type": "concept", "cluster": "Coastal Stakeholders", "node_size": 10, "label": "resource managers"}], ["naturalists", {"concepts": "naturalists", "type": "concept", "cluster": "Coastal Stakeholders", "node_size": 10, "label": "naturalists"}], ["waterfront homeowners", {"concepts": "waterfront homeowners", "type": "concept", "cluster": "Coastal Stakeholders", "node_size": 10, "label": "waterfront homeowners"}]], "Marine Tourism Professionals": [["dive instructors", {"concepts": "dive instructors", "type": "concept", "cluster": "Marine Tourism Professionals", "node_size": 10, "label": "dive instructors"}], ["ecotourism operators", {"concepts": "ecotourism operators", "type": "concept", "cluster": "Marine Tourism Professionals", "node_size": 10, "label": "ecotourism operators"}]], "Collaborative System Modeling": [["model validation", {"concepts": "model validation", "type": "concept", "cluster": "Collaborative System Modeling", "node_size": 10, "label": "model validation"}], ["system dynamics", {"concepts": "system dynamics", "type": "concept", "cluster": "Collaborative System Modeling", "node_size": 10, "label": "system dynamics"}], ["participatory modeling", {"concepts": "participatory modeling", "type": "concept", "cluster": "Collaborative System Modeling", "node_size": 10, "label": "participatory modeling"}], ["mental modeler", {"concepts": "mental modeler", "type": "concept", "cluster": "Collaborative System Modeling", "node_size": 10, "label": "mental modeler"}], ["stakeholder workshops", {"concepts": "stakeholder workshops", "type": "concept", "cluster": "Collaborative System Modeling", "node_size": 10, "label": "stakeholder workshops"}], ["community models", {"concepts": "community models", "type": "concept", "cluster": "Collaborative System Modeling", "node_size": 10, "label": "community models"}], ["community model", {"concepts": "community model", "type": "concept", "cluster": "Collaborative System Modeling", "node_size": 10, "label": "community model"}], ["collaborative modeling", {"concepts": "collaborative modeling", "type": "concept", "cluster": "Collaborative System Modeling", "node_size": 10, "label": "collaborative modeling"}], ["system components", {"concepts": "system components", "type": "concept", "cluster": "Collaborative System Modeling", "node_size": 10, "label": "system components"}]], "Scenario-Based Decision Making": [["management trade-offs", {"concepts": "management trade-offs", "type": "concept", "cluster": "Scenario-Based Decision Making", "node_size": 10, "label": "management trade-offs"}], ["local values", {"concepts": "local values", "type": "concept", "cluster": "Scenario-Based Decision Making", "node_size": 10, "label": "local values"}], ["decision-making", {"concepts": "decision-making", "type": "concept", "cluster": "Scenario-Based Decision Making", "node_size": 10, "label": "decision-making"}], ["hypothetical interventions", {"concepts": "hypothetical interventions", "type": "concept", "cluster": "Scenario-Based Decision Making", "node_size": 10, "label": "hypothetical interventions"}], ["scenario simulations", {"concepts": "scenario simulations", "type": "concept", "cluster": "Scenario-Based Decision Making", "node_size": 10, "label": "scenario simulations"}], ["indirect impacts", {"concepts": "indirect impacts", "type": "concept", "cluster": "Scenario-Based Decision Making", "node_size": 10, "label": "indirect impacts"}]], "Coastal Bays & Sounds": [["chesapeake bay", {"concepts": "chesapeake bay", "type": "concept", "cluster": "Coastal Bays & Sounds", "node_size": 10, "label": "chesapeake bay"}], ["mobile bay", {"concepts": "mobile bay", "type": "concept", "cluster": "Coastal Bays & Sounds", "node_size": 10, "label": "mobile bay"}], ["puget sound", {"concepts": "puget sound", "type": "concept", "cluster": "Coastal Bays & Sounds", "node_size": 10, "label": "puget sound"}]], "Socio-Ecological Management": [["case study approach", {"concepts": "case study approach", "type": "concept", "cluster": "Socio-Ecological Management", "node_size": 10, "label": "case study approach"}], ["social-ecological dynamics", {"concepts": "social-ecological dynamics", "type": "concept", "cluster": "Socio-Ecological Management", "node_size": 10, "label": "social-ecological dynamics"}], ["conceptual models", {"concepts": "conceptual models", "type": "concept", "cluster": "Socio-Ecological Management", "node_size": 10, "label": "conceptual models"}], ["value alignment", {"concepts": "value alignment", "type": "concept", "cluster": "Socio-Ecological Management", "node_size": 10, "label": "value alignment"}], ["resource management", {"concepts": "resource management", "type": "concept", "cluster": "Socio-Ecological Management", "node_size": 10, "label": "resource management"}]], "Biodiversity Importance": [["biodiversity reliance", {"concepts": "biodiversity reliance", "type": "concept", "cluster": "Biodiversity Importance", "node_size": 10, "label": "biodiversity reliance"}], ["biodiversity values", {"concepts": "biodiversity values", "type": "concept", "cluster": "Biodiversity Importance", "node_size": 10, "label": "biodiversity values"}]], "Sustainable Tourism & Biodiversity": [["tourism variation", {"concepts": "tourism variation", "type": "concept", "cluster": "Sustainable Tourism & Biodiversity", "node_size": 10, "label": "tourism variation"}], ["biodiversity access", {"concepts": "biodiversity access", "type": "concept", "cluster": "Sustainable Tourism & Biodiversity", "node_size": 10, "label": "biodiversity access"}], ["ecosystem services", {"concepts": "ecosystem services", "type": "concept", "cluster": "Sustainable Tourism & Biodiversity", "node_size": 10, "label": "ecosystem services"}]]};
+        const clusterEdges = {"Marine Biodiversity": [], "Marine Biodiversity Conservation": [], "Coastal Marine Industries": [], "Marine Resource Use": [], "Coastal Stakeholders": [], "Marine Tourism Professionals": [], "Collaborative System Modeling": [], "Scenario-Based Decision Making": [], "Coastal Bays & Sounds": [], "Socio-Ecological Management": [], "Biodiversity Importance": [], "Sustainable Tourism & Biodiversity": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

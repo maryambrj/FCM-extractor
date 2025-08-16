@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"Human-Ecosystem Interactions": {"concepts": "conservation concern, conservation, species diversity, biodiversity, ecosystem wellbeing, number of species, endangered species, habitat species, ecosystem roles, unintended consequences", "concept_list": ["conservation concern", "conservation", "species diversity", "biodiversity", "ecosystem wellbeing", "number of species", "endangered species", "habitat species", "ecosystem roles", "unintended consequences"], "type": "cluster", "node_size": 45, "label": "Human-Ecosystem Interactions"}, "Environmental Stressors": {"concepts": "ecotourism, resource users, waterfront homeowners, human wildlife conflict, economics, human wellbeing, recreational benefits, ecotourism sector, cultural benefits, ecosystem services", "concept_list": ["ecotourism", "resource users", "waterfront homeowners", "human wildlife conflict", "economics", "human wellbeing", "recreational benefits", "ecotourism sector", "cultural benefits", "ecosystem services"], "type": "cluster", "node_size": 45, "label": "Environmental Stressors"}, "Stakeholders & Management": {"concepts": "system stressors, environmental changes, harmful organisms, invasive species, contaminants, stressors, climate change", "concept_list": ["system stressors", "environmental changes", "harmful organisms", "invasive species", "contaminants", "stressors", "climate change"], "type": "cluster", "node_size": 36, "label": "Stakeholders & Management"}, "Fisheries Management": {"concepts": "regional managers, stakeholders, upstate new york, thematic coding, qualitative binning, collective model, species traits, researchers, mental modeler, ngo, habitat forming species, relationship weights, adjacency matrix, tonle sap, mental model, ngos, lake victoria, data collecting, east africa, anthropogenic arena, species-specific management, variety of traits, ecosystem functions, unique concept, diversity functions, diversity of functions", "concept_list": ["regional managers", "stakeholders", "upstate new york", "thematic coding", "qualitative binning", "collective model", "species traits", "researchers", "mental modeler", "ngo", "habitat forming species", "relationship weights", "adjacency matrix", "tonle sap", "mental model", "ngos", "lake victoria", "data collecting", "east africa", "anthropogenic arena", "species-specific management", "variety of traits", "ecosystem functions", "unique concept", "diversity functions", "diversity of functions"], "type": "cluster", "node_size": 93, "label": "Fisheries Management"}, "Biodiversity & Conservation": {"concepts": "fisheries management, fisheries access, fishermen, oyster farmers, small-scale fisheries, marine resource management", "concept_list": ["fisheries management", "fisheries access", "fishermen", "oyster farmers", "small-scale fisheries", "marine resource management"], "type": "cluster", "node_size": 33, "label": "Biodiversity & Conservation"}, "Fisheries & Economics": {"concepts": "fisheries sector, fishing biomass, fisheries economics, fishing sector", "concept_list": ["fisheries sector", "fishing biomass", "fisheries economics", "fishing sector"], "type": "cluster", "node_size": 27, "label": "Fisheries & Economics"}, "Food Access": {"concepts": "food security, food benefits", "concept_list": ["food security", "food benefits"], "type": "cluster", "node_size": 21, "label": "Food Access"}, "Food & Nutrition": {"concepts": "nutritional benefits, nutrition, food web", "concept_list": ["nutritional benefits", "nutrition", "food web"], "type": "cluster", "node_size": 24, "label": "Food & Nutrition"}, "River Water Resources": {"concepts": "river flows, water availability, water quality, water quantity", "concept_list": ["river flows", "water availability", "water quality", "water quantity"], "type": "cluster", "node_size": 27, "label": "River Water Resources"}, "Fishing Industry": {"concepts": "aquatic ecosystems, marine mammals", "concept_list": ["aquatic ecosystems", "marine mammals"], "type": "cluster", "node_size": 21, "label": "Fishing Industry"}};
+        const conceptData = {"conservation concern": {"concepts": "conservation concern", "type": "concept", "cluster": "Human-Ecosystem Interactions", "node_size": 10, "label": "conservation concern"}, "conservation": {"concepts": "conservation", "type": "concept", "cluster": "Human-Ecosystem Interactions", "node_size": 10, "label": "conservation"}, "species diversity": {"concepts": "species diversity", "type": "concept", "cluster": "Human-Ecosystem Interactions", "node_size": 10, "label": "species diversity"}, "biodiversity": {"concepts": "biodiversity", "type": "concept", "cluster": "Human-Ecosystem Interactions", "node_size": 10, "label": "biodiversity"}, "ecosystem wellbeing": {"concepts": "ecosystem wellbeing", "type": "concept", "cluster": "Human-Ecosystem Interactions", "node_size": 10, "label": "ecosystem wellbeing"}, "number of species": {"concepts": "number of species", "type": "concept", "cluster": "Human-Ecosystem Interactions", "node_size": 10, "label": "number of species"}, "endangered species": {"concepts": "endangered species", "type": "concept", "cluster": "Human-Ecosystem Interactions", "node_size": 10, "label": "endangered species"}, "habitat species": {"concepts": "habitat species", "type": "concept", "cluster": "Human-Ecosystem Interactions", "node_size": 10, "label": "habitat species"}, "ecosystem roles": {"concepts": "ecosystem roles", "type": "concept", "cluster": "Human-Ecosystem Interactions", "node_size": 10, "label": "ecosystem roles"}, "unintended consequences": {"concepts": "unintended consequences", "type": "concept", "cluster": "Human-Ecosystem Interactions", "node_size": 10, "label": "unintended consequences"}, "ecotourism": {"concepts": "ecotourism", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "ecotourism"}, "resource users": {"concepts": "resource users", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "resource users"}, "waterfront homeowners": {"concepts": "waterfront homeowners", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "waterfront homeowners"}, "human wildlife conflict": {"concepts": "human wildlife conflict", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "human wildlife conflict"}, "economics": {"concepts": "economics", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "economics"}, "human wellbeing": {"concepts": "human wellbeing", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "human wellbeing"}, "recreational benefits": {"concepts": "recreational benefits", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "recreational benefits"}, "ecotourism sector": {"concepts": "ecotourism sector", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "ecotourism sector"}, "cultural benefits": {"concepts": "cultural benefits", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "cultural benefits"}, "ecosystem services": {"concepts": "ecosystem services", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "ecosystem services"}, "system stressors": {"concepts": "system stressors", "type": "concept", "cluster": "Stakeholders & Management", "node_size": 10, "label": "system stressors"}, "environmental changes": {"concepts": "environmental changes", "type": "concept", "cluster": "Stakeholders & Management", "node_size": 10, "label": "environmental changes"}, "harmful organisms": {"concepts": "harmful organisms", "type": "concept", "cluster": "Stakeholders & Management", "node_size": 10, "label": "harmful organisms"}, "invasive species": {"concepts": "invasive species", "type": "concept", "cluster": "Stakeholders & Management", "node_size": 10, "label": "invasive species"}, "contaminants": {"concepts": "contaminants", "type": "concept", "cluster": "Stakeholders & Management", "node_size": 10, "label": "contaminants"}, "stressors": {"concepts": "stressors", "type": "concept", "cluster": "Stakeholders & Management", "node_size": 10, "label": "stressors"}, "climate change": {"concepts": "climate change", "type": "concept", "cluster": "Stakeholders & Management", "node_size": 10, "label": "climate change"}, "regional managers": {"concepts": "regional managers", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "regional managers"}, "stakeholders": {"concepts": "stakeholders", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "stakeholders"}, "upstate new york": {"concepts": "upstate new york", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "upstate new york"}, "thematic coding": {"concepts": "thematic coding", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "thematic coding"}, "qualitative binning": {"concepts": "qualitative binning", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "qualitative binning"}, "collective model": {"concepts": "collective model", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "collective model"}, "species traits": {"concepts": "species traits", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "species traits"}, "researchers": {"concepts": "researchers", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "researchers"}, "mental modeler": {"concepts": "mental modeler", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "mental modeler"}, "ngo": {"concepts": "ngo", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "ngo"}, "habitat forming species": {"concepts": "habitat forming species", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "habitat forming species"}, "relationship weights": {"concepts": "relationship weights", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "relationship weights"}, "adjacency matrix": {"concepts": "adjacency matrix", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "adjacency matrix"}, "tonle sap": {"concepts": "tonle sap", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "tonle sap"}, "mental model": {"concepts": "mental model", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "mental model"}, "ngos": {"concepts": "ngos", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "ngos"}, "lake victoria": {"concepts": "lake victoria", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "lake victoria"}, "data collecting": {"concepts": "data collecting", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "data collecting"}, "east africa": {"concepts": "east africa", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "east africa"}, "anthropogenic arena": {"concepts": "anthropogenic arena", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "anthropogenic arena"}, "species-specific management": {"concepts": "species-specific management", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "species-specific management"}, "variety of traits": {"concepts": "variety of traits", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "variety of traits"}, "ecosystem functions": {"concepts": "ecosystem functions", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "ecosystem functions"}, "unique concept": {"concepts": "unique concept", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "unique concept"}, "diversity functions": {"concepts": "diversity functions", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "diversity functions"}, "diversity of functions": {"concepts": "diversity of functions", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "diversity of functions"}, "fisheries management": {"concepts": "fisheries management", "type": "concept", "cluster": "Biodiversity & Conservation", "node_size": 10, "label": "fisheries management"}, "fisheries access": {"concepts": "fisheries access", "type": "concept", "cluster": "Biodiversity & Conservation", "node_size": 10, "label": "fisheries access"}, "fishermen": {"concepts": "fishermen", "type": "concept", "cluster": "Biodiversity & Conservation", "node_size": 10, "label": "fishermen"}, "oyster farmers": {"concepts": "oyster farmers", "type": "concept", "cluster": "Biodiversity & Conservation", "node_size": 10, "label": "oyster farmers"}, "small-scale fisheries": {"concepts": "small-scale fisheries", "type": "concept", "cluster": "Biodiversity & Conservation", "node_size": 10, "label": "small-scale fisheries"}, "marine resource management": {"concepts": "marine resource management", "type": "concept", "cluster": "Biodiversity & Conservation", "node_size": 10, "label": "marine resource management"}, "fisheries sector": {"concepts": "fisheries sector", "type": "concept", "cluster": "Fisheries & Economics", "node_size": 10, "label": "fisheries sector"}, "fishing biomass": {"concepts": "fishing biomass", "type": "concept", "cluster": "Fisheries & Economics", "node_size": 10, "label": "fishing biomass"}, "fisheries economics": {"concepts": "fisheries economics", "type": "concept", "cluster": "Fisheries & Economics", "node_size": 10, "label": "fisheries economics"}, "fishing sector": {"concepts": "fishing sector", "type": "concept", "cluster": "Fisheries & Economics", "node_size": 10, "label": "fishing sector"}, "food security": {"concepts": "food security", "type": "concept", "cluster": "Food Access", "node_size": 10, "label": "food security"}, "food benefits": {"concepts": "food benefits", "type": "concept", "cluster": "Food Access", "node_size": 10, "label": "food benefits"}, "nutritional benefits": {"concepts": "nutritional benefits", "type": "concept", "cluster": "Food & Nutrition", "node_size": 10, "label": "nutritional benefits"}, "nutrition": {"concepts": "nutrition", "type": "concept", "cluster": "Food & Nutrition", "node_size": 10, "label": "nutrition"}, "food web": {"concepts": "food web", "type": "concept", "cluster": "Food & Nutrition", "node_size": 10, "label": "food web"}, "river flows": {"concepts": "river flows", "type": "concept", "cluster": "River Water Resources", "node_size": 10, "label": "river flows"}, "water availability": {"concepts": "water availability", "type": "concept", "cluster": "River Water Resources", "node_size": 10, "label": "water availability"}, "water quality": {"concepts": "water quality", "type": "concept", "cluster": "River Water Resources", "node_size": 10, "label": "water quality"}, "water quantity": {"concepts": "water quantity", "type": "concept", "cluster": "River Water Resources", "node_size": 10, "label": "water quantity"}, "aquatic ecosystems": {"concepts": "aquatic ecosystems", "type": "concept", "cluster": "Fishing Industry", "node_size": 10, "label": "aquatic ecosystems"}, "marine mammals": {"concepts": "marine mammals", "type": "concept", "cluster": "Fishing Industry", "node_size": 10, "label": "marine mammals"}};
+        const interClusterEdges = [["Human-Ecosystem Interactions", "Environmental Stressors", {"weight": 1.0, "confidence": 0.53, "type": "inter_cluster", "style": "solid"}], ["Human-Ecosystem Interactions", "Food & Nutrition", {"weight": 1.0, "confidence": 0.575, "type": "inter_cluster", "style": "solid"}], ["Human-Ecosystem Interactions", "Food Access", {"weight": 0.8, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["Human-Ecosystem Interactions", "Fishing Industry", {"weight": 1.0, "confidence": 0.5666666666666665, "type": "inter_cluster", "style": "solid"}], ["Human-Ecosystem Interactions", "Fisheries & Economics", {"weight": -0.25, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["Human-Ecosystem Interactions", "Biodiversity & Conservation", {"weight": 0.5, "confidence": 0.15, "type": "inter_cluster", "style": "solid"}], ["Environmental Stressors", "Food & Nutrition", {"weight": 0.8, "confidence": 0.42000000000000004, "type": "inter_cluster", "style": "solid"}], ["Environmental Stressors", "Human-Ecosystem Interactions", {"weight": 0.8, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["Environmental Stressors", "Fisheries Management", {"weight": 0.5, "confidence": 0.15, "type": "inter_cluster", "style": "solid"}], ["Environmental Stressors", "Biodiversity & Conservation", {"weight": 0.5, "confidence": 0.15, "type": "inter_cluster", "style": "solid"}], ["Environmental Stressors", "Stakeholders & Management", {"weight": 0.5, "confidence": 0.1, "type": "inter_cluster", "style": "solid"}], ["Stakeholders & Management", "River Water Resources", {"weight": -1.0, "confidence": 0.79, "type": "inter_cluster", "style": "solid"}], ["Stakeholders & Management", "Food & Nutrition", {"weight": -1.0, "confidence": 0.72, "type": "inter_cluster", "style": "solid"}], ["Stakeholders & Management", "Fisheries & Economics", {"weight": -1.0, "confidence": 0.6200000000000001, "type": "inter_cluster", "style": "solid"}], ["Stakeholders & Management", "Fishing Industry", {"weight": -1.0, "confidence": 0.7125, "type": "inter_cluster", "style": "solid"}], ["Stakeholders & Management", "Food Access", {"weight": -1.0, "confidence": 0.7166666666666667, "type": "inter_cluster", "style": "solid"}], ["Stakeholders & Management", "Environmental Stressors", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["Fisheries Management", "Human-Ecosystem Interactions", {"weight": 0.6, "confidence": 0.26, "type": "inter_cluster", "style": "solid"}], ["Biodiversity & Conservation", "Fisheries & Economics", {"weight": 1.0, "confidence": 0.7250000000000001, "type": "inter_cluster", "style": "solid"}], ["Biodiversity & Conservation", "Food Access", {"weight": 1.0, "confidence": 0.6833333333333332, "type": "inter_cluster", "style": "solid"}], ["Biodiversity & Conservation", "Human-Ecosystem Interactions", {"weight": 0.75, "confidence": 0.36250000000000004, "type": "inter_cluster", "style": "solid"}], ["Biodiversity & Conservation", "Environmental Stressors", {"weight": 0.25, "confidence": 0.075, "type": "inter_cluster", "style": "solid"}], ["Fisheries & Economics", "Human-Ecosystem Interactions", {"weight": -1.0, "confidence": 0.47000000000000003, "type": "inter_cluster", "style": "solid"}], ["Fisheries & Economics", "Stakeholders & Management", {"weight": 0.8, "confidence": 0.32, "type": "inter_cluster", "style": "solid"}], ["Fisheries & Economics", "Fishing Industry", {"weight": -0.6, "confidence": 0.26, "type": "inter_cluster", "style": "solid"}], ["Food & Nutrition", "Food Access", {"weight": 1.0, "confidence": 0.8300000000000001, "type": "inter_cluster", "style": "solid"}], ["River Water Resources", "Fishing Industry", {"weight": 1.0, "confidence": 0.67, "type": "inter_cluster", "style": "solid"}], ["River Water Resources", "Food Access", {"weight": 1.0, "confidence": 0.64, "type": "inter_cluster", "style": "solid"}], ["River Water Resources", "Food & Nutrition", {"weight": 1.0, "confidence": 0.62, "type": "inter_cluster", "style": "solid"}], ["River Water Resources", "Fisheries & Economics", {"weight": 1.0, "confidence": 0.6100000000000001, "type": "inter_cluster", "style": "solid"}], ["River Water Resources", "Human-Ecosystem Interactions", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["River Water Resources", "Environmental Stressors", {"weight": 0.75, "confidence": 0.3875, "type": "inter_cluster", "style": "solid"}], ["River Water Resources", "Biodiversity & Conservation", {"weight": 0.4, "confidence": 0.2, "type": "inter_cluster", "style": "solid"}], ["Fishing Industry", "Food & Nutrition", {"weight": 0.8, "confidence": 0.41, "type": "inter_cluster", "style": "solid"}], ["Fishing Industry", "Environmental Stressors", {"weight": 0.5, "confidence": 0.2625, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {"Human-Ecosystem Interactions": [["conservation concern", {"concepts": "conservation concern", "type": "concept", "cluster": "Human-Ecosystem Interactions", "node_size": 10, "label": "conservation concern"}], ["conservation", {"concepts": "conservation", "type": "concept", "cluster": "Human-Ecosystem Interactions", "node_size": 10, "label": "conservation"}], ["species diversity", {"concepts": "species diversity", "type": "concept", "cluster": "Human-Ecosystem Interactions", "node_size": 10, "label": "species diversity"}], ["biodiversity", {"concepts": "biodiversity", "type": "concept", "cluster": "Human-Ecosystem Interactions", "node_size": 10, "label": "biodiversity"}], ["ecosystem wellbeing", {"concepts": "ecosystem wellbeing", "type": "concept", "cluster": "Human-Ecosystem Interactions", "node_size": 10, "label": "ecosystem wellbeing"}], ["number of species", {"concepts": "number of species", "type": "concept", "cluster": "Human-Ecosystem Interactions", "node_size": 10, "label": "number of species"}], ["endangered species", {"concepts": "endangered species", "type": "concept", "cluster": "Human-Ecosystem Interactions", "node_size": 10, "label": "endangered species"}], ["habitat species", {"concepts": "habitat species", "type": "concept", "cluster": "Human-Ecosystem Interactions", "node_size": 10, "label": "habitat species"}], ["ecosystem roles", {"concepts": "ecosystem roles", "type": "concept", "cluster": "Human-Ecosystem Interactions", "node_size": 10, "label": "ecosystem roles"}], ["unintended consequences", {"concepts": "unintended consequences", "type": "concept", "cluster": "Human-Ecosystem Interactions", "node_size": 10, "label": "unintended consequences"}]], "Environmental Stressors": [["ecotourism", {"concepts": "ecotourism", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "ecotourism"}], ["resource users", {"concepts": "resource users", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "resource users"}], ["waterfront homeowners", {"concepts": "waterfront homeowners", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "waterfront homeowners"}], ["human wildlife conflict", {"concepts": "human wildlife conflict", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "human wildlife conflict"}], ["economics", {"concepts": "economics", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "economics"}], ["human wellbeing", {"concepts": "human wellbeing", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "human wellbeing"}], ["recreational benefits", {"concepts": "recreational benefits", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "recreational benefits"}], ["ecotourism sector", {"concepts": "ecotourism sector", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "ecotourism sector"}], ["cultural benefits", {"concepts": "cultural benefits", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "cultural benefits"}], ["ecosystem services", {"concepts": "ecosystem services", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "ecosystem services"}]], "Stakeholders & Management": [["system stressors", {"concepts": "system stressors", "type": "concept", "cluster": "Stakeholders & Management", "node_size": 10, "label": "system stressors"}], ["environmental changes", {"concepts": "environmental changes", "type": "concept", "cluster": "Stakeholders & Management", "node_size": 10, "label": "environmental changes"}], ["harmful organisms", {"concepts": "harmful organisms", "type": "concept", "cluster": "Stakeholders & Management", "node_size": 10, "label": "harmful organisms"}], ["invasive species", {"concepts": "invasive species", "type": "concept", "cluster": "Stakeholders & Management", "node_size": 10, "label": "invasive species"}], ["contaminants", {"concepts": "contaminants", "type": "concept", "cluster": "Stakeholders & Management", "node_size": 10, "label": "contaminants"}], ["stressors", {"concepts": "stressors", "type": "concept", "cluster": "Stakeholders & Management", "node_size": 10, "label": "stressors"}], ["climate change", {"concepts": "climate change", "type": "concept", "cluster": "Stakeholders & Management", "node_size": 10, "label": "climate change"}]], "Fisheries Management": [["regional managers", {"concepts": "regional managers", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "regional managers"}], ["stakeholders", {"concepts": "stakeholders", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "stakeholders"}], ["upstate new york", {"concepts": "upstate new york", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "upstate new york"}], ["thematic coding", {"concepts": "thematic coding", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "thematic coding"}], ["qualitative binning", {"concepts": "qualitative binning", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "qualitative binning"}], ["collective model", {"concepts": "collective model", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "collective model"}], ["species traits", {"concepts": "species traits", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "species traits"}], ["researchers", {"concepts": "researchers", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "researchers"}], ["mental modeler", {"concepts": "mental modeler", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "mental modeler"}], ["ngo", {"concepts": "ngo", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "ngo"}], ["habitat forming species", {"concepts": "habitat forming species", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "habitat forming species"}], ["relationship weights", {"concepts": "relationship weights", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "relationship weights"}], ["adjacency matrix", {"concepts": "adjacency matrix", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "adjacency matrix"}], ["tonle sap", {"concepts": "tonle sap", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "tonle sap"}], ["mental model", {"concepts": "mental model", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "mental model"}], ["ngos", {"concepts": "ngos", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "ngos"}], ["lake victoria", {"concepts": "lake victoria", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "lake victoria"}], ["data collecting", {"concepts": "data collecting", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "data collecting"}], ["east africa", {"concepts": "east africa", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "east africa"}], ["anthropogenic arena", {"concepts": "anthropogenic arena", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "anthropogenic arena"}], ["species-specific management", {"concepts": "species-specific management", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "species-specific management"}], ["variety of traits", {"concepts": "variety of traits", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "variety of traits"}], ["ecosystem functions", {"concepts": "ecosystem functions", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "ecosystem functions"}], ["unique concept", {"concepts": "unique concept", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "unique concept"}], ["diversity functions", {"concepts": "diversity functions", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "diversity functions"}], ["diversity of functions", {"concepts": "diversity of functions", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "diversity of functions"}]], "Biodiversity & Conservation": [["fisheries management", {"concepts": "fisheries management", "type": "concept", "cluster": "Biodiversity & Conservation", "node_size": 10, "label": "fisheries management"}], ["fisheries access", {"concepts": "fisheries access", "type": "concept", "cluster": "Biodiversity & Conservation", "node_size": 10, "label": "fisheries access"}], ["fishermen", {"concepts": "fishermen", "type": "concept", "cluster": "Biodiversity & Conservation", "node_size": 10, "label": "fishermen"}], ["oyster farmers", {"concepts": "oyster farmers", "type": "concept", "cluster": "Biodiversity & Conservation", "node_size": 10, "label": "oyster farmers"}], ["small-scale fisheries", {"concepts": "small-scale fisheries", "type": "concept", "cluster": "Biodiversity & Conservation", "node_size": 10, "label": "small-scale fisheries"}], ["marine resource management", {"concepts": "marine resource management", "type": "concept", "cluster": "Biodiversity & Conservation", "node_size": 10, "label": "marine resource management"}]], "Fisheries & Economics": [["fisheries sector", {"concepts": "fisheries sector", "type": "concept", "cluster": "Fisheries & Economics", "node_size": 10, "label": "fisheries sector"}], ["fishing biomass", {"concepts": "fishing biomass", "type": "concept", "cluster": "Fisheries & Economics", "node_size": 10, "label": "fishing biomass"}], ["fisheries economics", {"concepts": "fisheries economics", "type": "concept", "cluster": "Fisheries & Economics", "node_size": 10, "label": "fisheries economics"}], ["fishing sector", {"concepts": "fishing sector", "type": "concept", "cluster": "Fisheries & Economics", "node_size": 10, "label": "fishing sector"}]], "Food Access": [["food security", {"concepts": "food security", "type": "concept", "cluster": "Food Access", "node_size": 10, "label": "food security"}], ["food benefits", {"concepts": "food benefits", "type": "concept", "cluster": "Food Access", "node_size": 10, "label": "food benefits"}]], "Food & Nutrition": [["nutritional benefits", {"concepts": "nutritional benefits", "type": "concept", "cluster": "Food & Nutrition", "node_size": 10, "label": "nutritional benefits"}], ["nutrition", {"concepts": "nutrition", "type": "concept", "cluster": "Food & Nutrition", "node_size": 10, "label": "nutrition"}], ["food web", {"concepts": "food web", "type": "concept", "cluster": "Food & Nutrition", "node_size": 10, "label": "food web"}]], "River Water Resources": [["river flows", {"concepts": "river flows", "type": "concept", "cluster": "River Water Resources", "node_size": 10, "label": "river flows"}], ["water availability", {"concepts": "water availability", "type": "concept", "cluster": "River Water Resources", "node_size": 10, "label": "water availability"}], ["water quality", {"concepts": "water quality", "type": "concept", "cluster": "River Water Resources", "node_size": 10, "label": "water quality"}], ["water quantity", {"concepts": "water quantity", "type": "concept", "cluster": "River Water Resources", "node_size": 10, "label": "water quantity"}]], "Fishing Industry": [["aquatic ecosystems", {"concepts": "aquatic ecosystems", "type": "concept", "cluster": "Fishing Industry", "node_size": 10, "label": "aquatic ecosystems"}], ["marine mammals", {"concepts": "marine mammals", "type": "concept", "cluster": "Fishing Industry", "node_size": 10, "label": "marine mammals"}]]};
+        const clusterEdges = {"Human-Ecosystem Interactions": [], "Environmental Stressors": [], "Stakeholders & Management": [], "Fisheries Management": [], "Biodiversity & Conservation": [], "Fisheries & Economics": [], "Food Access": [], "Food & Nutrition": [], "River Water Resources": [], "Fishing Industry": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

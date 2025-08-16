@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"urbanization": {"concepts": "urbanization", "concept_list": ["urbanization"], "type": "cluster", "node_size": 18, "label": "urbanization"}, "Salinity & Biodiversity": {"concepts": "salinity, biodiversity", "concept_list": ["salinity", "biodiversity"], "type": "cluster", "node_size": 21, "label": "Salinity & Biodiversity"}, "Environmental Conditions": {"concepts": "wind, temperature, environmental factors", "concept_list": ["wind", "temperature", "environmental factors"], "type": "cluster", "node_size": 24, "label": "Environmental Conditions"}, "Coastal Impacts": {"concepts": "wave activity, dredging", "concept_list": ["wave activity", "dredging"], "type": "cluster", "node_size": 21, "label": "Coastal Impacts"}, "Business Operations": {"concepts": "commercial business, business challenges", "concept_list": ["commercial business", "business challenges"], "type": "cluster", "node_size": 21, "label": "Business Operations"}, "Project Management": {"concepts": "mental modeling, organizational structure, mentorship, education outreach, research, stakeholder collaboration, regulatory agencies", "concept_list": ["mental modeling", "organizational structure", "mentorship", "education outreach", "research", "stakeholder collaboration", "regulatory agencies"], "type": "cluster", "node_size": 36, "label": "Project Management"}, "Bay Economics": {"concepts": "bay health, economics, gender bias, vessel traffic", "concept_list": ["bay health", "economics", "gender bias", "vessel traffic"], "type": "cluster", "node_size": 27, "label": "Bay Economics"}, "Water Pollution": {"concepts": "nutrient pollution, stormwater runoff", "concept_list": ["nutrient pollution", "stormwater runoff"], "type": "cluster", "node_size": 21, "label": "Water Pollution"}, "Oyster Ecology": {"concepts": "trophic levels, oyster health, oyster growth", "concept_list": ["trophic levels", "oyster health", "oyster growth"], "type": "cluster", "node_size": 24, "label": "Oyster Ecology"}, "Climate Action": {"concepts": "social networks, ngo collaborations, climate organization, carbon footprint, climate change", "concept_list": ["social networks", "ngo collaborations", "climate organization", "carbon footprint", "climate change"], "type": "cluster", "node_size": 30, "label": "Climate Action"}, "Bay Health Economics": {"concepts": "water quality, waterfront access, oyster farming, shellfish growth", "concept_list": ["water quality", "waterfront access", "oyster farming", "shellfish growth"], "type": "cluster", "node_size": 27, "label": "Bay Health Economics"}};
+        const conceptData = {"salinity": {"concepts": "salinity", "type": "concept", "cluster": "Salinity & Biodiversity", "node_size": 10, "label": "salinity"}, "biodiversity": {"concepts": "biodiversity", "type": "concept", "cluster": "Salinity & Biodiversity", "node_size": 10, "label": "biodiversity"}, "wind": {"concepts": "wind", "type": "concept", "cluster": "Environmental Conditions", "node_size": 10, "label": "wind"}, "temperature": {"concepts": "temperature", "type": "concept", "cluster": "Environmental Conditions", "node_size": 10, "label": "temperature"}, "environmental factors": {"concepts": "environmental factors", "type": "concept", "cluster": "Environmental Conditions", "node_size": 10, "label": "environmental factors"}, "wave activity": {"concepts": "wave activity", "type": "concept", "cluster": "Coastal Impacts", "node_size": 10, "label": "wave activity"}, "dredging": {"concepts": "dredging", "type": "concept", "cluster": "Coastal Impacts", "node_size": 10, "label": "dredging"}, "commercial business": {"concepts": "commercial business", "type": "concept", "cluster": "Business Operations", "node_size": 10, "label": "commercial business"}, "business challenges": {"concepts": "business challenges", "type": "concept", "cluster": "Business Operations", "node_size": 10, "label": "business challenges"}, "mental modeling": {"concepts": "mental modeling", "type": "concept", "cluster": "Project Management", "node_size": 10, "label": "mental modeling"}, "organizational structure": {"concepts": "organizational structure", "type": "concept", "cluster": "Project Management", "node_size": 10, "label": "organizational structure"}, "mentorship": {"concepts": "mentorship", "type": "concept", "cluster": "Project Management", "node_size": 10, "label": "mentorship"}, "education outreach": {"concepts": "education outreach", "type": "concept", "cluster": "Project Management", "node_size": 10, "label": "education outreach"}, "research": {"concepts": "research", "type": "concept", "cluster": "Project Management", "node_size": 10, "label": "research"}, "stakeholder collaboration": {"concepts": "stakeholder collaboration", "type": "concept", "cluster": "Project Management", "node_size": 10, "label": "stakeholder collaboration"}, "regulatory agencies": {"concepts": "regulatory agencies", "type": "concept", "cluster": "Project Management", "node_size": 10, "label": "regulatory agencies"}, "bay health": {"concepts": "bay health", "type": "concept", "cluster": "Bay Economics", "node_size": 10, "label": "bay health"}, "economics": {"concepts": "economics", "type": "concept", "cluster": "Bay Economics", "node_size": 10, "label": "economics"}, "gender bias": {"concepts": "gender bias", "type": "concept", "cluster": "Bay Economics", "node_size": 10, "label": "gender bias"}, "vessel traffic": {"concepts": "vessel traffic", "type": "concept", "cluster": "Bay Economics", "node_size": 10, "label": "vessel traffic"}, "nutrient pollution": {"concepts": "nutrient pollution", "type": "concept", "cluster": "Water Pollution", "node_size": 10, "label": "nutrient pollution"}, "stormwater runoff": {"concepts": "stormwater runoff", "type": "concept", "cluster": "Water Pollution", "node_size": 10, "label": "stormwater runoff"}, "trophic levels": {"concepts": "trophic levels", "type": "concept", "cluster": "Oyster Ecology", "node_size": 10, "label": "trophic levels"}, "oyster health": {"concepts": "oyster health", "type": "concept", "cluster": "Oyster Ecology", "node_size": 10, "label": "oyster health"}, "oyster growth": {"concepts": "oyster growth", "type": "concept", "cluster": "Oyster Ecology", "node_size": 10, "label": "oyster growth"}, "social networks": {"concepts": "social networks", "type": "concept", "cluster": "Climate Action", "node_size": 10, "label": "social networks"}, "ngo collaborations": {"concepts": "ngo collaborations", "type": "concept", "cluster": "Climate Action", "node_size": 10, "label": "ngo collaborations"}, "climate organization": {"concepts": "climate organization", "type": "concept", "cluster": "Climate Action", "node_size": 10, "label": "climate organization"}, "carbon footprint": {"concepts": "carbon footprint", "type": "concept", "cluster": "Climate Action", "node_size": 10, "label": "carbon footprint"}, "climate change": {"concepts": "climate change", "type": "concept", "cluster": "Climate Action", "node_size": 10, "label": "climate change"}, "water quality": {"concepts": "water quality", "type": "concept", "cluster": "Bay Health Economics", "node_size": 10, "label": "water quality"}, "waterfront access": {"concepts": "waterfront access", "type": "concept", "cluster": "Bay Health Economics", "node_size": 10, "label": "waterfront access"}, "oyster farming": {"concepts": "oyster farming", "type": "concept", "cluster": "Bay Health Economics", "node_size": 10, "label": "oyster farming"}, "shellfish growth": {"concepts": "shellfish growth", "type": "concept", "cluster": "Bay Health Economics", "node_size": 10, "label": "shellfish growth"}};
+        const interClusterEdges = [["urbanization", "Bay Health Economics", {"weight": -1.0, "confidence": 0.72, "type": "inter_cluster", "style": "solid"}], ["urbanization", "Coastal Impacts", {"weight": 1.0, "confidence": 0.6199999999999999, "type": "inter_cluster", "style": "solid"}], ["urbanization", "Business Operations", {"weight": 0.2, "confidence": 0.5700000000000001, "type": "inter_cluster", "style": "solid"}], ["urbanization", "Oyster Ecology", {"weight": -1.0, "confidence": 0.6375, "type": "inter_cluster", "style": "solid"}], ["urbanization", "Climate Action", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["urbanization", "Salinity & Biodiversity", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["Salinity & Biodiversity", "Business Operations", {"weight": 0.8, "confidence": 0.47000000000000003, "type": "inter_cluster", "style": "solid"}], ["Salinity & Biodiversity", "Bay Economics", {"weight": 0.8, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["Environmental Conditions", "Oyster Ecology", {"weight": 1.0, "confidence": 0.71, "type": "inter_cluster", "style": "solid"}], ["Environmental Conditions", "Business Operations", {"weight": 1.0, "confidence": 0.62, "type": "inter_cluster", "style": "solid"}], ["Environmental Conditions", "Bay Economics", {"weight": 1.0, "confidence": 0.5800000000000001, "type": "inter_cluster", "style": "solid"}], ["Environmental Conditions", "Salinity & Biodiversity", {"weight": 1.0, "confidence": 0.6124999999999999, "type": "inter_cluster", "style": "solid"}], ["Environmental Conditions", "Project Management", {"weight": 0.6, "confidence": 0.32999999999999996, "type": "inter_cluster", "style": "solid"}], ["Coastal Impacts", "Bay Health Economics", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Coastal Impacts", "Oyster Ecology", {"weight": -1.0, "confidence": 0.8375, "type": "inter_cluster", "style": "solid"}], ["Coastal Impacts", "Business Operations", {"weight": -1.0, "confidence": 0.7749999999999999, "type": "inter_cluster", "style": "solid"}], ["Coastal Impacts", "Environmental Conditions", {"weight": 1.0, "confidence": 0.61, "type": "inter_cluster", "style": "solid"}], ["Coastal Impacts", "urbanization", {"weight": 0.8, "confidence": 0.51, "type": "inter_cluster", "style": "solid"}], ["Business Operations", "Bay Health Economics", {"weight": 0.6, "confidence": 0.72, "type": "inter_cluster", "style": "solid"}], ["Business Operations", "Bay Economics", {"weight": 0.2, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Business Operations", "urbanization", {"weight": 0.4, "confidence": 0.47000000000000003, "type": "inter_cluster", "style": "solid"}], ["Business Operations", "Water Pollution", {"weight": -0.6, "confidence": 0.38, "type": "inter_cluster", "style": "solid"}], ["Project Management", "Bay Health Economics", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Project Management", "Oyster Ecology", {"weight": 1.0, "confidence": 0.6799999999999999, "type": "inter_cluster", "style": "solid"}], ["Project Management", "Water Pollution", {"weight": -1.0, "confidence": 0.6799999999999999, "type": "inter_cluster", "style": "solid"}], ["Project Management", "Business Operations", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Project Management", "Bay Economics", {"weight": 1.0, "confidence": 0.7166666666666668, "type": "inter_cluster", "style": "solid"}], ["Project Management", "Coastal Impacts", {"weight": -0.6, "confidence": 0.37, "type": "inter_cluster", "style": "solid"}], ["Bay Economics", "Water Pollution", {"weight": -1.0, "confidence": 0.8400000000000001, "type": "inter_cluster", "style": "solid"}], ["Bay Economics", "Salinity & Biodiversity", {"weight": 0.8, "confidence": 0.48, "type": "inter_cluster", "style": "solid"}], ["Bay Economics", "Project Management", {"weight": 0.75, "confidence": 0.5375, "type": "inter_cluster", "style": "solid"}], ["Water Pollution", "Oyster Ecology", {"weight": -1.0, "confidence": 0.8799999999999999, "type": "inter_cluster", "style": "solid"}], ["Water Pollution", "Bay Economics", {"weight": -1.0, "confidence": 0.82, "type": "inter_cluster", "style": "solid"}], ["Water Pollution", "urbanization", {"weight": 1.0, "confidence": 0.7875000000000001, "type": "inter_cluster", "style": "solid"}], ["Oyster Ecology", "Bay Health Economics", {"weight": 1.0, "confidence": 0.946, "type": "inter_cluster", "style": "solid"}], ["Oyster Ecology", "Coastal Impacts", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Oyster Ecology", "Water Pollution", {"weight": -1.0, "confidence": 0.8875, "type": "inter_cluster", "style": "solid"}], ["Oyster Ecology", "urbanization", {"weight": -1.0, "confidence": 0.6399999999999999, "type": "inter_cluster", "style": "solid"}], ["Climate Action", "Water Pollution", {"weight": -0.8, "confidence": 0.54, "type": "inter_cluster", "style": "solid"}], ["Climate Action", "Oyster Ecology", {"weight": 1.0, "confidence": 0.52, "type": "inter_cluster", "style": "solid"}], ["Climate Action", "Business Operations", {"weight": 1.0, "confidence": 0.5199999999999999, "type": "inter_cluster", "style": "solid"}], ["Climate Action", "Bay Health Economics", {"weight": 1.0, "confidence": 0.6999999999999998, "type": "inter_cluster", "style": "solid"}], ["Bay Health Economics", "Bay Economics", {"weight": 1.0, "confidence": 0.8300000000000001, "type": "inter_cluster", "style": "solid"}], ["Bay Health Economics", "Oyster Ecology", {"weight": 1.0, "confidence": 0.9575, "type": "inter_cluster", "style": "solid"}], ["Bay Health Economics", "Business Operations", {"weight": 1.0, "confidence": 0.82, "type": "inter_cluster", "style": "solid"}], ["Bay Health Economics", "Salinity & Biodiversity", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Bay Health Economics", "Project Management", {"weight": 1.0, "confidence": 0.79, "type": "inter_cluster", "style": "solid"}], ["Bay Health Economics", "Water Pollution", {"weight": -1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["Bay Health Economics", "urbanization", {"weight": -1.0, "confidence": 0.6599999999999999, "type": "inter_cluster", "style": "solid"}], ["Bay Health Economics", "Climate Action", {"weight": 1.0, "confidence": 0.7124999999999999, "type": "inter_cluster", "style": "solid"}], ["Bay Health Economics", "Environmental Conditions", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {"Salinity & Biodiversity": [["salinity", {"concepts": "salinity", "type": "concept", "cluster": "Salinity & Biodiversity", "node_size": 10, "label": "salinity"}], ["biodiversity", {"concepts": "biodiversity", "type": "concept", "cluster": "Salinity & Biodiversity", "node_size": 10, "label": "biodiversity"}]], "Environmental Conditions": [["wind", {"concepts": "wind", "type": "concept", "cluster": "Environmental Conditions", "node_size": 10, "label": "wind"}], ["temperature", {"concepts": "temperature", "type": "concept", "cluster": "Environmental Conditions", "node_size": 10, "label": "temperature"}], ["environmental factors", {"concepts": "environmental factors", "type": "concept", "cluster": "Environmental Conditions", "node_size": 10, "label": "environmental factors"}]], "Coastal Impacts": [["wave activity", {"concepts": "wave activity", "type": "concept", "cluster": "Coastal Impacts", "node_size": 10, "label": "wave activity"}], ["dredging", {"concepts": "dredging", "type": "concept", "cluster": "Coastal Impacts", "node_size": 10, "label": "dredging"}]], "Business Operations": [["commercial business", {"concepts": "commercial business", "type": "concept", "cluster": "Business Operations", "node_size": 10, "label": "commercial business"}], ["business challenges", {"concepts": "business challenges", "type": "concept", "cluster": "Business Operations", "node_size": 10, "label": "business challenges"}]], "Project Management": [["mental modeling", {"concepts": "mental modeling", "type": "concept", "cluster": "Project Management", "node_size": 10, "label": "mental modeling"}], ["organizational structure", {"concepts": "organizational structure", "type": "concept", "cluster": "Project Management", "node_size": 10, "label": "organizational structure"}], ["mentorship", {"concepts": "mentorship", "type": "concept", "cluster": "Project Management", "node_size": 10, "label": "mentorship"}], ["education outreach", {"concepts": "education outreach", "type": "concept", "cluster": "Project Management", "node_size": 10, "label": "education outreach"}], ["research", {"concepts": "research", "type": "concept", "cluster": "Project Management", "node_size": 10, "label": "research"}], ["stakeholder collaboration", {"concepts": "stakeholder collaboration", "type": "concept", "cluster": "Project Management", "node_size": 10, "label": "stakeholder collaboration"}], ["regulatory agencies", {"concepts": "regulatory agencies", "type": "concept", "cluster": "Project Management", "node_size": 10, "label": "regulatory agencies"}]], "Bay Economics": [["bay health", {"concepts": "bay health", "type": "concept", "cluster": "Bay Economics", "node_size": 10, "label": "bay health"}], ["economics", {"concepts": "economics", "type": "concept", "cluster": "Bay Economics", "node_size": 10, "label": "economics"}], ["gender bias", {"concepts": "gender bias", "type": "concept", "cluster": "Bay Economics", "node_size": 10, "label": "gender bias"}], ["vessel traffic", {"concepts": "vessel traffic", "type": "concept", "cluster": "Bay Economics", "node_size": 10, "label": "vessel traffic"}]], "Water Pollution": [["nutrient pollution", {"concepts": "nutrient pollution", "type": "concept", "cluster": "Water Pollution", "node_size": 10, "label": "nutrient pollution"}], ["stormwater runoff", {"concepts": "stormwater runoff", "type": "concept", "cluster": "Water Pollution", "node_size": 10, "label": "stormwater runoff"}]], "Oyster Ecology": [["trophic levels", {"concepts": "trophic levels", "type": "concept", "cluster": "Oyster Ecology", "node_size": 10, "label": "trophic levels"}], ["oyster health", {"concepts": "oyster health", "type": "concept", "cluster": "Oyster Ecology", "node_size": 10, "label": "oyster health"}], ["oyster growth", {"concepts": "oyster growth", "type": "concept", "cluster": "Oyster Ecology", "node_size": 10, "label": "oyster growth"}]], "Climate Action": [["social networks", {"concepts": "social networks", "type": "concept", "cluster": "Climate Action", "node_size": 10, "label": "social networks"}], ["ngo collaborations", {"concepts": "ngo collaborations", "type": "concept", "cluster": "Climate Action", "node_size": 10, "label": "ngo collaborations"}], ["climate organization", {"concepts": "climate organization", "type": "concept", "cluster": "Climate Action", "node_size": 10, "label": "climate organization"}], ["carbon footprint", {"concepts": "carbon footprint", "type": "concept", "cluster": "Climate Action", "node_size": 10, "label": "carbon footprint"}], ["climate change", {"concepts": "climate change", "type": "concept", "cluster": "Climate Action", "node_size": 10, "label": "climate change"}]], "Bay Health Economics": [["water quality", {"concepts": "water quality", "type": "concept", "cluster": "Bay Health Economics", "node_size": 10, "label": "water quality"}], ["waterfront access", {"concepts": "waterfront access", "type": "concept", "cluster": "Bay Health Economics", "node_size": 10, "label": "waterfront access"}], ["oyster farming", {"concepts": "oyster farming", "type": "concept", "cluster": "Bay Health Economics", "node_size": 10, "label": "oyster farming"}], ["shellfish growth", {"concepts": "shellfish growth", "type": "concept", "cluster": "Bay Health Economics", "node_size": 10, "label": "shellfish growth"}]]};
+        const clusterEdges = {"Salinity & Biodiversity": [], "Environmental Conditions": [], "Coastal Impacts": [], "Business Operations": [], "Project Management": [], "Bay Economics": [], "Water Pollution": [], "Oyster Ecology": [], "Climate Action": [], "Bay Health Economics": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

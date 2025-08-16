@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"Wildlife Conservation": {"concepts": "university research., university, harvard, professors, conferences", "concept_list": ["university research.", "university", "harvard", "professors", "conferences"], "type": "cluster", "node_size": 30, "label": "Wildlife Conservation"}, "Cultural Religions": {"concepts": "biodiversity, bugs, songbirds, populations, conservation, food chain, beaver structures, beaver city, beaver relocation program, hummingbirds", "concept_list": ["biodiversity", "bugs", "songbirds", "populations", "conservation", "food chain", "beaver structures", "beaver city", "beaver relocation program", "hummingbirds"], "type": "cluster", "node_size": 45, "label": "Cultural Religions"}, "Legal Governance": {"concepts": "cultures, religion, indigenous, daoist, culture, judeo, muslim, hindu, christian, cultural dependence", "concept_list": ["cultures", "religion", "indigenous", "daoist", "culture", "judeo", "muslim", "hindu", "christian", "cultural dependence"], "type": "cluster", "node_size": 45, "label": "Legal Governance"}, "U.S. Regions": {"concepts": "politics, property rights, management, legal public relations, regulatory, regulatory component, legal aspects, treaty, financial charting, ethics, resource management", "concept_list": ["politics", "property rights", "management", "legal public relations", "regulatory", "regulatory component", "legal aspects", "treaty", "financial charting", "ethics", "resource management"], "type": "cluster", "node_size": 48, "label": "U.S. Regions"}, "Academic Research": {"concepts": "washington, chesapeake, california, oregon, northern california", "concept_list": ["washington", "chesapeake", "california", "oregon", "northern california"], "type": "cluster", "node_size": 30, "label": "Academic Research"}, "Cancer Pharmaceuticals": {"concepts": "cancer, pharmaceuticals", "concept_list": ["cancer", "pharmaceuticals"], "type": "cluster", "node_size": 21, "label": "Cancer Pharmaceuticals"}, "Diverse Perspectives": {"concepts": "perspective, shade, mary, small streams, change, dominion, science, industrial laundry, metabolism rate, workshop, series, steering committee, tucker, changing environments, orca recovery, methods, poem reading, chemical energy, outreach, equestrian, connecting the dots, joe, verge data, new chemicals, fibercarbon", "concept_list": ["perspective", "shade", "mary", "small streams", "change", "dominion", "science", "industrial laundry", "metabolism rate", "workshop", "series", "steering committee", "tucker", "changing environments", "orca recovery", "methods", "poem reading", "chemical energy", "outreach", "equestrian", "connecting the dots", "joe", "verge data", "new chemicals", "fibercarbon"], "type": "cluster", "node_size": 90, "label": "Diverse Perspectives"}, "Marine Fish Habitats": {"concepts": "salmon recovery, fish mishap, water quality, fisheries, pelagic zone, marine habitat, nearshore fish habitat, estuaries, nearshore fish, marine habitats, forage fish", "concept_list": ["salmon recovery", "fish mishap", "water quality", "fisheries", "pelagic zone", "marine habitat", "nearshore fish habitat", "estuaries", "nearshore fish", "marine habitats", "forage fish"], "type": "cluster", "node_size": 48, "label": "Marine Fish Habitats"}, "Wetland Ecosystems": {"concepts": "tree and marsh interaction, shallow habitat, higher elevation forests, marsh grounds, wetlands, forestry, three-dimensional habitats, rearing ponds, waterfowl, landscape management", "concept_list": ["tree and marsh interaction", "shallow habitat", "higher elevation forests", "marsh grounds", "wetlands", "forestry", "three-dimensional habitats", "rearing ponds", "waterfowl", "landscape management"], "type": "cluster", "node_size": 45, "label": "Wetland Ecosystems"}, "Habitat Restoration": {"concepts": "habitat engineers, national fish habitat partnerships, important habitats, fish habitat partnerships, critical habitats, restoration project, species of concern, ecology, ecosystem recovery", "concept_list": ["habitat engineers", "national fish habitat partnerships", "important habitats", "fish habitat partnerships", "critical habitats", "restoration project", "species of concern", "ecology", "ecosystem recovery"], "type": "cluster", "node_size": 42, "label": "Habitat Restoration"}, "Climate Impact Ecology": {"concepts": "climate change, shifting ecosystems, indicator species, two-dimensional habitats, trophic bottleneck, natal river", "concept_list": ["climate change", "shifting ecosystems", "indicator species", "two-dimensional habitats", "trophic bottleneck", "natal river"], "type": "cluster", "node_size": 33, "label": "Climate Impact Ecology"}};
+        const conceptData = {"university research.": {"concepts": "university research.", "type": "concept", "cluster": "Wildlife Conservation", "node_size": 10, "label": "university research."}, "university": {"concepts": "university", "type": "concept", "cluster": "Wildlife Conservation", "node_size": 10, "label": "university"}, "harvard": {"concepts": "harvard", "type": "concept", "cluster": "Wildlife Conservation", "node_size": 10, "label": "harvard"}, "professors": {"concepts": "professors", "type": "concept", "cluster": "Wildlife Conservation", "node_size": 10, "label": "professors"}, "conferences": {"concepts": "conferences", "type": "concept", "cluster": "Wildlife Conservation", "node_size": 10, "label": "conferences"}, "biodiversity": {"concepts": "biodiversity", "type": "concept", "cluster": "Cultural Religions", "node_size": 10, "label": "biodiversity"}, "bugs": {"concepts": "bugs", "type": "concept", "cluster": "Cultural Religions", "node_size": 10, "label": "bugs"}, "songbirds": {"concepts": "songbirds", "type": "concept", "cluster": "Cultural Religions", "node_size": 10, "label": "songbirds"}, "populations": {"concepts": "populations", "type": "concept", "cluster": "Cultural Religions", "node_size": 10, "label": "populations"}, "conservation": {"concepts": "conservation", "type": "concept", "cluster": "Cultural Religions", "node_size": 10, "label": "conservation"}, "food chain": {"concepts": "food chain", "type": "concept", "cluster": "Cultural Religions", "node_size": 10, "label": "food chain"}, "beaver structures": {"concepts": "beaver structures", "type": "concept", "cluster": "Cultural Religions", "node_size": 10, "label": "beaver structures"}, "beaver city": {"concepts": "beaver city", "type": "concept", "cluster": "Cultural Religions", "node_size": 10, "label": "beaver city"}, "beaver relocation program": {"concepts": "beaver relocation program", "type": "concept", "cluster": "Cultural Religions", "node_size": 10, "label": "beaver relocation program"}, "hummingbirds": {"concepts": "hummingbirds", "type": "concept", "cluster": "Cultural Religions", "node_size": 10, "label": "hummingbirds"}, "cultures": {"concepts": "cultures", "type": "concept", "cluster": "Legal Governance", "node_size": 10, "label": "cultures"}, "religion": {"concepts": "religion", "type": "concept", "cluster": "Legal Governance", "node_size": 10, "label": "religion"}, "indigenous": {"concepts": "indigenous", "type": "concept", "cluster": "Legal Governance", "node_size": 10, "label": "indigenous"}, "daoist": {"concepts": "daoist", "type": "concept", "cluster": "Legal Governance", "node_size": 10, "label": "daoist"}, "culture": {"concepts": "culture", "type": "concept", "cluster": "Legal Governance", "node_size": 10, "label": "culture"}, "judeo": {"concepts": "judeo", "type": "concept", "cluster": "Legal Governance", "node_size": 10, "label": "judeo"}, "muslim": {"concepts": "muslim", "type": "concept", "cluster": "Legal Governance", "node_size": 10, "label": "muslim"}, "hindu": {"concepts": "hindu", "type": "concept", "cluster": "Legal Governance", "node_size": 10, "label": "hindu"}, "christian": {"concepts": "christian", "type": "concept", "cluster": "Legal Governance", "node_size": 10, "label": "christian"}, "cultural dependence": {"concepts": "cultural dependence", "type": "concept", "cluster": "Legal Governance", "node_size": 10, "label": "cultural dependence"}, "politics": {"concepts": "politics", "type": "concept", "cluster": "U.S. Regions", "node_size": 10, "label": "politics"}, "property rights": {"concepts": "property rights", "type": "concept", "cluster": "U.S. Regions", "node_size": 10, "label": "property rights"}, "management": {"concepts": "management", "type": "concept", "cluster": "U.S. Regions", "node_size": 10, "label": "management"}, "legal public relations": {"concepts": "legal public relations", "type": "concept", "cluster": "U.S. Regions", "node_size": 10, "label": "legal public relations"}, "regulatory": {"concepts": "regulatory", "type": "concept", "cluster": "U.S. Regions", "node_size": 10, "label": "regulatory"}, "regulatory component": {"concepts": "regulatory component", "type": "concept", "cluster": "U.S. Regions", "node_size": 10, "label": "regulatory component"}, "legal aspects": {"concepts": "legal aspects", "type": "concept", "cluster": "U.S. Regions", "node_size": 10, "label": "legal aspects"}, "treaty": {"concepts": "treaty", "type": "concept", "cluster": "U.S. Regions", "node_size": 10, "label": "treaty"}, "financial charting": {"concepts": "financial charting", "type": "concept", "cluster": "U.S. Regions", "node_size": 10, "label": "financial charting"}, "ethics": {"concepts": "ethics", "type": "concept", "cluster": "U.S. Regions", "node_size": 10, "label": "ethics"}, "resource management": {"concepts": "resource management", "type": "concept", "cluster": "U.S. Regions", "node_size": 10, "label": "resource management"}, "washington": {"concepts": "washington", "type": "concept", "cluster": "Academic Research", "node_size": 10, "label": "washington"}, "chesapeake": {"concepts": "chesapeake", "type": "concept", "cluster": "Academic Research", "node_size": 10, "label": "chesapeake"}, "california": {"concepts": "california", "type": "concept", "cluster": "Academic Research", "node_size": 10, "label": "california"}, "oregon": {"concepts": "oregon", "type": "concept", "cluster": "Academic Research", "node_size": 10, "label": "oregon"}, "northern california": {"concepts": "northern california", "type": "concept", "cluster": "Academic Research", "node_size": 10, "label": "northern california"}, "cancer": {"concepts": "cancer", "type": "concept", "cluster": "Cancer Pharmaceuticals", "node_size": 10, "label": "cancer"}, "pharmaceuticals": {"concepts": "pharmaceuticals", "type": "concept", "cluster": "Cancer Pharmaceuticals", "node_size": 10, "label": "pharmaceuticals"}, "perspective": {"concepts": "perspective", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "perspective"}, "shade": {"concepts": "shade", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "shade"}, "mary": {"concepts": "mary", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "mary"}, "small streams": {"concepts": "small streams", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "small streams"}, "change": {"concepts": "change", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "change"}, "dominion": {"concepts": "dominion", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "dominion"}, "science": {"concepts": "science", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "science"}, "industrial laundry": {"concepts": "industrial laundry", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "industrial laundry"}, "metabolism rate": {"concepts": "metabolism rate", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "metabolism rate"}, "workshop": {"concepts": "workshop", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "workshop"}, "series": {"concepts": "series", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "series"}, "steering committee": {"concepts": "steering committee", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "steering committee"}, "tucker": {"concepts": "tucker", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "tucker"}, "changing environments": {"concepts": "changing environments", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "changing environments"}, "orca recovery": {"concepts": "orca recovery", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "orca recovery"}, "methods": {"concepts": "methods", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "methods"}, "poem reading": {"concepts": "poem reading", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "poem reading"}, "chemical energy": {"concepts": "chemical energy", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "chemical energy"}, "outreach": {"concepts": "outreach", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "outreach"}, "equestrian": {"concepts": "equestrian", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "equestrian"}, "connecting the dots": {"concepts": "connecting the dots", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "connecting the dots"}, "joe": {"concepts": "joe", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "joe"}, "verge data": {"concepts": "verge data", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "verge data"}, "new chemicals": {"concepts": "new chemicals", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "new chemicals"}, "fibercarbon": {"concepts": "fibercarbon", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "fibercarbon"}, "salmon recovery": {"concepts": "salmon recovery", "type": "concept", "cluster": "Marine Fish Habitats", "node_size": 10, "label": "salmon recovery"}, "fish mishap": {"concepts": "fish mishap", "type": "concept", "cluster": "Marine Fish Habitats", "node_size": 10, "label": "fish mishap"}, "water quality": {"concepts": "water quality", "type": "concept", "cluster": "Marine Fish Habitats", "node_size": 10, "label": "water quality"}, "fisheries": {"concepts": "fisheries", "type": "concept", "cluster": "Marine Fish Habitats", "node_size": 10, "label": "fisheries"}, "pelagic zone": {"concepts": "pelagic zone", "type": "concept", "cluster": "Marine Fish Habitats", "node_size": 10, "label": "pelagic zone"}, "marine habitat": {"concepts": "marine habitat", "type": "concept", "cluster": "Marine Fish Habitats", "node_size": 10, "label": "marine habitat"}, "nearshore fish habitat": {"concepts": "nearshore fish habitat", "type": "concept", "cluster": "Marine Fish Habitats", "node_size": 10, "label": "nearshore fish habitat"}, "estuaries": {"concepts": "estuaries", "type": "concept", "cluster": "Marine Fish Habitats", "node_size": 10, "label": "estuaries"}, "nearshore fish": {"concepts": "nearshore fish", "type": "concept", "cluster": "Marine Fish Habitats", "node_size": 10, "label": "nearshore fish"}, "marine habitats": {"concepts": "marine habitats", "type": "concept", "cluster": "Marine Fish Habitats", "node_size": 10, "label": "marine habitats"}, "forage fish": {"concepts": "forage fish", "type": "concept", "cluster": "Marine Fish Habitats", "node_size": 10, "label": "forage fish"}, "tree and marsh interaction": {"concepts": "tree and marsh interaction", "type": "concept", "cluster": "Wetland Ecosystems", "node_size": 10, "label": "tree and marsh interaction"}, "shallow habitat": {"concepts": "shallow habitat", "type": "concept", "cluster": "Wetland Ecosystems", "node_size": 10, "label": "shallow habitat"}, "higher elevation forests": {"concepts": "higher elevation forests", "type": "concept", "cluster": "Wetland Ecosystems", "node_size": 10, "label": "higher elevation forests"}, "marsh grounds": {"concepts": "marsh grounds", "type": "concept", "cluster": "Wetland Ecosystems", "node_size": 10, "label": "marsh grounds"}, "wetlands": {"concepts": "wetlands", "type": "concept", "cluster": "Wetland Ecosystems", "node_size": 10, "label": "wetlands"}, "forestry": {"concepts": "forestry", "type": "concept", "cluster": "Wetland Ecosystems", "node_size": 10, "label": "forestry"}, "three-dimensional habitats": {"concepts": "three-dimensional habitats", "type": "concept", "cluster": "Wetland Ecosystems", "node_size": 10, "label": "three-dimensional habitats"}, "rearing ponds": {"concepts": "rearing ponds", "type": "concept", "cluster": "Wetland Ecosystems", "node_size": 10, "label": "rearing ponds"}, "waterfowl": {"concepts": "waterfowl", "type": "concept", "cluster": "Wetland Ecosystems", "node_size": 10, "label": "waterfowl"}, "landscape management": {"concepts": "landscape management", "type": "concept", "cluster": "Wetland Ecosystems", "node_size": 10, "label": "landscape management"}, "habitat engineers": {"concepts": "habitat engineers", "type": "concept", "cluster": "Habitat Restoration", "node_size": 10, "label": "habitat engineers"}, "national fish habitat partnerships": {"concepts": "national fish habitat partnerships", "type": "concept", "cluster": "Habitat Restoration", "node_size": 10, "label": "national fish habitat partnerships"}, "important habitats": {"concepts": "important habitats", "type": "concept", "cluster": "Habitat Restoration", "node_size": 10, "label": "important habitats"}, "fish habitat partnerships": {"concepts": "fish habitat partnerships", "type": "concept", "cluster": "Habitat Restoration", "node_size": 10, "label": "fish habitat partnerships"}, "critical habitats": {"concepts": "critical habitats", "type": "concept", "cluster": "Habitat Restoration", "node_size": 10, "label": "critical habitats"}, "restoration project": {"concepts": "restoration project", "type": "concept", "cluster": "Habitat Restoration", "node_size": 10, "label": "restoration project"}, "species of concern": {"concepts": "species of concern", "type": "concept", "cluster": "Habitat Restoration", "node_size": 10, "label": "species of concern"}, "ecology": {"concepts": "ecology", "type": "concept", "cluster": "Habitat Restoration", "node_size": 10, "label": "ecology"}, "ecosystem recovery": {"concepts": "ecosystem recovery", "type": "concept", "cluster": "Habitat Restoration", "node_size": 10, "label": "ecosystem recovery"}, "climate change": {"concepts": "climate change", "type": "concept", "cluster": "Climate Impact Ecology", "node_size": 10, "label": "climate change"}, "shifting ecosystems": {"concepts": "shifting ecosystems", "type": "concept", "cluster": "Climate Impact Ecology", "node_size": 10, "label": "shifting ecosystems"}, "indicator species": {"concepts": "indicator species", "type": "concept", "cluster": "Climate Impact Ecology", "node_size": 10, "label": "indicator species"}, "two-dimensional habitats": {"concepts": "two-dimensional habitats", "type": "concept", "cluster": "Climate Impact Ecology", "node_size": 10, "label": "two-dimensional habitats"}, "trophic bottleneck": {"concepts": "trophic bottleneck", "type": "concept", "cluster": "Climate Impact Ecology", "node_size": 10, "label": "trophic bottleneck"}, "natal river": {"concepts": "natal river", "type": "concept", "cluster": "Climate Impact Ecology", "node_size": 10, "label": "natal river"}};
+        const interClusterEdges = [["Wildlife Conservation", "Wetland Ecosystems", {"weight": 0.8, "confidence": 0.5900000000000001, "type": "inter_cluster", "style": "solid"}], ["Wildlife Conservation", "Habitat Restoration", {"weight": 0.4, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["Wildlife Conservation", "Academic Research", {"weight": 0.2, "confidence": 0.41999999999999993, "type": "inter_cluster", "style": "solid"}], ["Wildlife Conservation", "U.S. Regions", {"weight": 0.5, "confidence": 0.36250000000000004, "type": "inter_cluster", "style": "solid"}], ["Cultural Religions", "Habitat Restoration", {"weight": 0.4, "confidence": 0.61, "type": "inter_cluster", "style": "solid"}], ["Cultural Religions", "Cancer Pharmaceuticals", {"weight": 1.0, "confidence": 0.6666666666666666, "type": "inter_cluster", "style": "solid"}], ["Cultural Religions", "Marine Fish Habitats", {"weight": 0.6, "confidence": 0.45, "type": "inter_cluster", "style": "solid"}], ["Cultural Religions", "U.S. Regions", {"weight": 0.5, "confidence": 0.375, "type": "inter_cluster", "style": "solid"}], ["Cultural Religions", "Wetland Ecosystems", {"weight": 0.3333333333333333, "confidence": 0.19999999999999998, "type": "inter_cluster", "style": "solid"}], ["Cultural Religions", "Climate Impact Ecology", {"weight": -0.3333333333333333, "confidence": 0.18333333333333335, "type": "inter_cluster", "style": "solid"}], ["Legal Governance", "Diverse Perspectives", {"weight": 0.4, "confidence": 0.51, "type": "inter_cluster", "style": "solid"}], ["Legal Governance", "Cultural Religions", {"weight": 0.6, "confidence": 0.44000000000000006, "type": "inter_cluster", "style": "solid"}], ["Legal Governance", "U.S. Regions", {"weight": 0.6, "confidence": 0.36, "type": "inter_cluster", "style": "solid"}], ["Legal Governance", "Cancer Pharmaceuticals", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["U.S. Regions", "Wetland Ecosystems", {"weight": 0.25, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["U.S. Regions", "Cancer Pharmaceuticals", {"weight": -0.4, "confidence": 0.25, "type": "inter_cluster", "style": "solid"}], ["Academic Research", "Marine Fish Habitats", {"weight": 0.4, "confidence": 0.6100000000000001, "type": "inter_cluster", "style": "solid"}], ["Academic Research", "U.S. Regions", {"weight": 0.6, "confidence": 0.45999999999999996, "type": "inter_cluster", "style": "solid"}], ["Academic Research", "Cultural Religions", {"weight": 0.6, "confidence": 0.42000000000000004, "type": "inter_cluster", "style": "solid"}], ["Academic Research", "Legal Governance", {"weight": 0.6666666666666666, "confidence": 0.43333333333333335, "type": "inter_cluster", "style": "solid"}], ["Academic Research", "Diverse Perspectives", {"weight": -0.3333333333333333, "confidence": 0.16666666666666666, "type": "inter_cluster", "style": "solid"}], ["Cancer Pharmaceuticals", "Wetland Ecosystems", {"weight": -0.6, "confidence": 0.44000000000000006, "type": "inter_cluster", "style": "solid"}], ["Cancer Pharmaceuticals", "Legal Governance", {"weight": 0.6666666666666666, "confidence": 0.4666666666666666, "type": "inter_cluster", "style": "solid"}], ["Cancer Pharmaceuticals", "Wildlife Conservation", {"weight": 0.4, "confidence": 0.27, "type": "inter_cluster", "style": "solid"}], ["Cancer Pharmaceuticals", "Cultural Religions", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Diverse Perspectives", "Legal Governance", {"weight": 0.8, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["Diverse Perspectives", "Wildlife Conservation", {"weight": 0.6, "confidence": 0.43, "type": "inter_cluster", "style": "solid"}], ["Marine Fish Habitats", "Cancer Pharmaceuticals", {"weight": -0.4, "confidence": 0.27, "type": "inter_cluster", "style": "solid"}], ["Marine Fish Habitats", "Cultural Religions", {"weight": 0.3333333333333333, "confidence": 0.18333333333333335, "type": "inter_cluster", "style": "solid"}], ["Wetland Ecosystems", "Wildlife Conservation", {"weight": 0.4, "confidence": 0.54, "type": "inter_cluster", "style": "solid"}], ["Wetland Ecosystems", "Habitat Restoration", {"weight": 0.6, "confidence": 0.47000000000000003, "type": "inter_cluster", "style": "solid"}], ["Wetland Ecosystems", "Cultural Religions", {"weight": 0.6, "confidence": 0.4699999999999999, "type": "inter_cluster", "style": "solid"}], ["Wetland Ecosystems", "Academic Research", {"weight": 0.6, "confidence": 0.41999999999999993, "type": "inter_cluster", "style": "solid"}], ["Habitat Restoration", "U.S. Regions", {"weight": 0.8, "confidence": 0.61, "type": "inter_cluster", "style": "solid"}], ["Habitat Restoration", "Climate Impact Ecology", {"weight": 0.8, "confidence": 0.5599999999999999, "type": "inter_cluster", "style": "solid"}], ["Habitat Restoration", "Legal Governance", {"weight": 0.6, "confidence": 0.45, "type": "inter_cluster", "style": "solid"}], ["Climate Impact Ecology", "Cultural Religions", {"weight": -0.4, "confidence": 0.61, "type": "inter_cluster", "style": "solid"}], ["Climate Impact Ecology", "Habitat Restoration", {"weight": 0.25, "confidence": 0.5625, "type": "inter_cluster", "style": "solid"}], ["Climate Impact Ecology", "Wetland Ecosystems", {"weight": -0.2, "confidence": 0.45999999999999996, "type": "inter_cluster", "style": "solid"}], ["Climate Impact Ecology", "Legal Governance", {"weight": -0.2, "confidence": 0.39, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {"Wildlife Conservation": [["university research.", {"concepts": "university research.", "type": "concept", "cluster": "Wildlife Conservation", "node_size": 10, "label": "university research."}], ["university", {"concepts": "university", "type": "concept", "cluster": "Wildlife Conservation", "node_size": 10, "label": "university"}], ["harvard", {"concepts": "harvard", "type": "concept", "cluster": "Wildlife Conservation", "node_size": 10, "label": "harvard"}], ["professors", {"concepts": "professors", "type": "concept", "cluster": "Wildlife Conservation", "node_size": 10, "label": "professors"}], ["conferences", {"concepts": "conferences", "type": "concept", "cluster": "Wildlife Conservation", "node_size": 10, "label": "conferences"}]], "Cultural Religions": [["biodiversity", {"concepts": "biodiversity", "type": "concept", "cluster": "Cultural Religions", "node_size": 10, "label": "biodiversity"}], ["bugs", {"concepts": "bugs", "type": "concept", "cluster": "Cultural Religions", "node_size": 10, "label": "bugs"}], ["songbirds", {"concepts": "songbirds", "type": "concept", "cluster": "Cultural Religions", "node_size": 10, "label": "songbirds"}], ["populations", {"concepts": "populations", "type": "concept", "cluster": "Cultural Religions", "node_size": 10, "label": "populations"}], ["conservation", {"concepts": "conservation", "type": "concept", "cluster": "Cultural Religions", "node_size": 10, "label": "conservation"}], ["food chain", {"concepts": "food chain", "type": "concept", "cluster": "Cultural Religions", "node_size": 10, "label": "food chain"}], ["beaver structures", {"concepts": "beaver structures", "type": "concept", "cluster": "Cultural Religions", "node_size": 10, "label": "beaver structures"}], ["beaver city", {"concepts": "beaver city", "type": "concept", "cluster": "Cultural Religions", "node_size": 10, "label": "beaver city"}], ["beaver relocation program", {"concepts": "beaver relocation program", "type": "concept", "cluster": "Cultural Religions", "node_size": 10, "label": "beaver relocation program"}], ["hummingbirds", {"concepts": "hummingbirds", "type": "concept", "cluster": "Cultural Religions", "node_size": 10, "label": "hummingbirds"}]], "Legal Governance": [["cultures", {"concepts": "cultures", "type": "concept", "cluster": "Legal Governance", "node_size": 10, "label": "cultures"}], ["religion", {"concepts": "religion", "type": "concept", "cluster": "Legal Governance", "node_size": 10, "label": "religion"}], ["indigenous", {"concepts": "indigenous", "type": "concept", "cluster": "Legal Governance", "node_size": 10, "label": "indigenous"}], ["daoist", {"concepts": "daoist", "type": "concept", "cluster": "Legal Governance", "node_size": 10, "label": "daoist"}], ["culture", {"concepts": "culture", "type": "concept", "cluster": "Legal Governance", "node_size": 10, "label": "culture"}], ["judeo", {"concepts": "judeo", "type": "concept", "cluster": "Legal Governance", "node_size": 10, "label": "judeo"}], ["muslim", {"concepts": "muslim", "type": "concept", "cluster": "Legal Governance", "node_size": 10, "label": "muslim"}], ["hindu", {"concepts": "hindu", "type": "concept", "cluster": "Legal Governance", "node_size": 10, "label": "hindu"}], ["christian", {"concepts": "christian", "type": "concept", "cluster": "Legal Governance", "node_size": 10, "label": "christian"}], ["cultural dependence", {"concepts": "cultural dependence", "type": "concept", "cluster": "Legal Governance", "node_size": 10, "label": "cultural dependence"}]], "U.S. Regions": [["politics", {"concepts": "politics", "type": "concept", "cluster": "U.S. Regions", "node_size": 10, "label": "politics"}], ["property rights", {"concepts": "property rights", "type": "concept", "cluster": "U.S. Regions", "node_size": 10, "label": "property rights"}], ["management", {"concepts": "management", "type": "concept", "cluster": "U.S. Regions", "node_size": 10, "label": "management"}], ["legal public relations", {"concepts": "legal public relations", "type": "concept", "cluster": "U.S. Regions", "node_size": 10, "label": "legal public relations"}], ["regulatory", {"concepts": "regulatory", "type": "concept", "cluster": "U.S. Regions", "node_size": 10, "label": "regulatory"}], ["regulatory component", {"concepts": "regulatory component", "type": "concept", "cluster": "U.S. Regions", "node_size": 10, "label": "regulatory component"}], ["legal aspects", {"concepts": "legal aspects", "type": "concept", "cluster": "U.S. Regions", "node_size": 10, "label": "legal aspects"}], ["treaty", {"concepts": "treaty", "type": "concept", "cluster": "U.S. Regions", "node_size": 10, "label": "treaty"}], ["financial charting", {"concepts": "financial charting", "type": "concept", "cluster": "U.S. Regions", "node_size": 10, "label": "financial charting"}], ["ethics", {"concepts": "ethics", "type": "concept", "cluster": "U.S. Regions", "node_size": 10, "label": "ethics"}], ["resource management", {"concepts": "resource management", "type": "concept", "cluster": "U.S. Regions", "node_size": 10, "label": "resource management"}]], "Academic Research": [["washington", {"concepts": "washington", "type": "concept", "cluster": "Academic Research", "node_size": 10, "label": "washington"}], ["chesapeake", {"concepts": "chesapeake", "type": "concept", "cluster": "Academic Research", "node_size": 10, "label": "chesapeake"}], ["california", {"concepts": "california", "type": "concept", "cluster": "Academic Research", "node_size": 10, "label": "california"}], ["oregon", {"concepts": "oregon", "type": "concept", "cluster": "Academic Research", "node_size": 10, "label": "oregon"}], ["northern california", {"concepts": "northern california", "type": "concept", "cluster": "Academic Research", "node_size": 10, "label": "northern california"}]], "Cancer Pharmaceuticals": [["cancer", {"concepts": "cancer", "type": "concept", "cluster": "Cancer Pharmaceuticals", "node_size": 10, "label": "cancer"}], ["pharmaceuticals", {"concepts": "pharmaceuticals", "type": "concept", "cluster": "Cancer Pharmaceuticals", "node_size": 10, "label": "pharmaceuticals"}]], "Diverse Perspectives": [["perspective", {"concepts": "perspective", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "perspective"}], ["shade", {"concepts": "shade", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "shade"}], ["mary", {"concepts": "mary", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "mary"}], ["small streams", {"concepts": "small streams", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "small streams"}], ["change", {"concepts": "change", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "change"}], ["dominion", {"concepts": "dominion", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "dominion"}], ["science", {"concepts": "science", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "science"}], ["industrial laundry", {"concepts": "industrial laundry", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "industrial laundry"}], ["metabolism rate", {"concepts": "metabolism rate", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "metabolism rate"}], ["workshop", {"concepts": "workshop", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "workshop"}], ["series", {"concepts": "series", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "series"}], ["steering committee", {"concepts": "steering committee", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "steering committee"}], ["tucker", {"concepts": "tucker", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "tucker"}], ["changing environments", {"concepts": "changing environments", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "changing environments"}], ["orca recovery", {"concepts": "orca recovery", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "orca recovery"}], ["methods", {"concepts": "methods", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "methods"}], ["poem reading", {"concepts": "poem reading", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "poem reading"}], ["chemical energy", {"concepts": "chemical energy", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "chemical energy"}], ["outreach", {"concepts": "outreach", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "outreach"}], ["equestrian", {"concepts": "equestrian", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "equestrian"}], ["connecting the dots", {"concepts": "connecting the dots", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "connecting the dots"}], ["joe", {"concepts": "joe", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "joe"}], ["verge data", {"concepts": "verge data", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "verge data"}], ["new chemicals", {"concepts": "new chemicals", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "new chemicals"}], ["fibercarbon", {"concepts": "fibercarbon", "type": "concept", "cluster": "Diverse Perspectives", "node_size": 10, "label": "fibercarbon"}]], "Marine Fish Habitats": [["salmon recovery", {"concepts": "salmon recovery", "type": "concept", "cluster": "Marine Fish Habitats", "node_size": 10, "label": "salmon recovery"}], ["fish mishap", {"concepts": "fish mishap", "type": "concept", "cluster": "Marine Fish Habitats", "node_size": 10, "label": "fish mishap"}], ["water quality", {"concepts": "water quality", "type": "concept", "cluster": "Marine Fish Habitats", "node_size": 10, "label": "water quality"}], ["fisheries", {"concepts": "fisheries", "type": "concept", "cluster": "Marine Fish Habitats", "node_size": 10, "label": "fisheries"}], ["pelagic zone", {"concepts": "pelagic zone", "type": "concept", "cluster": "Marine Fish Habitats", "node_size": 10, "label": "pelagic zone"}], ["marine habitat", {"concepts": "marine habitat", "type": "concept", "cluster": "Marine Fish Habitats", "node_size": 10, "label": "marine habitat"}], ["nearshore fish habitat", {"concepts": "nearshore fish habitat", "type": "concept", "cluster": "Marine Fish Habitats", "node_size": 10, "label": "nearshore fish habitat"}], ["estuaries", {"concepts": "estuaries", "type": "concept", "cluster": "Marine Fish Habitats", "node_size": 10, "label": "estuaries"}], ["nearshore fish", {"concepts": "nearshore fish", "type": "concept", "cluster": "Marine Fish Habitats", "node_size": 10, "label": "nearshore fish"}], ["marine habitats", {"concepts": "marine habitats", "type": "concept", "cluster": "Marine Fish Habitats", "node_size": 10, "label": "marine habitats"}], ["forage fish", {"concepts": "forage fish", "type": "concept", "cluster": "Marine Fish Habitats", "node_size": 10, "label": "forage fish"}]], "Wetland Ecosystems": [["tree and marsh interaction", {"concepts": "tree and marsh interaction", "type": "concept", "cluster": "Wetland Ecosystems", "node_size": 10, "label": "tree and marsh interaction"}], ["shallow habitat", {"concepts": "shallow habitat", "type": "concept", "cluster": "Wetland Ecosystems", "node_size": 10, "label": "shallow habitat"}], ["higher elevation forests", {"concepts": "higher elevation forests", "type": "concept", "cluster": "Wetland Ecosystems", "node_size": 10, "label": "higher elevation forests"}], ["marsh grounds", {"concepts": "marsh grounds", "type": "concept", "cluster": "Wetland Ecosystems", "node_size": 10, "label": "marsh grounds"}], ["wetlands", {"concepts": "wetlands", "type": "concept", "cluster": "Wetland Ecosystems", "node_size": 10, "label": "wetlands"}], ["forestry", {"concepts": "forestry", "type": "concept", "cluster": "Wetland Ecosystems", "node_size": 10, "label": "forestry"}], ["three-dimensional habitats", {"concepts": "three-dimensional habitats", "type": "concept", "cluster": "Wetland Ecosystems", "node_size": 10, "label": "three-dimensional habitats"}], ["rearing ponds", {"concepts": "rearing ponds", "type": "concept", "cluster": "Wetland Ecosystems", "node_size": 10, "label": "rearing ponds"}], ["waterfowl", {"concepts": "waterfowl", "type": "concept", "cluster": "Wetland Ecosystems", "node_size": 10, "label": "waterfowl"}], ["landscape management", {"concepts": "landscape management", "type": "concept", "cluster": "Wetland Ecosystems", "node_size": 10, "label": "landscape management"}]], "Habitat Restoration": [["habitat engineers", {"concepts": "habitat engineers", "type": "concept", "cluster": "Habitat Restoration", "node_size": 10, "label": "habitat engineers"}], ["national fish habitat partnerships", {"concepts": "national fish habitat partnerships", "type": "concept", "cluster": "Habitat Restoration", "node_size": 10, "label": "national fish habitat partnerships"}], ["important habitats", {"concepts": "important habitats", "type": "concept", "cluster": "Habitat Restoration", "node_size": 10, "label": "important habitats"}], ["fish habitat partnerships", {"concepts": "fish habitat partnerships", "type": "concept", "cluster": "Habitat Restoration", "node_size": 10, "label": "fish habitat partnerships"}], ["critical habitats", {"concepts": "critical habitats", "type": "concept", "cluster": "Habitat Restoration", "node_size": 10, "label": "critical habitats"}], ["restoration project", {"concepts": "restoration project", "type": "concept", "cluster": "Habitat Restoration", "node_size": 10, "label": "restoration project"}], ["species of concern", {"concepts": "species of concern", "type": "concept", "cluster": "Habitat Restoration", "node_size": 10, "label": "species of concern"}], ["ecology", {"concepts": "ecology", "type": "concept", "cluster": "Habitat Restoration", "node_size": 10, "label": "ecology"}], ["ecosystem recovery", {"concepts": "ecosystem recovery", "type": "concept", "cluster": "Habitat Restoration", "node_size": 10, "label": "ecosystem recovery"}]], "Climate Impact Ecology": [["climate change", {"concepts": "climate change", "type": "concept", "cluster": "Climate Impact Ecology", "node_size": 10, "label": "climate change"}], ["shifting ecosystems", {"concepts": "shifting ecosystems", "type": "concept", "cluster": "Climate Impact Ecology", "node_size": 10, "label": "shifting ecosystems"}], ["indicator species", {"concepts": "indicator species", "type": "concept", "cluster": "Climate Impact Ecology", "node_size": 10, "label": "indicator species"}], ["two-dimensional habitats", {"concepts": "two-dimensional habitats", "type": "concept", "cluster": "Climate Impact Ecology", "node_size": 10, "label": "two-dimensional habitats"}], ["trophic bottleneck", {"concepts": "trophic bottleneck", "type": "concept", "cluster": "Climate Impact Ecology", "node_size": 10, "label": "trophic bottleneck"}], ["natal river", {"concepts": "natal river", "type": "concept", "cluster": "Climate Impact Ecology", "node_size": 10, "label": "natal river"}]]};
+        const clusterEdges = {"Wildlife Conservation": [], "Cultural Religions": [], "Legal Governance": [], "U.S. Regions": [], "Academic Research": [], "Cancer Pharmaceuticals": [], "Diverse Perspectives": [], "Marine Fish Habitats": [], "Wetland Ecosystems": [], "Habitat Restoration": [], "Climate Impact Ecology": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

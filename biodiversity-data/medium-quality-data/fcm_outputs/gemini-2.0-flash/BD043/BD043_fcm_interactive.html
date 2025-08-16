@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"shoreline archetypes": {"concepts": "shoreline archetypes", "concept_list": ["shoreline archetypes"], "type": "cluster", "node_size": 18, "label": "shoreline archetypes"}, "Management & Policy": {"concepts": "species, food web, native species, invasive species, harmful organisms, food web species, animal diversity, biodiversity, species conservation, plant diversity, habitat forming species, diversity", "concept_list": ["species", "food web", "native species", "invasive species", "harmful organisms", "food web species", "animal diversity", "biodiversity", "species conservation", "plant diversity", "habitat forming species", "diversity"], "type": "cluster", "node_size": 51, "label": "Management & Policy"}, "Stakeholder Engagement": {"concepts": "management approaches, project planning, political dynamics, regulations, implementation guidelines, management decisions, permitting hurdles, mandates, advisory council, management, policies", "concept_list": ["management approaches", "project planning", "political dynamics", "regulations", "implementation guidelines", "management decisions", "permitting hurdles", "mandates", "advisory council", "management", "policies"], "type": "cluster", "node_size": 48, "label": "Stakeholder Engagement"}, "Habitat & Engineering": {"concepts": "tourists, watermen, tourism, businesses, stakeholders, resident scale, interested, join, workshop invitation, dates, second day, half day", "concept_list": ["tourists", "watermen", "tourism", "businesses", "stakeholders", "resident scale", "interested", "join", "workshop invitation", "dates", "second day", "half day"], "type": "cluster", "node_size": 51, "label": "Habitat & Engineering"}, "Diversity Education": {"concepts": "engineering components, flooding, co-benefits, conservation concern, system dynamics, habitat creation, adaptive changes, habitat, negative impact, environmental benefits, key stressors, engineering perspective, carbon storage, ecosystem services, mangroves, historic preservation, bulkheads", "concept_list": ["engineering components", "flooding", "co-benefits", "conservation concern", "system dynamics", "habitat creation", "adaptive changes", "habitat", "negative impact", "environmental benefits", "key stressors", "engineering perspective", "carbon storage", "ecosystem services", "mangroves", "historic preservation", "bulkheads"], "type": "cluster", "node_size": 66, "label": "Diversity Education"}, "Species and Diversity": {"concepts": "species diversity framework, teach", "concept_list": ["species diversity framework", "teach"], "type": "cluster", "node_size": 21, "label": "Species and Diversity"}, "Waterfront Climate Risks": {"concepts": "waterfront residents, waterfront homeowners, sea level rise, shoreline erosion, climate change", "concept_list": ["waterfront residents", "waterfront homeowners", "sea level rise", "shoreline erosion", "climate change"], "type": "cluster", "node_size": 30, "label": "Waterfront Climate Risks"}, "Coastal Protection Methods": {"concepts": "seawall, seawalls, living shorelines, oyster reef, living shorelines act", "concept_list": ["seawall", "seawalls", "living shorelines", "oyster reef", "living shorelines act"], "type": "cluster", "node_size": 30, "label": "Coastal Protection Methods"}, "Oyster & Water": {"concepts": "oyster farms, water quality, marine resource management", "concept_list": ["oyster farms", "water quality", "marine resource management"], "type": "cluster", "node_size": 24, "label": "Oyster & Water"}};
+        const conceptData = {"species": {"concepts": "species", "type": "concept", "cluster": "Management & Policy", "node_size": 10, "label": "species"}, "food web": {"concepts": "food web", "type": "concept", "cluster": "Management & Policy", "node_size": 10, "label": "food web"}, "native species": {"concepts": "native species", "type": "concept", "cluster": "Management & Policy", "node_size": 10, "label": "native species"}, "invasive species": {"concepts": "invasive species", "type": "concept", "cluster": "Management & Policy", "node_size": 10, "label": "invasive species"}, "harmful organisms": {"concepts": "harmful organisms", "type": "concept", "cluster": "Management & Policy", "node_size": 10, "label": "harmful organisms"}, "food web species": {"concepts": "food web species", "type": "concept", "cluster": "Management & Policy", "node_size": 10, "label": "food web species"}, "animal diversity": {"concepts": "animal diversity", "type": "concept", "cluster": "Management & Policy", "node_size": 10, "label": "animal diversity"}, "biodiversity": {"concepts": "biodiversity", "type": "concept", "cluster": "Management & Policy", "node_size": 10, "label": "biodiversity"}, "species conservation": {"concepts": "species conservation", "type": "concept", "cluster": "Management & Policy", "node_size": 10, "label": "species conservation"}, "plant diversity": {"concepts": "plant diversity", "type": "concept", "cluster": "Management & Policy", "node_size": 10, "label": "plant diversity"}, "habitat forming species": {"concepts": "habitat forming species", "type": "concept", "cluster": "Management & Policy", "node_size": 10, "label": "habitat forming species"}, "diversity": {"concepts": "diversity", "type": "concept", "cluster": "Management & Policy", "node_size": 10, "label": "diversity"}, "management approaches": {"concepts": "management approaches", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "management approaches"}, "project planning": {"concepts": "project planning", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "project planning"}, "political dynamics": {"concepts": "political dynamics", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "political dynamics"}, "regulations": {"concepts": "regulations", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "regulations"}, "implementation guidelines": {"concepts": "implementation guidelines", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "implementation guidelines"}, "management decisions": {"concepts": "management decisions", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "management decisions"}, "permitting hurdles": {"concepts": "permitting hurdles", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "permitting hurdles"}, "mandates": {"concepts": "mandates", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "mandates"}, "advisory council": {"concepts": "advisory council", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "advisory council"}, "management": {"concepts": "management", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "management"}, "policies": {"concepts": "policies", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "policies"}, "tourists": {"concepts": "tourists", "type": "concept", "cluster": "Habitat & Engineering", "node_size": 10, "label": "tourists"}, "watermen": {"concepts": "watermen", "type": "concept", "cluster": "Habitat & Engineering", "node_size": 10, "label": "watermen"}, "tourism": {"concepts": "tourism", "type": "concept", "cluster": "Habitat & Engineering", "node_size": 10, "label": "tourism"}, "businesses": {"concepts": "businesses", "type": "concept", "cluster": "Habitat & Engineering", "node_size": 10, "label": "businesses"}, "stakeholders": {"concepts": "stakeholders", "type": "concept", "cluster": "Habitat & Engineering", "node_size": 10, "label": "stakeholders"}, "resident scale": {"concepts": "resident scale", "type": "concept", "cluster": "Habitat & Engineering", "node_size": 10, "label": "resident scale"}, "interested": {"concepts": "interested", "type": "concept", "cluster": "Habitat & Engineering", "node_size": 10, "label": "interested"}, "join": {"concepts": "join", "type": "concept", "cluster": "Habitat & Engineering", "node_size": 10, "label": "join"}, "workshop invitation": {"concepts": "workshop invitation", "type": "concept", "cluster": "Habitat & Engineering", "node_size": 10, "label": "workshop invitation"}, "dates": {"concepts": "dates", "type": "concept", "cluster": "Habitat & Engineering", "node_size": 10, "label": "dates"}, "second day": {"concepts": "second day", "type": "concept", "cluster": "Habitat & Engineering", "node_size": 10, "label": "second day"}, "half day": {"concepts": "half day", "type": "concept", "cluster": "Habitat & Engineering", "node_size": 10, "label": "half day"}, "engineering components": {"concepts": "engineering components", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "engineering components"}, "flooding": {"concepts": "flooding", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "flooding"}, "co-benefits": {"concepts": "co-benefits", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "co-benefits"}, "conservation concern": {"concepts": "conservation concern", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "conservation concern"}, "system dynamics": {"concepts": "system dynamics", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "system dynamics"}, "habitat creation": {"concepts": "habitat creation", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "habitat creation"}, "adaptive changes": {"concepts": "adaptive changes", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "adaptive changes"}, "habitat": {"concepts": "habitat", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "habitat"}, "negative impact": {"concepts": "negative impact", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "negative impact"}, "environmental benefits": {"concepts": "environmental benefits", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "environmental benefits"}, "key stressors": {"concepts": "key stressors", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "key stressors"}, "engineering perspective": {"concepts": "engineering perspective", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "engineering perspective"}, "carbon storage": {"concepts": "carbon storage", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "carbon storage"}, "ecosystem services": {"concepts": "ecosystem services", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "ecosystem services"}, "mangroves": {"concepts": "mangroves", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "mangroves"}, "historic preservation": {"concepts": "historic preservation", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "historic preservation"}, "bulkheads": {"concepts": "bulkheads", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "bulkheads"}, "species diversity framework": {"concepts": "species diversity framework", "type": "concept", "cluster": "Species and Diversity", "node_size": 10, "label": "species diversity framework"}, "teach": {"concepts": "teach", "type": "concept", "cluster": "Species and Diversity", "node_size": 10, "label": "teach"}, "waterfront residents": {"concepts": "waterfront residents", "type": "concept", "cluster": "Waterfront Climate Risks", "node_size": 10, "label": "waterfront residents"}, "waterfront homeowners": {"concepts": "waterfront homeowners", "type": "concept", "cluster": "Waterfront Climate Risks", "node_size": 10, "label": "waterfront homeowners"}, "sea level rise": {"concepts": "sea level rise", "type": "concept", "cluster": "Waterfront Climate Risks", "node_size": 10, "label": "sea level rise"}, "shoreline erosion": {"concepts": "shoreline erosion", "type": "concept", "cluster": "Waterfront Climate Risks", "node_size": 10, "label": "shoreline erosion"}, "climate change": {"concepts": "climate change", "type": "concept", "cluster": "Waterfront Climate Risks", "node_size": 10, "label": "climate change"}, "seawall": {"concepts": "seawall", "type": "concept", "cluster": "Coastal Protection Methods", "node_size": 10, "label": "seawall"}, "seawalls": {"concepts": "seawalls", "type": "concept", "cluster": "Coastal Protection Methods", "node_size": 10, "label": "seawalls"}, "living shorelines": {"concepts": "living shorelines", "type": "concept", "cluster": "Coastal Protection Methods", "node_size": 10, "label": "living shorelines"}, "oyster reef": {"concepts": "oyster reef", "type": "concept", "cluster": "Coastal Protection Methods", "node_size": 10, "label": "oyster reef"}, "living shorelines act": {"concepts": "living shorelines act", "type": "concept", "cluster": "Coastal Protection Methods", "node_size": 10, "label": "living shorelines act"}, "oyster farms": {"concepts": "oyster farms", "type": "concept", "cluster": "Oyster & Water", "node_size": 10, "label": "oyster farms"}, "water quality": {"concepts": "water quality", "type": "concept", "cluster": "Oyster & Water", "node_size": 10, "label": "water quality"}, "marine resource management": {"concepts": "marine resource management", "type": "concept", "cluster": "Oyster & Water", "node_size": 10, "label": "marine resource management"}};
+        const interClusterEdges = [["shoreline archetypes", "Coastal Protection Methods", {"weight": 0.2, "confidence": 0.27999999999999997, "type": "inter_cluster", "style": "solid"}], ["shoreline archetypes", "Waterfront Climate Risks", {"weight": 0.8, "confidence": 0.25999999999999995, "type": "inter_cluster", "style": "solid"}], ["shoreline archetypes", "Diversity Education", {"weight": 0.6666666666666666, "confidence": 0.3333333333333333, "type": "inter_cluster", "style": "solid"}], ["shoreline archetypes", "Stakeholder Engagement", {"weight": 0.5, "confidence": 0.175, "type": "inter_cluster", "style": "solid"}], ["Management & Policy", "shoreline archetypes", {"weight": 0.8, "confidence": 0.36, "type": "inter_cluster", "style": "solid"}], ["Management & Policy", "Oyster & Water", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["Management & Policy", "Habitat & Engineering", {"weight": 1.0, "confidence": 0.4666666666666666, "type": "inter_cluster", "style": "solid"}], ["Management & Policy", "Diversity Education", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["Management & Policy", "Waterfront Climate Risks", {"weight": 0.5, "confidence": 0.225, "type": "inter_cluster", "style": "solid"}], ["Management & Policy", "Stakeholder Engagement", {"weight": 0.6666666666666666, "confidence": 0.26666666666666666, "type": "inter_cluster", "style": "solid"}], ["Management & Policy", "Species and Diversity", {"weight": 0.25, "confidence": 0.1, "type": "inter_cluster", "style": "solid"}], ["Stakeholder Engagement", "Oyster & Water", {"weight": 0.8, "confidence": 0.44000000000000006, "type": "inter_cluster", "style": "solid"}], ["Stakeholder Engagement", "Diversity Education", {"weight": 0.6, "confidence": 0.32, "type": "inter_cluster", "style": "solid"}], ["Stakeholder Engagement", "Waterfront Climate Risks", {"weight": 0.25, "confidence": 0.30000000000000004, "type": "inter_cluster", "style": "solid"}], ["Stakeholder Engagement", "Management & Policy", {"weight": 0.5, "confidence": 0.25, "type": "inter_cluster", "style": "solid"}], ["Stakeholder Engagement", "Coastal Protection Methods", {"weight": -0.5, "confidence": 0.25, "type": "inter_cluster", "style": "solid"}], ["Habitat & Engineering", "Management & Policy", {"weight": 0.5, "confidence": 0.2, "type": "inter_cluster", "style": "solid"}], ["Habitat & Engineering", "shoreline archetypes", {"weight": 0.3333333333333333, "confidence": 0.13333333333333333, "type": "inter_cluster", "style": "solid"}], ["Habitat & Engineering", "Stakeholder Engagement", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["Habitat & Engineering", "Diversity Education", {"weight": 0.3333333333333333, "confidence": 0.13333333333333333, "type": "inter_cluster", "style": "solid"}], ["Diversity Education", "Management & Policy", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["Diversity Education", "Oyster & Water", {"weight": 1.0, "confidence": 0.54, "type": "inter_cluster", "style": "solid"}], ["Diversity Education", "Coastal Protection Methods", {"weight": 0.8, "confidence": 0.4600000000000001, "type": "inter_cluster", "style": "solid"}], ["Diversity Education", "shoreline archetypes", {"weight": 0.8, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["Diversity Education", "Stakeholder Engagement", {"weight": 0.5, "confidence": 0.275, "type": "inter_cluster", "style": "solid"}], ["Species and Diversity", "Management & Policy", {"weight": 0.25, "confidence": 0.175, "type": "inter_cluster", "style": "solid"}], ["Waterfront Climate Risks", "Diversity Education", {"weight": 0.6, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["Waterfront Climate Risks", "Management & Policy", {"weight": -0.4, "confidence": 0.34, "type": "inter_cluster", "style": "solid"}], ["Waterfront Climate Risks", "shoreline archetypes", {"weight": -0.25, "confidence": 0.22499999999999998, "type": "inter_cluster", "style": "solid"}], ["Waterfront Climate Risks", "Stakeholder Engagement", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["Waterfront Climate Risks", "Coastal Protection Methods", {"weight": 0.3333333333333333, "confidence": 0.13333333333333333, "type": "inter_cluster", "style": "solid"}], ["Coastal Protection Methods", "Management & Policy", {"weight": 0.6, "confidence": 0.6599999999999999, "type": "inter_cluster", "style": "solid"}], ["Coastal Protection Methods", "Oyster & Water", {"weight": 0.4, "confidence": 0.44000000000000006, "type": "inter_cluster", "style": "solid"}], ["Coastal Protection Methods", "Stakeholder Engagement", {"weight": 0.25, "confidence": 0.42500000000000004, "type": "inter_cluster", "style": "solid"}], ["Coastal Protection Methods", "Habitat & Engineering", {"weight": 0.75, "confidence": 0.275, "type": "inter_cluster", "style": "solid"}], ["Oyster & Water", "Management & Policy", {"weight": 1.0, "confidence": 0.6875, "type": "inter_cluster", "style": "solid"}], ["Oyster & Water", "Coastal Protection Methods", {"weight": 0.2, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["Oyster & Water", "Stakeholder Engagement", {"weight": 0.75, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["Oyster & Water", "shoreline archetypes", {"weight": 0.75, "confidence": 0.32499999999999996, "type": "inter_cluster", "style": "solid"}], ["Oyster & Water", "Waterfront Climate Risks", {"weight": 0.75, "confidence": 0.275, "type": "inter_cluster", "style": "solid"}], ["Oyster & Water", "Habitat & Engineering", {"weight": 0.4, "confidence": 0.16, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {"Management & Policy": [["species", {"concepts": "species", "type": "concept", "cluster": "Management & Policy", "node_size": 10, "label": "species"}], ["food web", {"concepts": "food web", "type": "concept", "cluster": "Management & Policy", "node_size": 10, "label": "food web"}], ["native species", {"concepts": "native species", "type": "concept", "cluster": "Management & Policy", "node_size": 10, "label": "native species"}], ["invasive species", {"concepts": "invasive species", "type": "concept", "cluster": "Management & Policy", "node_size": 10, "label": "invasive species"}], ["harmful organisms", {"concepts": "harmful organisms", "type": "concept", "cluster": "Management & Policy", "node_size": 10, "label": "harmful organisms"}], ["food web species", {"concepts": "food web species", "type": "concept", "cluster": "Management & Policy", "node_size": 10, "label": "food web species"}], ["animal diversity", {"concepts": "animal diversity", "type": "concept", "cluster": "Management & Policy", "node_size": 10, "label": "animal diversity"}], ["biodiversity", {"concepts": "biodiversity", "type": "concept", "cluster": "Management & Policy", "node_size": 10, "label": "biodiversity"}], ["species conservation", {"concepts": "species conservation", "type": "concept", "cluster": "Management & Policy", "node_size": 10, "label": "species conservation"}], ["plant diversity", {"concepts": "plant diversity", "type": "concept", "cluster": "Management & Policy", "node_size": 10, "label": "plant diversity"}], ["habitat forming species", {"concepts": "habitat forming species", "type": "concept", "cluster": "Management & Policy", "node_size": 10, "label": "habitat forming species"}], ["diversity", {"concepts": "diversity", "type": "concept", "cluster": "Management & Policy", "node_size": 10, "label": "diversity"}]], "Stakeholder Engagement": [["management approaches", {"concepts": "management approaches", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "management approaches"}], ["project planning", {"concepts": "project planning", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "project planning"}], ["political dynamics", {"concepts": "political dynamics", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "political dynamics"}], ["regulations", {"concepts": "regulations", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "regulations"}], ["implementation guidelines", {"concepts": "implementation guidelines", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "implementation guidelines"}], ["management decisions", {"concepts": "management decisions", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "management decisions"}], ["permitting hurdles", {"concepts": "permitting hurdles", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "permitting hurdles"}], ["mandates", {"concepts": "mandates", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "mandates"}], ["advisory council", {"concepts": "advisory council", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "advisory council"}], ["management", {"concepts": "management", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "management"}], ["policies", {"concepts": "policies", "type": "concept", "cluster": "Stakeholder Engagement", "node_size": 10, "label": "policies"}]], "Habitat & Engineering": [["tourists", {"concepts": "tourists", "type": "concept", "cluster": "Habitat & Engineering", "node_size": 10, "label": "tourists"}], ["watermen", {"concepts": "watermen", "type": "concept", "cluster": "Habitat & Engineering", "node_size": 10, "label": "watermen"}], ["tourism", {"concepts": "tourism", "type": "concept", "cluster": "Habitat & Engineering", "node_size": 10, "label": "tourism"}], ["businesses", {"concepts": "businesses", "type": "concept", "cluster": "Habitat & Engineering", "node_size": 10, "label": "businesses"}], ["stakeholders", {"concepts": "stakeholders", "type": "concept", "cluster": "Habitat & Engineering", "node_size": 10, "label": "stakeholders"}], ["resident scale", {"concepts": "resident scale", "type": "concept", "cluster": "Habitat & Engineering", "node_size": 10, "label": "resident scale"}], ["interested", {"concepts": "interested", "type": "concept", "cluster": "Habitat & Engineering", "node_size": 10, "label": "interested"}], ["join", {"concepts": "join", "type": "concept", "cluster": "Habitat & Engineering", "node_size": 10, "label": "join"}], ["workshop invitation", {"concepts": "workshop invitation", "type": "concept", "cluster": "Habitat & Engineering", "node_size": 10, "label": "workshop invitation"}], ["dates", {"concepts": "dates", "type": "concept", "cluster": "Habitat & Engineering", "node_size": 10, "label": "dates"}], ["second day", {"concepts": "second day", "type": "concept", "cluster": "Habitat & Engineering", "node_size": 10, "label": "second day"}], ["half day", {"concepts": "half day", "type": "concept", "cluster": "Habitat & Engineering", "node_size": 10, "label": "half day"}]], "Diversity Education": [["engineering components", {"concepts": "engineering components", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "engineering components"}], ["flooding", {"concepts": "flooding", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "flooding"}], ["co-benefits", {"concepts": "co-benefits", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "co-benefits"}], ["conservation concern", {"concepts": "conservation concern", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "conservation concern"}], ["system dynamics", {"concepts": "system dynamics", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "system dynamics"}], ["habitat creation", {"concepts": "habitat creation", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "habitat creation"}], ["adaptive changes", {"concepts": "adaptive changes", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "adaptive changes"}], ["habitat", {"concepts": "habitat", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "habitat"}], ["negative impact", {"concepts": "negative impact", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "negative impact"}], ["environmental benefits", {"concepts": "environmental benefits", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "environmental benefits"}], ["key stressors", {"concepts": "key stressors", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "key stressors"}], ["engineering perspective", {"concepts": "engineering perspective", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "engineering perspective"}], ["carbon storage", {"concepts": "carbon storage", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "carbon storage"}], ["ecosystem services", {"concepts": "ecosystem services", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "ecosystem services"}], ["mangroves", {"concepts": "mangroves", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "mangroves"}], ["historic preservation", {"concepts": "historic preservation", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "historic preservation"}], ["bulkheads", {"concepts": "bulkheads", "type": "concept", "cluster": "Diversity Education", "node_size": 10, "label": "bulkheads"}]], "Species and Diversity": [["species diversity framework", {"concepts": "species diversity framework", "type": "concept", "cluster": "Species and Diversity", "node_size": 10, "label": "species diversity framework"}], ["teach", {"concepts": "teach", "type": "concept", "cluster": "Species and Diversity", "node_size": 10, "label": "teach"}]], "Waterfront Climate Risks": [["waterfront residents", {"concepts": "waterfront residents", "type": "concept", "cluster": "Waterfront Climate Risks", "node_size": 10, "label": "waterfront residents"}], ["waterfront homeowners", {"concepts": "waterfront homeowners", "type": "concept", "cluster": "Waterfront Climate Risks", "node_size": 10, "label": "waterfront homeowners"}], ["sea level rise", {"concepts": "sea level rise", "type": "concept", "cluster": "Waterfront Climate Risks", "node_size": 10, "label": "sea level rise"}], ["shoreline erosion", {"concepts": "shoreline erosion", "type": "concept", "cluster": "Waterfront Climate Risks", "node_size": 10, "label": "shoreline erosion"}], ["climate change", {"concepts": "climate change", "type": "concept", "cluster": "Waterfront Climate Risks", "node_size": 10, "label": "climate change"}]], "Coastal Protection Methods": [["seawall", {"concepts": "seawall", "type": "concept", "cluster": "Coastal Protection Methods", "node_size": 10, "label": "seawall"}], ["seawalls", {"concepts": "seawalls", "type": "concept", "cluster": "Coastal Protection Methods", "node_size": 10, "label": "seawalls"}], ["living shorelines", {"concepts": "living shorelines", "type": "concept", "cluster": "Coastal Protection Methods", "node_size": 10, "label": "living shorelines"}], ["oyster reef", {"concepts": "oyster reef", "type": "concept", "cluster": "Coastal Protection Methods", "node_size": 10, "label": "oyster reef"}], ["living shorelines act", {"concepts": "living shorelines act", "type": "concept", "cluster": "Coastal Protection Methods", "node_size": 10, "label": "living shorelines act"}]], "Oyster & Water": [["oyster farms", {"concepts": "oyster farms", "type": "concept", "cluster": "Oyster & Water", "node_size": 10, "label": "oyster farms"}], ["water quality", {"concepts": "water quality", "type": "concept", "cluster": "Oyster & Water", "node_size": 10, "label": "water quality"}], ["marine resource management", {"concepts": "marine resource management", "type": "concept", "cluster": "Oyster & Water", "node_size": 10, "label": "marine resource management"}]]};
+        const clusterEdges = {"Management & Policy": [], "Stakeholder Engagement": [], "Habitat & Engineering": [], "Diversity Education": [], "Species and Diversity": [], "Waterfront Climate Risks": [], "Coastal Protection Methods": [], "Oyster & Water": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

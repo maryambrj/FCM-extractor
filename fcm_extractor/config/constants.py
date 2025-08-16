@@ -10,21 +10,11 @@ edge inference, and post-processing steps.
 # MODEL CONFIGURATION
 # =============================================================================
 
-# Core LLM models for different tasks
-# You can use any Gemini model (1.0, 1.5, 2.0+), OpenAI model (GPT-3.5, GPT-4, o1, o3, etc.), or Claude model (claude-3.5-sonnet, claude-sonnet-4, etc.)
-CONCEPT_EXTRACTION_MODEL = "claude-sonnet-4-20250514"  # Stable and reliable for academic content
-META_PROMPTING_MODEL = "claude-sonnet-4-20250514"
-EDGE_INFERENCE_MODEL = "claude-sonnet-4-20250514"  
-LLM_CLUSTERING_MODEL = "claude-sonnet-4-20250514"
+CONCEPT_EXTRACTION_MODEL = "gemini-1.5-flash" 
+META_PROMPTING_MODEL = "gemini-1.5-flash"
+EDGE_INFERENCE_MODEL = "gemini-1.5-flash"  
+LLM_CLUSTERING_MODEL = "gemini-1.5-flash"
 
-# Alternative model options (uncomment to use):
-# CONCEPT_EXTRACTION_MODEL = "gpt-4o-mini"     # Fast OpenAI alternative
-# CONCEPT_EXTRACTION_MODEL = "gpt-4o"         # High-quality OpenAI model
-# CONCEPT_EXTRACTION_MODEL = "gemini-1.5-pro" # Higher quality Gemini model
-# CONCEPT_EXTRACTION_MODEL = "claude-3-5-sonnet-20241022"  # High-quality Anthropic model
-# CONCEPT_EXTRACTION_MODEL = "claude-3-opus-20240229"      # Anthropic's most capable model
-
-# Model temperature settings
 CONCEPT_EXTRACTION_TEMPERATURE = 0.0    # Lower = more deterministic extraction
 EDGE_INFERENCE_TEMPERATURE = 0.0        # Lower = more consistent edge inference
 META_PROMPTING_TEMPERATURE = 0.5        # Higher = more creative meta-prompting
@@ -55,7 +45,7 @@ CLUSTERING_EMBEDDING_MODEL = "sentence-transformers/allenai-specter"
 # "intfloat/e5-large-v2"
 # "BAAI/bge-large-en-v1.5"
 
-# Clustering algorithm selection
+
 CLUSTERING_ALGORITHM = "hdbscan"
 # Options: "hdbscan", "kmeans", "agglomerative", "spectral"
 
@@ -97,15 +87,11 @@ AGGLOMERATIVE_DISTANCE_THRESHOLD = 0.5  # Distance threshold for merging
 # =============================================================================
 
 # Post-clustering: Merge unconnected nodes with connected clusters based on similarity
-ENABLE_POST_CLUSTERING = True          # MAIN TOGGLE: Set to True to enable post-clustering
+ENABLE_POST_CLUSTERING = True   
 
 # Similarity threshold for merging unconnected clusters with connected ones
-POST_CLUSTERING_SIMILARITY_THRESHOLD = 0.5  # Range: 0.0-1.0
-# Recommended values:
-# - 0.8-0.9: Very conservative, only merge highly similar concepts
-# - 0.6-0.8: Moderate, merge reasonably similar concepts  
-# - 0.4-0.6: Aggressive, merge loosely related concepts
-# - Below 0.4: Very aggressive, may merge unrelated concepts
+POST_CLUSTERING_SIMILARITY_THRESHOLD = 0.5  # Range: 0.0-1.0 (if lower may merge unrelated concepts)
+
 
 # Embedding model specifically for post-clustering similarity computation
 POST_CLUSTERING_EMBEDDING_MODEL = "sentence-transformers/allenai-specter"
@@ -154,9 +140,9 @@ ACO_GUARANTEE_COVERAGE = True           # Ensure all edges tested at least once
 # =============================================================================
 
 DEFAULT_INTERVIEW_FILE = "BD006.docx"   # Default file when no specific file given
-PROCESS_ALL_FILES = False               # True = process all files, False = process default only
-INTERVIEWS_DIRECTORY = "../interviews"  # Directory containing interview files (.docx, .doc, .txt)
-OUTPUT_DIRECTORY = "../fcm_outputs"     # Directory for output files
+PROCESS_ALL_FILES = False            
+INTERVIEWS_DIRECTORY = "../interviews"  # (.docx, .doc, .txt)
+OUTPUT_DIRECTORY = "../fcm_outputs"   
 
 # Backward compatibility
 INTERVIEW_FILE_NAME = DEFAULT_INTERVIEW_FILE
@@ -165,11 +151,11 @@ INTERVIEW_FILE_NAME = DEFAULT_INTERVIEW_FILE
 # LOGGING CONFIGURATION
 # =============================================================================
 
-ENABLE_FILE_LOGGING = True              # Whether to save output to log files
-LOG_DIRECTORY = "../logs"               # Directory for log files
+ENABLE_FILE_LOGGING = True            
+LOG_DIRECTORY = "../logs"             
 LOG_LEVEL = "INFO"                      # Options: DEBUG, INFO, WARNING, ERROR
-INCLUDE_TIMESTAMP_IN_LOGS = True        # Include timestamps in log entries
-SEPARATE_LOG_PER_DOCUMENT = True        # Create separate log per document
+INCLUDE_TIMESTAMP_IN_LOGS = True     
+SEPARATE_LOG_PER_DOCUMENT = True      
 
 # Verbosity settings
 META_PROMPTING_VERBOSE = False          # Show meta-prompting decisions

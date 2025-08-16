@@ -8,7 +8,7 @@ A Python package for extracting Fuzzy Cognitive Maps (FCMs) from interview trans
 
 1. **Clone the repository:**
 ```bash
-git clone https://github.com/berijani/fcm-extractor.git
+git clone https://github.com/maryambrj/FCM-extractor.git
 cd fcm-extractor
 ```
 
@@ -27,13 +27,12 @@ export GOOGLE_API_KEY="your-google-gemini-api-key"
 
 **Process all interview documents:**
 ```bash
-cd fcm_extractor
 python run_extraction.py --all
 ```
 
 **Process a specific document:**
 ```bash
-python run_extraction.py BD007.docx
+python run_extraction.py <file_name>
 ```
 
 **Get help:**
@@ -41,24 +40,6 @@ python run_extraction.py BD007.docx
 python run_extraction.py --help
 ```
 
-## 📁 Project Structure
-
-```
-fcm_extractor/
-├── config/
-│   ├── constants.py          # Configuration settings
-│   └── prompt_templates.json # LLM prompt templates
-├── src/
-│   ├── core/                 # Core extraction logic
-│   ├── clustering/           # Concept clustering algorithms
-│   ├── edge_inference/       # Causal relationship detection
-│   ├── models/              # LLM clients and metadata
-│   └── pipeline/            # Main processing pipeline
-├── utils/                   # Visualization and scoring tools
-├── interviews/              # Input interview documents
-├── fcm_outputs/            # Generated FCM results
-└── logs/                   # Processing logs
-```
 
 ## 🎯 Key Features
 
@@ -68,7 +49,7 @@ fcm_extractor/
 - **📊 Interactive Visualization**: Web-based D3.js visualizations
 - **📈 FCM Evaluation**: Semantic similarity-based scoring against ground truth
 - **⚡ Post-Clustering Optimization**: Automatic merging of similar clusters
-- **🔧 Multi-Model Support**: OpenAI GPT, Google Gemini, and embedding models
+- **🔧 Multi-Model Support**: OpenAI GPT, Google Gemini, Anthropic Claude, and embedding models
 - **📝 Comprehensive Logging**: Detailed processing logs for debugging
 
 ## 🔧 Pipeline Components
@@ -135,68 +116,30 @@ Generates interactive HTML visualizations with:
 ### Opening Visualizations
 ```bash
 # macOS
-open fcm_outputs/BD007/BD007_fcm_interactive.html
+open fcm_outputs/path_to_fcm_interactive.html
 
 # Linux
-xdg-open fcm_outputs/BD007/BD007_fcm_interactive.html
+xdg-open fcm_outputs/path_to_fcm_interactive.html
 
 # Windows
-start fcm_outputs\BD007\BD007_fcm_interactive.html
+start fcm_outputs\path_to_fcm_interactive.html
 ```
 
 ## 📈 FCM Evaluation
 
 ### Score Against Ground Truth
 ```bash
-cd fcm_extractor
-python utils/score_fcm.py \
-  --gt-path ../ground_truth/BD007.csv \
-  --gen-path ../fcm_outputs/BD007/BD007_fcm.json
+python utils/score_fcm.py --gt-path ../ground_truth/<file_name> --gen-path ../fcm_outputs/output_fcm.json
 ```
 
 ### Create Visualizations from Existing Data
 ```bash
-python utils/visualize_fcm.py \
-  --gen-path ../fcm_outputs/BD007/BD007_fcm.json \
-  --interactive
+python utils/visualize_fcm.py --gen-path ../fcm_outputs/<file_name>_fcm.json --interactive
 
-python utils/visualize_fcm.py \
-  --gen-path ../fcm_outputs/BD007/BD007_fcm.json \
-  --summary
+python utils/visualize_fcm.py --gen-path ../fcm_outputs/<file_name>_fcm.json --summary
 ```
 
-## ⚙️ Configuration
-
-### Key Settings in `config/constants.py`
-
-**Model Configuration:**
-```python
-CONCEPT_EXTRACTION_MODEL = "gpt-5-2025-08-07"
-EDGE_INFERENCE_MODEL = "gpt-5-2025-08-07"
-CLUSTERING_EMBEDDING_MODEL = "sentence-transformers/allenai-specter"
-```
-
-**Clustering Settings:**
-```python
-CLUSTERING_METHOD = "hybrid"  # Options: llm_only, hybrid, embedding_enhanced
-CLUSTERING_ALGORITHM = "hdbscan"  # Options: hdbscan, kmeans, agglomerative
-HDBSCAN_MIN_CLUSTER_SIZE = 2
-```
-
-**Edge Inference:**
-```python
-EDGE_CONFIDENCE_THRESHOLD = 0.7
-ENABLE_INTRA_CLUSTER_EDGES = False
-ACO_MAX_ITERATIONS = 5
-```
-
-**Post-Clustering:**
-```python
-ENABLE_POST_CLUSTERING = True
-POST_CLUSTERING_SIMILARITY_THRESHOLD = 0.5
-```
-
-## 🔧 Advanced Usage
+<!-- ## 🔧 Advanced Usage
 
 ### Programmatic Usage
 ```python
@@ -206,8 +149,8 @@ from fcm_extractor.src.pipeline import process_single_document
 result = process_single_document(
     file_path="interviews/BD007.docx",
     output_dir="custom_output/"
-)
-```
+) -->
+<!-- ```
 
 ### Component-Level Usage
 ```python
@@ -227,9 +170,9 @@ inter_edges, intra_edges = aco.infer_edges(clusters, interview_text)
 # Visualize results
 from fcm_extractor.utils.visualize_fcm import create_interactive_visualization
 create_interactive_visualization(fcm_graph, "output.html")
-```
+``` -->
 
-### Custom Processing Settings
+<!-- ### Custom Processing Settings
 ```python
 from fcm_extractor.config import constants
 
@@ -240,16 +183,16 @@ constants.ENABLE_POST_CLUSTERING = True
 
 # Process with custom settings
 result = process_single_document("interview.docx")
-```
+``` -->
 
-## 🚨 Requirements
+<!-- ## 🚨 Requirements
 
 ### System Requirements
 - **Python**: 3.8 or higher
 - **Memory**: 8GB RAM recommended (16GB for large documents)
-- **Storage**: 2GB free space for models and outputs
+- **Storage**: 2GB free space for models and outputs -->
 
-### Python Dependencies
+### Dependencies
 - **Core ML**: numpy, pandas, scikit-learn
 - **Deep Learning**: torch, transformers, sentence-transformers
 - **Clustering**: umap-learn, hdbscan, numba
@@ -258,11 +201,8 @@ result = process_single_document("interview.docx")
 - **Document Processing**: python-docx
 - **Utilities**: python-dotenv, setuptools, protobuf
 
-### API Keys Required
-- **OpenAI API Key**: For GPT models (concept extraction, edge inference)
-- **Google API Key**: For Gemini models (alternative LLM provider)
 
-## 📝 Citation
+<!-- ## 📝 Citation
 
 If you use this tool in your research, please cite:
 
@@ -274,9 +214,9 @@ If you use this tool in your research, please cite:
   url={https://github.com/berijani/fcm-extractor},
   note={A Python package for extracting Fuzzy Cognitive Maps from interview transcripts using NLP and LLMs}
 }
-```
+``` -->
 
-## 🤝 Contributing
+<!-- ## 🤝 Contributing
 
 We welcome contributions! Please:
 
@@ -287,21 +227,21 @@ We welcome contributions! Please:
 5. **Open** a Pull Request
 
 ### Development Setup
-```bash
-# Install development dependencies
-pip install -e ".[dev]"
+```bash -->
+<!-- # Install development dependencies
+# pip install -e ".[dev]"
 
-# Run tests
-pytest
+# # Run tests
+# pytest
 
-# Format code
-black fcm_extractor/
+# # Format code
+# black fcm_extractor/
 
-# Lint code
-flake8 fcm_extractor/
-```
+# # Lint code
+# flake8 fcm_extractor/
+# ``` -->
 
-## 📄 License
+<!-- ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
@@ -309,11 +249,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **Issues**: [GitHub Issues](https://github.com/berijani/fcm-extractor/issues)
 - **Documentation**: [Wiki](https://github.com/berijani/fcm-extractor/wiki)
-- **Email**: berijani@msu.edu
-
+- **Email**: berijani@msu.edu -->
+<!-- 
 ## 🙏 Acknowledgments
 
 - Built with [OpenAI GPT](https://openai.com/) and [Google Gemini](https://ai.google.dev/) APIs
 - Uses [Sentence Transformers](https://www.sbert.net/) for semantic embeddings
 - Visualization powered by [D3.js](https://d3js.org/) and [Pyvis](https://pyvis.readthedocs.io/)
-- Clustering algorithms from [scikit-learn](https://scikit-learn.org/) and [HDBSCAN](https://hdbscan.readthedocs.io/)
+- Clustering algorithms from [scikit-learn](https://scikit-learn.org/) and [HDBSCAN](https://hdbscan.readthedocs.io/) -->

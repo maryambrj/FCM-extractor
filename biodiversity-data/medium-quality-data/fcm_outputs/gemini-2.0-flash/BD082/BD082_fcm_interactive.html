@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"salmon stressors": {"concepts": "salmon stressors", "concept_list": ["salmon stressors"], "type": "cluster", "node_size": 18, "label": "salmon stressors"}, "commercial ocean harvest": {"concepts": "commercial ocean harvest", "concept_list": ["commercial ocean harvest"], "type": "cluster", "node_size": 18, "label": "commercial ocean harvest"}, "conservation concern": {"concepts": "conservation concern", "concept_list": ["conservation concern"], "type": "cluster", "node_size": 18, "label": "conservation concern"}, "mark selective fisheries": {"concepts": "mark selective fisheries", "concept_list": ["mark selective fisheries"], "type": "cluster", "node_size": 18, "label": "mark selective fisheries"}, "cca washington": {"concepts": "cca washington", "concept_list": ["cca washington"], "type": "cluster", "node_size": 18, "label": "cca washington"}, "Species Scope": {"concepts": "endangered species, biodiversity, wild populations", "concept_list": ["endangered species", "biodiversity", "wild populations"], "type": "cluster", "node_size": 24, "label": "Species Scope"}, "Key Organisms": {"concepts": "chemical stressors, harmful organisms", "concept_list": ["chemical stressors", "harmful organisms"], "type": "cluster", "node_size": 21, "label": "Key Organisms"}, "Salmon Populations": {"concepts": "key species, bacteria, single species, multi species", "concept_list": ["key species", "bacteria", "single species", "multi species"], "type": "cluster", "node_size": 27, "label": "Salmon Populations"}, "Species Conservation": {"concepts": "salmon runs, salmon populations, wild salmon", "concept_list": ["salmon runs", "salmon populations", "wild salmon"], "type": "cluster", "node_size": 24, "label": "Species Conservation"}, "Salmon Conservation": {"concepts": "salmon management, salmon conservation", "concept_list": ["salmon management", "salmon conservation"], "type": "cluster", "node_size": 21, "label": "Salmon Conservation"}, "Hatchery and Forage": {"concepts": "hatchery fish, hatchery salmon, forage fish, hatchery groups, hatcheries", "concept_list": ["hatchery fish", "hatchery salmon", "forage fish", "hatchery groups", "hatcheries"], "type": "cluster", "node_size": 30, "label": "Hatchery and Forage"}, "Commercial Fishing": {"concepts": "fishing pressure, ocean harvest, commercial fishing", "concept_list": ["fishing pressure", "ocean harvest", "commercial fishing"], "type": "cluster", "node_size": 24, "label": "Commercial Fishing"}, "Fishing Seasons": {"concepts": "commercial fishing seasons, recreational fishing seasons, canada, chesapeake bay, gulf of mexico, alaska, mobile bay, puget sound, pacific", "concept_list": ["commercial fishing seasons", "recreational fishing seasons", "canada", "chesapeake bay", "gulf of mexico", "alaska", "mobile bay", "puget sound", "pacific"], "type": "cluster", "node_size": 42, "label": "Fishing Seasons"}, "Fishing Impact": {"concepts": "gill netting, spawning", "concept_list": ["gill netting", "spawning"], "type": "cluster", "node_size": 21, "label": "Fishing Impact"}, "Marine Nutrients": {"concepts": "nutrient enhancement, marine nutrients", "concept_list": ["nutrient enhancement", "marine nutrients"], "type": "cluster", "node_size": 21, "label": "Marine Nutrients"}, "Fisheries Management": {"concepts": "fisheries management, fishery managers, fisheries managers", "concept_list": ["fisheries management", "fishery managers", "fisheries managers"], "type": "cluster", "node_size": 24, "label": "Fisheries Management"}, "Commercial Fisheries": {"concepts": "pollock fisheries, squid fisheries, commercial fisheries", "concept_list": ["pollock fisheries", "squid fisheries", "commercial fisheries"], "type": "cluster", "node_size": 24, "label": "Commercial Fisheries"}, "Dam Removal": {"concepts": "dam removal, dams, dammed rivers", "concept_list": ["dam removal", "dams", "dammed rivers"], "type": "cluster", "node_size": 24, "label": "Dam Removal"}, "Hydro Projects": {"concepts": "hydro projects, columbia river", "concept_list": ["hydro projects", "columbia river"], "type": "cluster", "node_size": 21, "label": "Hydro Projects"}, "Water Quality": {"concepts": "water quality, river environment, warmer water, water sediments", "concept_list": ["water quality", "river environment", "warmer water", "water sediments"], "type": "cluster", "node_size": 27, "label": "Water Quality"}, "Chemical Runoff": {"concepts": "chemical runoff, watersheds, river runoff", "concept_list": ["chemical runoff", "watersheds", "river runoff"], "type": "cluster", "node_size": 24, "label": "Chemical Runoff"}, "Stakeholder Interests": {"concepts": "status quo, resource users, human considerations, non-tribal communities, stakeholders, consumptive users, future generations, tribal communities, shared uses", "concept_list": ["status quo", "resource users", "human considerations", "non-tribal communities", "stakeholders", "consumptive users", "future generations", "tribal communities", "shared uses"], "type": "cluster", "node_size": 42, "label": "Stakeholder Interests"}, "Policy Management": {"concepts": "federal policies, state policies, policy management, national lawsuits, management policies, local policies, harvest policies", "concept_list": ["federal policies", "state policies", "policy management", "national lawsuits", "management policies", "local policies", "harvest policies"], "type": "cluster", "node_size": 36, "label": "Policy Management"}, "Pacific Northwest Ecosystems": {"concepts": "brake dust, whirling disease, commercial overharvest, over harvest, ecosystem services, bonneville dam, development impact, ecosystem, ecosystem management, pacific northwest, tributaries, food web, trawler, hydro, treaty tribes, managers, environmental factors, msy, commercial harvest, tribal gill netting, bycatch, harvest management, sustainable yield, harvest, allocation issue, over harvesting, tribal layer, cca alabama, researchers", "concept_list": ["brake dust", "whirling disease", "commercial overharvest", "over harvest", "ecosystem services", "bonneville dam", "development impact", "ecosystem", "ecosystem management", "pacific northwest", "tributaries", "food web", "trawler", "hydro", "treaty tribes", "managers", "environmental factors", "msy", "commercial harvest", "tribal gill netting", "bycatch", "harvest management", "sustainable yield", "harvest", "allocation issue", "over harvesting", "tribal layer", "cca alabama", "researchers"], "type": "cluster", "node_size": 102, "label": "Pacific Northwest Ecosystems"}, "Habitat Formation": {"concepts": "habitat, habitat forming species", "concept_list": ["habitat", "habitat forming species"], "type": "cluster", "node_size": 21, "label": "Habitat Formation"}, "Habitat Conservation": {"concepts": "habitat restoration, habitat protection, habitat projects, natal streams, impervious surfaces", "concept_list": ["habitat restoration", "habitat protection", "habitat projects", "natal streams", "impervious surfaces"], "type": "cluster", "node_size": 30, "label": "Habitat Conservation"}};
+        const conceptData = {"endangered species": {"concepts": "endangered species", "type": "concept", "cluster": "Species Scope", "node_size": 10, "label": "endangered species"}, "biodiversity": {"concepts": "biodiversity", "type": "concept", "cluster": "Species Scope", "node_size": 10, "label": "biodiversity"}, "wild populations": {"concepts": "wild populations", "type": "concept", "cluster": "Species Scope", "node_size": 10, "label": "wild populations"}, "chemical stressors": {"concepts": "chemical stressors", "type": "concept", "cluster": "Key Organisms", "node_size": 10, "label": "chemical stressors"}, "harmful organisms": {"concepts": "harmful organisms", "type": "concept", "cluster": "Key Organisms", "node_size": 10, "label": "harmful organisms"}, "key species": {"concepts": "key species", "type": "concept", "cluster": "Salmon Populations", "node_size": 10, "label": "key species"}, "bacteria": {"concepts": "bacteria", "type": "concept", "cluster": "Salmon Populations", "node_size": 10, "label": "bacteria"}, "single species": {"concepts": "single species", "type": "concept", "cluster": "Salmon Populations", "node_size": 10, "label": "single species"}, "multi species": {"concepts": "multi species", "type": "concept", "cluster": "Salmon Populations", "node_size": 10, "label": "multi species"}, "salmon runs": {"concepts": "salmon runs", "type": "concept", "cluster": "Species Conservation", "node_size": 10, "label": "salmon runs"}, "salmon populations": {"concepts": "salmon populations", "type": "concept", "cluster": "Species Conservation", "node_size": 10, "label": "salmon populations"}, "wild salmon": {"concepts": "wild salmon", "type": "concept", "cluster": "Species Conservation", "node_size": 10, "label": "wild salmon"}, "salmon management": {"concepts": "salmon management", "type": "concept", "cluster": "Salmon Conservation", "node_size": 10, "label": "salmon management"}, "salmon conservation": {"concepts": "salmon conservation", "type": "concept", "cluster": "Salmon Conservation", "node_size": 10, "label": "salmon conservation"}, "hatchery fish": {"concepts": "hatchery fish", "type": "concept", "cluster": "Hatchery and Forage", "node_size": 10, "label": "hatchery fish"}, "hatchery salmon": {"concepts": "hatchery salmon", "type": "concept", "cluster": "Hatchery and Forage", "node_size": 10, "label": "hatchery salmon"}, "forage fish": {"concepts": "forage fish", "type": "concept", "cluster": "Hatchery and Forage", "node_size": 10, "label": "forage fish"}, "hatchery groups": {"concepts": "hatchery groups", "type": "concept", "cluster": "Hatchery and Forage", "node_size": 10, "label": "hatchery groups"}, "hatcheries": {"concepts": "hatcheries", "type": "concept", "cluster": "Hatchery and Forage", "node_size": 10, "label": "hatcheries"}, "fishing pressure": {"concepts": "fishing pressure", "type": "concept", "cluster": "Commercial Fishing", "node_size": 10, "label": "fishing pressure"}, "ocean harvest": {"concepts": "ocean harvest", "type": "concept", "cluster": "Commercial Fishing", "node_size": 10, "label": "ocean harvest"}, "commercial fishing": {"concepts": "commercial fishing", "type": "concept", "cluster": "Commercial Fishing", "node_size": 10, "label": "commercial fishing"}, "commercial fishing seasons": {"concepts": "commercial fishing seasons", "type": "concept", "cluster": "Fishing Seasons", "node_size": 10, "label": "commercial fishing seasons"}, "recreational fishing seasons": {"concepts": "recreational fishing seasons", "type": "concept", "cluster": "Fishing Seasons", "node_size": 10, "label": "recreational fishing seasons"}, "canada": {"concepts": "canada", "type": "concept", "cluster": "Fishing Seasons", "node_size": 10, "label": "canada"}, "chesapeake bay": {"concepts": "chesapeake bay", "type": "concept", "cluster": "Fishing Seasons", "node_size": 10, "label": "chesapeake bay"}, "gulf of mexico": {"concepts": "gulf of mexico", "type": "concept", "cluster": "Fishing Seasons", "node_size": 10, "label": "gulf of mexico"}, "alaska": {"concepts": "alaska", "type": "concept", "cluster": "Fishing Seasons", "node_size": 10, "label": "alaska"}, "mobile bay": {"concepts": "mobile bay", "type": "concept", "cluster": "Fishing Seasons", "node_size": 10, "label": "mobile bay"}, "puget sound": {"concepts": "puget sound", "type": "concept", "cluster": "Fishing Seasons", "node_size": 10, "label": "puget sound"}, "pacific": {"concepts": "pacific", "type": "concept", "cluster": "Fishing Seasons", "node_size": 10, "label": "pacific"}, "gill netting": {"concepts": "gill netting", "type": "concept", "cluster": "Fishing Impact", "node_size": 10, "label": "gill netting"}, "spawning": {"concepts": "spawning", "type": "concept", "cluster": "Fishing Impact", "node_size": 10, "label": "spawning"}, "nutrient enhancement": {"concepts": "nutrient enhancement", "type": "concept", "cluster": "Marine Nutrients", "node_size": 10, "label": "nutrient enhancement"}, "marine nutrients": {"concepts": "marine nutrients", "type": "concept", "cluster": "Marine Nutrients", "node_size": 10, "label": "marine nutrients"}, "fisheries management": {"concepts": "fisheries management", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "fisheries management"}, "fishery managers": {"concepts": "fishery managers", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "fishery managers"}, "fisheries managers": {"concepts": "fisheries managers", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "fisheries managers"}, "pollock fisheries": {"concepts": "pollock fisheries", "type": "concept", "cluster": "Commercial Fisheries", "node_size": 10, "label": "pollock fisheries"}, "squid fisheries": {"concepts": "squid fisheries", "type": "concept", "cluster": "Commercial Fisheries", "node_size": 10, "label": "squid fisheries"}, "commercial fisheries": {"concepts": "commercial fisheries", "type": "concept", "cluster": "Commercial Fisheries", "node_size": 10, "label": "commercial fisheries"}, "dam removal": {"concepts": "dam removal", "type": "concept", "cluster": "Dam Removal", "node_size": 10, "label": "dam removal"}, "dams": {"concepts": "dams", "type": "concept", "cluster": "Dam Removal", "node_size": 10, "label": "dams"}, "dammed rivers": {"concepts": "dammed rivers", "type": "concept", "cluster": "Dam Removal", "node_size": 10, "label": "dammed rivers"}, "hydro projects": {"concepts": "hydro projects", "type": "concept", "cluster": "Hydro Projects", "node_size": 10, "label": "hydro projects"}, "columbia river": {"concepts": "columbia river", "type": "concept", "cluster": "Hydro Projects", "node_size": 10, "label": "columbia river"}, "water quality": {"concepts": "water quality", "type": "concept", "cluster": "Water Quality", "node_size": 10, "label": "water quality"}, "river environment": {"concepts": "river environment", "type": "concept", "cluster": "Water Quality", "node_size": 10, "label": "river environment"}, "warmer water": {"concepts": "warmer water", "type": "concept", "cluster": "Water Quality", "node_size": 10, "label": "warmer water"}, "water sediments": {"concepts": "water sediments", "type": "concept", "cluster": "Water Quality", "node_size": 10, "label": "water sediments"}, "chemical runoff": {"concepts": "chemical runoff", "type": "concept", "cluster": "Chemical Runoff", "node_size": 10, "label": "chemical runoff"}, "watersheds": {"concepts": "watersheds", "type": "concept", "cluster": "Chemical Runoff", "node_size": 10, "label": "watersheds"}, "river runoff": {"concepts": "river runoff", "type": "concept", "cluster": "Chemical Runoff", "node_size": 10, "label": "river runoff"}, "status quo": {"concepts": "status quo", "type": "concept", "cluster": "Stakeholder Interests", "node_size": 10, "label": "status quo"}, "resource users": {"concepts": "resource users", "type": "concept", "cluster": "Stakeholder Interests", "node_size": 10, "label": "resource users"}, "human considerations": {"concepts": "human considerations", "type": "concept", "cluster": "Stakeholder Interests", "node_size": 10, "label": "human considerations"}, "non-tribal communities": {"concepts": "non-tribal communities", "type": "concept", "cluster": "Stakeholder Interests", "node_size": 10, "label": "non-tribal communities"}, "stakeholders": {"concepts": "stakeholders", "type": "concept", "cluster": "Stakeholder Interests", "node_size": 10, "label": "stakeholders"}, "consumptive users": {"concepts": "consumptive users", "type": "concept", "cluster": "Stakeholder Interests", "node_size": 10, "label": "consumptive users"}, "future generations": {"concepts": "future generations", "type": "concept", "cluster": "Stakeholder Interests", "node_size": 10, "label": "future generations"}, "tribal communities": {"concepts": "tribal communities", "type": "concept", "cluster": "Stakeholder Interests", "node_size": 10, "label": "tribal communities"}, "shared uses": {"concepts": "shared uses", "type": "concept", "cluster": "Stakeholder Interests", "node_size": 10, "label": "shared uses"}, "federal policies": {"concepts": "federal policies", "type": "concept", "cluster": "Policy Management", "node_size": 10, "label": "federal policies"}, "state policies": {"concepts": "state policies", "type": "concept", "cluster": "Policy Management", "node_size": 10, "label": "state policies"}, "policy management": {"concepts": "policy management", "type": "concept", "cluster": "Policy Management", "node_size": 10, "label": "policy management"}, "national lawsuits": {"concepts": "national lawsuits", "type": "concept", "cluster": "Policy Management", "node_size": 10, "label": "national lawsuits"}, "management policies": {"concepts": "management policies", "type": "concept", "cluster": "Policy Management", "node_size": 10, "label": "management policies"}, "local policies": {"concepts": "local policies", "type": "concept", "cluster": "Policy Management", "node_size": 10, "label": "local policies"}, "harvest policies": {"concepts": "harvest policies", "type": "concept", "cluster": "Policy Management", "node_size": 10, "label": "harvest policies"}, "brake dust": {"concepts": "brake dust", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "brake dust"}, "whirling disease": {"concepts": "whirling disease", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "whirling disease"}, "commercial overharvest": {"concepts": "commercial overharvest", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "commercial overharvest"}, "over harvest": {"concepts": "over harvest", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "over harvest"}, "ecosystem services": {"concepts": "ecosystem services", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "ecosystem services"}, "bonneville dam": {"concepts": "bonneville dam", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "bonneville dam"}, "development impact": {"concepts": "development impact", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "development impact"}, "ecosystem": {"concepts": "ecosystem", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "ecosystem"}, "ecosystem management": {"concepts": "ecosystem management", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "ecosystem management"}, "pacific northwest": {"concepts": "pacific northwest", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "pacific northwest"}, "tributaries": {"concepts": "tributaries", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "tributaries"}, "food web": {"concepts": "food web", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "food web"}, "trawler": {"concepts": "trawler", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "trawler"}, "hydro": {"concepts": "hydro", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "hydro"}, "treaty tribes": {"concepts": "treaty tribes", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "treaty tribes"}, "managers": {"concepts": "managers", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "managers"}, "environmental factors": {"concepts": "environmental factors", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "environmental factors"}, "msy": {"concepts": "msy", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "msy"}, "commercial harvest": {"concepts": "commercial harvest", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "commercial harvest"}, "tribal gill netting": {"concepts": "tribal gill netting", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "tribal gill netting"}, "bycatch": {"concepts": "bycatch", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "bycatch"}, "harvest management": {"concepts": "harvest management", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "harvest management"}, "sustainable yield": {"concepts": "sustainable yield", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "sustainable yield"}, "harvest": {"concepts": "harvest", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "harvest"}, "allocation issue": {"concepts": "allocation issue", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "allocation issue"}, "over harvesting": {"concepts": "over harvesting", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "over harvesting"}, "tribal layer": {"concepts": "tribal layer", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "tribal layer"}, "cca alabama": {"concepts": "cca alabama", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "cca alabama"}, "researchers": {"concepts": "researchers", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "researchers"}, "habitat": {"concepts": "habitat", "type": "concept", "cluster": "Habitat Formation", "node_size": 10, "label": "habitat"}, "habitat forming species": {"concepts": "habitat forming species", "type": "concept", "cluster": "Habitat Formation", "node_size": 10, "label": "habitat forming species"}, "habitat restoration": {"concepts": "habitat restoration", "type": "concept", "cluster": "Habitat Conservation", "node_size": 10, "label": "habitat restoration"}, "habitat protection": {"concepts": "habitat protection", "type": "concept", "cluster": "Habitat Conservation", "node_size": 10, "label": "habitat protection"}, "habitat projects": {"concepts": "habitat projects", "type": "concept", "cluster": "Habitat Conservation", "node_size": 10, "label": "habitat projects"}, "natal streams": {"concepts": "natal streams", "type": "concept", "cluster": "Habitat Conservation", "node_size": 10, "label": "natal streams"}, "impervious surfaces": {"concepts": "impervious surfaces", "type": "concept", "cluster": "Habitat Conservation", "node_size": 10, "label": "impervious surfaces"}};
+        const interClusterEdges = [["salmon stressors", "Salmon Conservation", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["salmon stressors", "Policy Management", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["commercial ocean harvest", "Salmon Conservation", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["conservation concern", "Water Quality", {"weight": -1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["cca washington", "Policy Management", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["cca washington", "conservation concern", {"weight": 1.0, "confidence": 0.42500000000000004, "type": "inter_cluster", "style": "solid"}], ["cca washington", "Species Scope", {"weight": 1.0, "confidence": 0.38749999999999996, "type": "inter_cluster", "style": "solid"}], ["cca washington", "Marine Nutrients", {"weight": 1.0, "confidence": 0.4000000000000001, "type": "inter_cluster", "style": "solid"}], ["cca washington", "Commercial Fisheries", {"weight": 0.5, "confidence": 0.15, "type": "inter_cluster", "style": "solid"}], ["Species Scope", "commercial ocean harvest", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["Species Scope", "Dam Removal", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["Key Organisms", "Hatchery and Forage", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["Key Organisms", "Salmon Populations", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["Salmon Populations", "conservation concern", {"weight": 1.0, "confidence": 0.44999999999999996, "type": "inter_cluster", "style": "solid"}], ["Species Conservation", "Commercial Fishing", {"weight": -1.0, "confidence": 0.82, "type": "inter_cluster", "style": "solid"}], ["Species Conservation", "Key Organisms", {"weight": -1.0, "confidence": 0.5199999999999999, "type": "inter_cluster", "style": "solid"}], ["Salmon Conservation", "Dam Removal", {"weight": 1.0, "confidence": 0.42500000000000004, "type": "inter_cluster", "style": "solid"}], ["Salmon Conservation", "Fisheries Management", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Hatchery and Forage", "Commercial Fishing", {"weight": 0.8, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["Hatchery and Forage", "Key Organisms", {"weight": 1.0, "confidence": 0.36250000000000004, "type": "inter_cluster", "style": "solid"}], ["Hatchery and Forage", "Salmon Populations", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["Commercial Fishing", "Species Scope", {"weight": -1.0, "confidence": 0.8200000000000001, "type": "inter_cluster", "style": "solid"}], ["Commercial Fishing", "Fishing Seasons", {"weight": 1.0, "confidence": 0.64, "type": "inter_cluster", "style": "solid"}], ["Commercial Fishing", "salmon stressors", {"weight": 1.0, "confidence": 0.7125, "type": "inter_cluster", "style": "solid"}], ["Commercial Fishing", "Habitat Formation", {"weight": -0.6, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["Commercial Fishing", "Hatchery and Forage", {"weight": -0.6666666666666666, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["Commercial Fishing", "Water Quality", {"weight": -0.6666666666666666, "confidence": 0.26666666666666666, "type": "inter_cluster", "style": "solid"}], ["Fishing Seasons", "Species Conservation", {"weight": -1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["Fishing Seasons", "Species Scope", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Fishing Seasons", "Policy Management", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Fishing Impact", "Fisheries Management", {"weight": 1.0, "confidence": 0.425, "type": "inter_cluster", "style": "solid"}], ["Fishing Impact", "mark selective fisheries", {"weight": -0.75, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["Fishing Impact", "cca washington", {"weight": 0.5, "confidence": 0.1, "type": "inter_cluster", "style": "solid"}], ["Fisheries Management", "Marine Nutrients", {"weight": 1.0, "confidence": 0.42500000000000004, "type": "inter_cluster", "style": "solid"}], ["Fisheries Management", "Species Conservation", {"weight": -0.25, "confidence": 0.325, "type": "inter_cluster", "style": "solid"}], ["Commercial Fisheries", "Species Conservation", {"weight": -1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["Dam Removal", "Hydro Projects", {"weight": 1.0, "confidence": 0.7499999999999999, "type": "inter_cluster", "style": "solid"}], ["Hydro Projects", "Habitat Formation", {"weight": -1.0, "confidence": 0.5375, "type": "inter_cluster", "style": "solid"}], ["Water Quality", "conservation concern", {"weight": 0.5, "confidence": 0.5875, "type": "inter_cluster", "style": "solid"}], ["Chemical Runoff", "Key Organisms", {"weight": 1.0, "confidence": 0.8300000000000001, "type": "inter_cluster", "style": "solid"}], ["Chemical Runoff", "salmon stressors", {"weight": 1.0, "confidence": 0.8333333333333334, "type": "inter_cluster", "style": "solid"}], ["Chemical Runoff", "Salmon Conservation", {"weight": -0.5, "confidence": 0.5375000000000001, "type": "inter_cluster", "style": "solid"}], ["Chemical Runoff", "Species Scope", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Stakeholder Interests", "Fisheries Management", {"weight": 1.0, "confidence": 0.42000000000000004, "type": "inter_cluster", "style": "solid"}], ["Stakeholder Interests", "mark selective fisheries", {"weight": -1.0, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["Policy Management", "Species Scope", {"weight": 0.4, "confidence": 0.34, "type": "inter_cluster", "style": "solid"}], ["Policy Management", "cca washington", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["Pacific Northwest Ecosystems", "Salmon Populations", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["Habitat Formation", "Species Scope", {"weight": 1.0, "confidence": 0.7299999999999999, "type": "inter_cluster", "style": "solid"}], ["Habitat Conservation", "Water Quality", {"weight": 1.0, "confidence": 0.6399999999999999, "type": "inter_cluster", "style": "solid"}], ["Habitat Conservation", "Species Scope", {"weight": 1.0, "confidence": 0.8166666666666668, "type": "inter_cluster", "style": "solid"}], ["Habitat Conservation", "Commercial Fishing", {"weight": -0.75, "confidence": 0.275, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {"Species Scope": [["endangered species", {"concepts": "endangered species", "type": "concept", "cluster": "Species Scope", "node_size": 10, "label": "endangered species"}], ["biodiversity", {"concepts": "biodiversity", "type": "concept", "cluster": "Species Scope", "node_size": 10, "label": "biodiversity"}], ["wild populations", {"concepts": "wild populations", "type": "concept", "cluster": "Species Scope", "node_size": 10, "label": "wild populations"}]], "Key Organisms": [["chemical stressors", {"concepts": "chemical stressors", "type": "concept", "cluster": "Key Organisms", "node_size": 10, "label": "chemical stressors"}], ["harmful organisms", {"concepts": "harmful organisms", "type": "concept", "cluster": "Key Organisms", "node_size": 10, "label": "harmful organisms"}]], "Salmon Populations": [["key species", {"concepts": "key species", "type": "concept", "cluster": "Salmon Populations", "node_size": 10, "label": "key species"}], ["bacteria", {"concepts": "bacteria", "type": "concept", "cluster": "Salmon Populations", "node_size": 10, "label": "bacteria"}], ["single species", {"concepts": "single species", "type": "concept", "cluster": "Salmon Populations", "node_size": 10, "label": "single species"}], ["multi species", {"concepts": "multi species", "type": "concept", "cluster": "Salmon Populations", "node_size": 10, "label": "multi species"}]], "Species Conservation": [["salmon runs", {"concepts": "salmon runs", "type": "concept", "cluster": "Species Conservation", "node_size": 10, "label": "salmon runs"}], ["salmon populations", {"concepts": "salmon populations", "type": "concept", "cluster": "Species Conservation", "node_size": 10, "label": "salmon populations"}], ["wild salmon", {"concepts": "wild salmon", "type": "concept", "cluster": "Species Conservation", "node_size": 10, "label": "wild salmon"}]], "Salmon Conservation": [["salmon management", {"concepts": "salmon management", "type": "concept", "cluster": "Salmon Conservation", "node_size": 10, "label": "salmon management"}], ["salmon conservation", {"concepts": "salmon conservation", "type": "concept", "cluster": "Salmon Conservation", "node_size": 10, "label": "salmon conservation"}]], "Hatchery and Forage": [["hatchery fish", {"concepts": "hatchery fish", "type": "concept", "cluster": "Hatchery and Forage", "node_size": 10, "label": "hatchery fish"}], ["hatchery salmon", {"concepts": "hatchery salmon", "type": "concept", "cluster": "Hatchery and Forage", "node_size": 10, "label": "hatchery salmon"}], ["forage fish", {"concepts": "forage fish", "type": "concept", "cluster": "Hatchery and Forage", "node_size": 10, "label": "forage fish"}], ["hatchery groups", {"concepts": "hatchery groups", "type": "concept", "cluster": "Hatchery and Forage", "node_size": 10, "label": "hatchery groups"}], ["hatcheries", {"concepts": "hatcheries", "type": "concept", "cluster": "Hatchery and Forage", "node_size": 10, "label": "hatcheries"}]], "Commercial Fishing": [["fishing pressure", {"concepts": "fishing pressure", "type": "concept", "cluster": "Commercial Fishing", "node_size": 10, "label": "fishing pressure"}], ["ocean harvest", {"concepts": "ocean harvest", "type": "concept", "cluster": "Commercial Fishing", "node_size": 10, "label": "ocean harvest"}], ["commercial fishing", {"concepts": "commercial fishing", "type": "concept", "cluster": "Commercial Fishing", "node_size": 10, "label": "commercial fishing"}]], "Fishing Seasons": [["commercial fishing seasons", {"concepts": "commercial fishing seasons", "type": "concept", "cluster": "Fishing Seasons", "node_size": 10, "label": "commercial fishing seasons"}], ["recreational fishing seasons", {"concepts": "recreational fishing seasons", "type": "concept", "cluster": "Fishing Seasons", "node_size": 10, "label": "recreational fishing seasons"}], ["canada", {"concepts": "canada", "type": "concept", "cluster": "Fishing Seasons", "node_size": 10, "label": "canada"}], ["chesapeake bay", {"concepts": "chesapeake bay", "type": "concept", "cluster": "Fishing Seasons", "node_size": 10, "label": "chesapeake bay"}], ["gulf of mexico", {"concepts": "gulf of mexico", "type": "concept", "cluster": "Fishing Seasons", "node_size": 10, "label": "gulf of mexico"}], ["alaska", {"concepts": "alaska", "type": "concept", "cluster": "Fishing Seasons", "node_size": 10, "label": "alaska"}], ["mobile bay", {"concepts": "mobile bay", "type": "concept", "cluster": "Fishing Seasons", "node_size": 10, "label": "mobile bay"}], ["puget sound", {"concepts": "puget sound", "type": "concept", "cluster": "Fishing Seasons", "node_size": 10, "label": "puget sound"}], ["pacific", {"concepts": "pacific", "type": "concept", "cluster": "Fishing Seasons", "node_size": 10, "label": "pacific"}]], "Fishing Impact": [["gill netting", {"concepts": "gill netting", "type": "concept", "cluster": "Fishing Impact", "node_size": 10, "label": "gill netting"}], ["spawning", {"concepts": "spawning", "type": "concept", "cluster": "Fishing Impact", "node_size": 10, "label": "spawning"}]], "Marine Nutrients": [["nutrient enhancement", {"concepts": "nutrient enhancement", "type": "concept", "cluster": "Marine Nutrients", "node_size": 10, "label": "nutrient enhancement"}], ["marine nutrients", {"concepts": "marine nutrients", "type": "concept", "cluster": "Marine Nutrients", "node_size": 10, "label": "marine nutrients"}]], "Fisheries Management": [["fisheries management", {"concepts": "fisheries management", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "fisheries management"}], ["fishery managers", {"concepts": "fishery managers", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "fishery managers"}], ["fisheries managers", {"concepts": "fisheries managers", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "fisheries managers"}]], "Commercial Fisheries": [["pollock fisheries", {"concepts": "pollock fisheries", "type": "concept", "cluster": "Commercial Fisheries", "node_size": 10, "label": "pollock fisheries"}], ["squid fisheries", {"concepts": "squid fisheries", "type": "concept", "cluster": "Commercial Fisheries", "node_size": 10, "label": "squid fisheries"}], ["commercial fisheries", {"concepts": "commercial fisheries", "type": "concept", "cluster": "Commercial Fisheries", "node_size": 10, "label": "commercial fisheries"}]], "Dam Removal": [["dam removal", {"concepts": "dam removal", "type": "concept", "cluster": "Dam Removal", "node_size": 10, "label": "dam removal"}], ["dams", {"concepts": "dams", "type": "concept", "cluster": "Dam Removal", "node_size": 10, "label": "dams"}], ["dammed rivers", {"concepts": "dammed rivers", "type": "concept", "cluster": "Dam Removal", "node_size": 10, "label": "dammed rivers"}]], "Hydro Projects": [["hydro projects", {"concepts": "hydro projects", "type": "concept", "cluster": "Hydro Projects", "node_size": 10, "label": "hydro projects"}], ["columbia river", {"concepts": "columbia river", "type": "concept", "cluster": "Hydro Projects", "node_size": 10, "label": "columbia river"}]], "Water Quality": [["water quality", {"concepts": "water quality", "type": "concept", "cluster": "Water Quality", "node_size": 10, "label": "water quality"}], ["river environment", {"concepts": "river environment", "type": "concept", "cluster": "Water Quality", "node_size": 10, "label": "river environment"}], ["warmer water", {"concepts": "warmer water", "type": "concept", "cluster": "Water Quality", "node_size": 10, "label": "warmer water"}], ["water sediments", {"concepts": "water sediments", "type": "concept", "cluster": "Water Quality", "node_size": 10, "label": "water sediments"}]], "Chemical Runoff": [["chemical runoff", {"concepts": "chemical runoff", "type": "concept", "cluster": "Chemical Runoff", "node_size": 10, "label": "chemical runoff"}], ["watersheds", {"concepts": "watersheds", "type": "concept", "cluster": "Chemical Runoff", "node_size": 10, "label": "watersheds"}], ["river runoff", {"concepts": "river runoff", "type": "concept", "cluster": "Chemical Runoff", "node_size": 10, "label": "river runoff"}]], "Stakeholder Interests": [["status quo", {"concepts": "status quo", "type": "concept", "cluster": "Stakeholder Interests", "node_size": 10, "label": "status quo"}], ["resource users", {"concepts": "resource users", "type": "concept", "cluster": "Stakeholder Interests", "node_size": 10, "label": "resource users"}], ["human considerations", {"concepts": "human considerations", "type": "concept", "cluster": "Stakeholder Interests", "node_size": 10, "label": "human considerations"}], ["non-tribal communities", {"concepts": "non-tribal communities", "type": "concept", "cluster": "Stakeholder Interests", "node_size": 10, "label": "non-tribal communities"}], ["stakeholders", {"concepts": "stakeholders", "type": "concept", "cluster": "Stakeholder Interests", "node_size": 10, "label": "stakeholders"}], ["consumptive users", {"concepts": "consumptive users", "type": "concept", "cluster": "Stakeholder Interests", "node_size": 10, "label": "consumptive users"}], ["future generations", {"concepts": "future generations", "type": "concept", "cluster": "Stakeholder Interests", "node_size": 10, "label": "future generations"}], ["tribal communities", {"concepts": "tribal communities", "type": "concept", "cluster": "Stakeholder Interests", "node_size": 10, "label": "tribal communities"}], ["shared uses", {"concepts": "shared uses", "type": "concept", "cluster": "Stakeholder Interests", "node_size": 10, "label": "shared uses"}]], "Policy Management": [["federal policies", {"concepts": "federal policies", "type": "concept", "cluster": "Policy Management", "node_size": 10, "label": "federal policies"}], ["state policies", {"concepts": "state policies", "type": "concept", "cluster": "Policy Management", "node_size": 10, "label": "state policies"}], ["policy management", {"concepts": "policy management", "type": "concept", "cluster": "Policy Management", "node_size": 10, "label": "policy management"}], ["national lawsuits", {"concepts": "national lawsuits", "type": "concept", "cluster": "Policy Management", "node_size": 10, "label": "national lawsuits"}], ["management policies", {"concepts": "management policies", "type": "concept", "cluster": "Policy Management", "node_size": 10, "label": "management policies"}], ["local policies", {"concepts": "local policies", "type": "concept", "cluster": "Policy Management", "node_size": 10, "label": "local policies"}], ["harvest policies", {"concepts": "harvest policies", "type": "concept", "cluster": "Policy Management", "node_size": 10, "label": "harvest policies"}]], "Pacific Northwest Ecosystems": [["brake dust", {"concepts": "brake dust", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "brake dust"}], ["whirling disease", {"concepts": "whirling disease", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "whirling disease"}], ["commercial overharvest", {"concepts": "commercial overharvest", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "commercial overharvest"}], ["over harvest", {"concepts": "over harvest", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "over harvest"}], ["ecosystem services", {"concepts": "ecosystem services", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "ecosystem services"}], ["bonneville dam", {"concepts": "bonneville dam", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "bonneville dam"}], ["development impact", {"concepts": "development impact", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "development impact"}], ["ecosystem", {"concepts": "ecosystem", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "ecosystem"}], ["ecosystem management", {"concepts": "ecosystem management", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "ecosystem management"}], ["pacific northwest", {"concepts": "pacific northwest", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "pacific northwest"}], ["tributaries", {"concepts": "tributaries", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "tributaries"}], ["food web", {"concepts": "food web", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "food web"}], ["trawler", {"concepts": "trawler", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "trawler"}], ["hydro", {"concepts": "hydro", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "hydro"}], ["treaty tribes", {"concepts": "treaty tribes", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "treaty tribes"}], ["managers", {"concepts": "managers", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "managers"}], ["environmental factors", {"concepts": "environmental factors", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "environmental factors"}], ["msy", {"concepts": "msy", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "msy"}], ["commercial harvest", {"concepts": "commercial harvest", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "commercial harvest"}], ["tribal gill netting", {"concepts": "tribal gill netting", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "tribal gill netting"}], ["bycatch", {"concepts": "bycatch", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "bycatch"}], ["harvest management", {"concepts": "harvest management", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "harvest management"}], ["sustainable yield", {"concepts": "sustainable yield", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "sustainable yield"}], ["harvest", {"concepts": "harvest", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "harvest"}], ["allocation issue", {"concepts": "allocation issue", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "allocation issue"}], ["over harvesting", {"concepts": "over harvesting", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "over harvesting"}], ["tribal layer", {"concepts": "tribal layer", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "tribal layer"}], ["cca alabama", {"concepts": "cca alabama", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "cca alabama"}], ["researchers", {"concepts": "researchers", "type": "concept", "cluster": "Pacific Northwest Ecosystems", "node_size": 10, "label": "researchers"}]], "Habitat Formation": [["habitat", {"concepts": "habitat", "type": "concept", "cluster": "Habitat Formation", "node_size": 10, "label": "habitat"}], ["habitat forming species", {"concepts": "habitat forming species", "type": "concept", "cluster": "Habitat Formation", "node_size": 10, "label": "habitat forming species"}]], "Habitat Conservation": [["habitat restoration", {"concepts": "habitat restoration", "type": "concept", "cluster": "Habitat Conservation", "node_size": 10, "label": "habitat restoration"}], ["habitat protection", {"concepts": "habitat protection", "type": "concept", "cluster": "Habitat Conservation", "node_size": 10, "label": "habitat protection"}], ["habitat projects", {"concepts": "habitat projects", "type": "concept", "cluster": "Habitat Conservation", "node_size": 10, "label": "habitat projects"}], ["natal streams", {"concepts": "natal streams", "type": "concept", "cluster": "Habitat Conservation", "node_size": 10, "label": "natal streams"}], ["impervious surfaces", {"concepts": "impervious surfaces", "type": "concept", "cluster": "Habitat Conservation", "node_size": 10, "label": "impervious surfaces"}]]};
+        const clusterEdges = {"Species Scope": [], "Key Organisms": [], "Salmon Populations": [], "Species Conservation": [], "Salmon Conservation": [], "Hatchery and Forage": [], "Commercial Fishing": [], "Fishing Seasons": [], "Fishing Impact": [], "Marine Nutrients": [], "Fisheries Management": [], "Commercial Fisheries": [], "Dam Removal": [], "Hydro Projects": [], "Water Quality": [], "Chemical Runoff": [], "Stakeholder Interests": [], "Policy Management": [], "Pacific Northwest Ecosystems": [], "Habitat Formation": [], "Habitat Conservation": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"Wildlife Conservation": {"concepts": "conservation concern, propagation of fish and wildlife", "concept_list": ["conservation concern", "propagation of fish and wildlife"], "type": "cluster", "node_size": 21, "label": "Wildlife Conservation"}, "Environmental Collaboration": {"concepts": "ecosystem, surveyor, us army corps of engineers, seasonality, audubon society, team retreat, visualization, public engagement, organizational structures, ai platform, stakeholders, ecosystem function, environmental perception, state standards, ecosystem resources, staff scientist, filtration services, waterkeeper alliance, improvement plans, ecosystem components, food web, citizen scientists, environmental nonprofit, public access, data collection, rorschach test, ecosystem functionality, army corps of engineers, mobile bay, ecological value, decision-making, collaboration, epa enforcement", "concept_list": ["ecosystem", "surveyor", "us army corps of engineers", "seasonality", "audubon society", "team retreat", "visualization", "public engagement", "organizational structures", "ai platform", "stakeholders", "ecosystem function", "environmental perception", "state standards", "ecosystem resources", "staff scientist", "filtration services", "waterkeeper alliance", "improvement plans", "ecosystem components", "food web", "citizen scientists", "environmental nonprofit", "public access", "data collection", "rorschach test", "ecosystem functionality", "army corps of engineers", "mobile bay", "ecological value", "decision-making", "collaboration", "epa enforcement"], "type": "cluster", "node_size": 114, "label": "Environmental Collaboration"}, "Habitat Management": {"concepts": "habitat, riparian bank, protected species habitat, watershed, habitat forming species, habitat production, invasive vegetation, urbanized wildlife, wildlife, habitat restoration, habitat protection, habitat fragmentation, native vegetation, habitat functionality, habitats", "concept_list": ["habitat", "riparian bank", "protected species habitat", "watershed", "habitat forming species", "habitat production", "invasive vegetation", "urbanized wildlife", "wildlife", "habitat restoration", "habitat protection", "habitat fragmentation", "native vegetation", "habitat functionality", "habitats"], "type": "cluster", "node_size": 60, "label": "Habitat Management"}, "Species Protection": {"concepts": "sensitive species, species counts, harmful organisms, fish consumption, poster child species, keystone species, species migration, protected species, biodiversity, listed species, biodiversity data, species loss, propagation of fish, species of conservation concern", "concept_list": ["sensitive species", "species counts", "harmful organisms", "fish consumption", "poster child species", "keystone species", "species migration", "protected species", "biodiversity", "listed species", "biodiversity data", "species loss", "propagation of fish", "species of conservation concern"], "type": "cluster", "node_size": 57, "label": "Species Protection"}, "Regulatory Enforcement": {"concepts": "after-the-fact permits, regulatory agencies, development credits, regulatory enforcement, litigation, federal standards, mitigation banks, court involvement, federal enforcement", "concept_list": ["after-the-fact permits", "regulatory agencies", "development credits", "regulatory enforcement", "litigation", "federal standards", "mitigation banks", "court involvement", "federal enforcement"], "type": "cluster", "node_size": 42, "label": "Regulatory Enforcement"}, "Water Quality Management": {"concepts": "water quality enforcement, oyster beds, water improvement plans, waterway designation, wastewater treatment, water quality, seagrass beds, impaired waterways, wetlands, water quality monitoring, water quality thresholds, pollution intervention, tributary waters, effluent, marine resource management, coastal waters, clean water act, recreational waterways", "concept_list": ["water quality enforcement", "oyster beds", "water improvement plans", "waterway designation", "wastewater treatment", "water quality", "seagrass beds", "impaired waterways", "wetlands", "water quality monitoring", "water quality thresholds", "pollution intervention", "tributary waters", "effluent", "marine resource management", "coastal waters", "clean water act", "recreational waterways"], "type": "cluster", "node_size": 69, "label": "Water Quality Management"}};
+        const conceptData = {"conservation concern": {"concepts": "conservation concern", "type": "concept", "cluster": "Wildlife Conservation", "node_size": 10, "label": "conservation concern"}, "propagation of fish and wildlife": {"concepts": "propagation of fish and wildlife", "type": "concept", "cluster": "Wildlife Conservation", "node_size": 10, "label": "propagation of fish and wildlife"}, "ecosystem": {"concepts": "ecosystem", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "ecosystem"}, "surveyor": {"concepts": "surveyor", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "surveyor"}, "us army corps of engineers": {"concepts": "us army corps of engineers", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "us army corps of engineers"}, "seasonality": {"concepts": "seasonality", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "seasonality"}, "audubon society": {"concepts": "audubon society", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "audubon society"}, "team retreat": {"concepts": "team retreat", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "team retreat"}, "visualization": {"concepts": "visualization", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "visualization"}, "public engagement": {"concepts": "public engagement", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "public engagement"}, "organizational structures": {"concepts": "organizational structures", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "organizational structures"}, "ai platform": {"concepts": "ai platform", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "ai platform"}, "stakeholders": {"concepts": "stakeholders", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "stakeholders"}, "ecosystem function": {"concepts": "ecosystem function", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "ecosystem function"}, "environmental perception": {"concepts": "environmental perception", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "environmental perception"}, "state standards": {"concepts": "state standards", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "state standards"}, "ecosystem resources": {"concepts": "ecosystem resources", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "ecosystem resources"}, "staff scientist": {"concepts": "staff scientist", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "staff scientist"}, "filtration services": {"concepts": "filtration services", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "filtration services"}, "waterkeeper alliance": {"concepts": "waterkeeper alliance", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "waterkeeper alliance"}, "improvement plans": {"concepts": "improvement plans", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "improvement plans"}, "ecosystem components": {"concepts": "ecosystem components", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "ecosystem components"}, "food web": {"concepts": "food web", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "food web"}, "citizen scientists": {"concepts": "citizen scientists", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "citizen scientists"}, "environmental nonprofit": {"concepts": "environmental nonprofit", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "environmental nonprofit"}, "public access": {"concepts": "public access", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "public access"}, "data collection": {"concepts": "data collection", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "data collection"}, "rorschach test": {"concepts": "rorschach test", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "rorschach test"}, "ecosystem functionality": {"concepts": "ecosystem functionality", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "ecosystem functionality"}, "army corps of engineers": {"concepts": "army corps of engineers", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "army corps of engineers"}, "mobile bay": {"concepts": "mobile bay", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "mobile bay"}, "ecological value": {"concepts": "ecological value", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "ecological value"}, "decision-making": {"concepts": "decision-making", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "decision-making"}, "collaboration": {"concepts": "collaboration", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "collaboration"}, "epa enforcement": {"concepts": "epa enforcement", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "epa enforcement"}, "habitat": {"concepts": "habitat", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "habitat"}, "riparian bank": {"concepts": "riparian bank", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "riparian bank"}, "protected species habitat": {"concepts": "protected species habitat", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "protected species habitat"}, "watershed": {"concepts": "watershed", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "watershed"}, "habitat forming species": {"concepts": "habitat forming species", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "habitat forming species"}, "habitat production": {"concepts": "habitat production", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "habitat production"}, "invasive vegetation": {"concepts": "invasive vegetation", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "invasive vegetation"}, "urbanized wildlife": {"concepts": "urbanized wildlife", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "urbanized wildlife"}, "wildlife": {"concepts": "wildlife", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "wildlife"}, "habitat restoration": {"concepts": "habitat restoration", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "habitat restoration"}, "habitat protection": {"concepts": "habitat protection", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "habitat protection"}, "habitat fragmentation": {"concepts": "habitat fragmentation", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "habitat fragmentation"}, "native vegetation": {"concepts": "native vegetation", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "native vegetation"}, "habitat functionality": {"concepts": "habitat functionality", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "habitat functionality"}, "habitats": {"concepts": "habitats", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "habitats"}, "sensitive species": {"concepts": "sensitive species", "type": "concept", "cluster": "Species Protection", "node_size": 10, "label": "sensitive species"}, "species counts": {"concepts": "species counts", "type": "concept", "cluster": "Species Protection", "node_size": 10, "label": "species counts"}, "harmful organisms": {"concepts": "harmful organisms", "type": "concept", "cluster": "Species Protection", "node_size": 10, "label": "harmful organisms"}, "fish consumption": {"concepts": "fish consumption", "type": "concept", "cluster": "Species Protection", "node_size": 10, "label": "fish consumption"}, "poster child species": {"concepts": "poster child species", "type": "concept", "cluster": "Species Protection", "node_size": 10, "label": "poster child species"}, "keystone species": {"concepts": "keystone species", "type": "concept", "cluster": "Species Protection", "node_size": 10, "label": "keystone species"}, "species migration": {"concepts": "species migration", "type": "concept", "cluster": "Species Protection", "node_size": 10, "label": "species migration"}, "protected species": {"concepts": "protected species", "type": "concept", "cluster": "Species Protection", "node_size": 10, "label": "protected species"}, "biodiversity": {"concepts": "biodiversity", "type": "concept", "cluster": "Species Protection", "node_size": 10, "label": "biodiversity"}, "listed species": {"concepts": "listed species", "type": "concept", "cluster": "Species Protection", "node_size": 10, "label": "listed species"}, "biodiversity data": {"concepts": "biodiversity data", "type": "concept", "cluster": "Species Protection", "node_size": 10, "label": "biodiversity data"}, "species loss": {"concepts": "species loss", "type": "concept", "cluster": "Species Protection", "node_size": 10, "label": "species loss"}, "propagation of fish": {"concepts": "propagation of fish", "type": "concept", "cluster": "Species Protection", "node_size": 10, "label": "propagation of fish"}, "species of conservation concern": {"concepts": "species of conservation concern", "type": "concept", "cluster": "Species Protection", "node_size": 10, "label": "species of conservation concern"}, "after-the-fact permits": {"concepts": "after-the-fact permits", "type": "concept", "cluster": "Regulatory Enforcement", "node_size": 10, "label": "after-the-fact permits"}, "regulatory agencies": {"concepts": "regulatory agencies", "type": "concept", "cluster": "Regulatory Enforcement", "node_size": 10, "label": "regulatory agencies"}, "development credits": {"concepts": "development credits", "type": "concept", "cluster": "Regulatory Enforcement", "node_size": 10, "label": "development credits"}, "regulatory enforcement": {"concepts": "regulatory enforcement", "type": "concept", "cluster": "Regulatory Enforcement", "node_size": 10, "label": "regulatory enforcement"}, "litigation": {"concepts": "litigation", "type": "concept", "cluster": "Regulatory Enforcement", "node_size": 10, "label": "litigation"}, "federal standards": {"concepts": "federal standards", "type": "concept", "cluster": "Regulatory Enforcement", "node_size": 10, "label": "federal standards"}, "mitigation banks": {"concepts": "mitigation banks", "type": "concept", "cluster": "Regulatory Enforcement", "node_size": 10, "label": "mitigation banks"}, "court involvement": {"concepts": "court involvement", "type": "concept", "cluster": "Regulatory Enforcement", "node_size": 10, "label": "court involvement"}, "federal enforcement": {"concepts": "federal enforcement", "type": "concept", "cluster": "Regulatory Enforcement", "node_size": 10, "label": "federal enforcement"}, "water quality enforcement": {"concepts": "water quality enforcement", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "water quality enforcement"}, "oyster beds": {"concepts": "oyster beds", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "oyster beds"}, "water improvement plans": {"concepts": "water improvement plans", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "water improvement plans"}, "waterway designation": {"concepts": "waterway designation", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "waterway designation"}, "wastewater treatment": {"concepts": "wastewater treatment", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "wastewater treatment"}, "water quality": {"concepts": "water quality", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "water quality"}, "seagrass beds": {"concepts": "seagrass beds", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "seagrass beds"}, "impaired waterways": {"concepts": "impaired waterways", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "impaired waterways"}, "wetlands": {"concepts": "wetlands", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "wetlands"}, "water quality monitoring": {"concepts": "water quality monitoring", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "water quality monitoring"}, "water quality thresholds": {"concepts": "water quality thresholds", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "water quality thresholds"}, "pollution intervention": {"concepts": "pollution intervention", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "pollution intervention"}, "tributary waters": {"concepts": "tributary waters", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "tributary waters"}, "effluent": {"concepts": "effluent", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "effluent"}, "marine resource management": {"concepts": "marine resource management", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "marine resource management"}, "coastal waters": {"concepts": "coastal waters", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "coastal waters"}, "clean water act": {"concepts": "clean water act", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "clean water act"}, "recreational waterways": {"concepts": "recreational waterways", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "recreational waterways"}};
+        const interClusterEdges = [["Wildlife Conservation", "Species Protection", {"weight": 1.0, "confidence": 0.9200000000000002, "type": "inter_cluster", "style": "solid"}], ["Wildlife Conservation", "Habitat Management", {"weight": 0.6, "confidence": 0.82, "type": "inter_cluster", "style": "solid"}], ["Wildlife Conservation", "Regulatory Enforcement", {"weight": 0.6, "confidence": 0.79, "type": "inter_cluster", "style": "solid"}], ["Wildlife Conservation", "Water Quality Management", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Wildlife Conservation", "Environmental Collaboration", {"weight": 1.0, "confidence": 0.7200000000000001, "type": "inter_cluster", "style": "solid"}], ["Environmental Collaboration", "Species Protection", {"weight": 1.0, "confidence": 0.8799999999999999, "type": "inter_cluster", "style": "solid"}], ["Environmental Collaboration", "Habitat Management", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Environmental Collaboration", "Wildlife Conservation", {"weight": 0.6, "confidence": 0.8099999999999999, "type": "inter_cluster", "style": "solid"}], ["Environmental Collaboration", "Water Quality Management", {"weight": 1.0, "confidence": 0.79, "type": "inter_cluster", "style": "solid"}], ["Environmental Collaboration", "Regulatory Enforcement", {"weight": 1.0, "confidence": 0.6799999999999999, "type": "inter_cluster", "style": "solid"}], ["Habitat Management", "Species Protection", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["Habitat Management", "Environmental Collaboration", {"weight": 1.0, "confidence": 0.8699999999999999, "type": "inter_cluster", "style": "solid"}], ["Habitat Management", "Wildlife Conservation", {"weight": 0.6, "confidence": 0.8300000000000001, "type": "inter_cluster", "style": "solid"}], ["Habitat Management", "Water Quality Management", {"weight": 1.0, "confidence": 0.76, "type": "inter_cluster", "style": "solid"}], ["Habitat Management", "Regulatory Enforcement", {"weight": 0.6, "confidence": 0.76, "type": "inter_cluster", "style": "solid"}], ["Species Protection", "Wildlife Conservation", {"weight": 1.0, "confidence": 0.9100000000000001, "type": "inter_cluster", "style": "solid"}], ["Species Protection", "Habitat Management", {"weight": 1.0, "confidence": 0.8300000000000001, "type": "inter_cluster", "style": "solid"}], ["Species Protection", "Regulatory Enforcement", {"weight": 1.0, "confidence": 0.82, "type": "inter_cluster", "style": "solid"}], ["Species Protection", "Environmental Collaboration", {"weight": 1.0, "confidence": 0.8099999999999999, "type": "inter_cluster", "style": "solid"}], ["Species Protection", "Water Quality Management", {"weight": 0.6, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Regulatory Enforcement", "Species Protection", {"weight": 1.0, "confidence": 0.8800000000000001, "type": "inter_cluster", "style": "solid"}], ["Regulatory Enforcement", "Habitat Management", {"weight": 0.6, "confidence": 0.8400000000000001, "type": "inter_cluster", "style": "solid"}], ["Regulatory Enforcement", "Water Quality Management", {"weight": 1.0, "confidence": 0.8300000000000001, "type": "inter_cluster", "style": "solid"}], ["Regulatory Enforcement", "Wildlife Conservation", {"weight": -0.2, "confidence": 0.8099999999999999, "type": "inter_cluster", "style": "solid"}], ["Regulatory Enforcement", "Environmental Collaboration", {"weight": 0.6, "confidence": 0.71, "type": "inter_cluster", "style": "solid"}], ["Water Quality Management", "Wildlife Conservation", {"weight": 1.0, "confidence": 0.8699999999999999, "type": "inter_cluster", "style": "solid"}], ["Water Quality Management", "Species Protection", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Water Quality Management", "Environmental Collaboration", {"weight": 1.0, "confidence": 0.8300000000000001, "type": "inter_cluster", "style": "solid"}], ["Water Quality Management", "Regulatory Enforcement", {"weight": 1.0, "confidence": 0.82, "type": "inter_cluster", "style": "solid"}], ["Water Quality Management", "Habitat Management", {"weight": 1.0, "confidence": 0.8100000000000002, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {"Wildlife Conservation": [["conservation concern", {"concepts": "conservation concern", "type": "concept", "cluster": "Wildlife Conservation", "node_size": 10, "label": "conservation concern"}], ["propagation of fish and wildlife", {"concepts": "propagation of fish and wildlife", "type": "concept", "cluster": "Wildlife Conservation", "node_size": 10, "label": "propagation of fish and wildlife"}]], "Environmental Collaboration": [["ecosystem", {"concepts": "ecosystem", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "ecosystem"}], ["surveyor", {"concepts": "surveyor", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "surveyor"}], ["us army corps of engineers", {"concepts": "us army corps of engineers", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "us army corps of engineers"}], ["seasonality", {"concepts": "seasonality", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "seasonality"}], ["audubon society", {"concepts": "audubon society", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "audubon society"}], ["team retreat", {"concepts": "team retreat", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "team retreat"}], ["visualization", {"concepts": "visualization", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "visualization"}], ["public engagement", {"concepts": "public engagement", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "public engagement"}], ["organizational structures", {"concepts": "organizational structures", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "organizational structures"}], ["ai platform", {"concepts": "ai platform", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "ai platform"}], ["stakeholders", {"concepts": "stakeholders", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "stakeholders"}], ["ecosystem function", {"concepts": "ecosystem function", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "ecosystem function"}], ["environmental perception", {"concepts": "environmental perception", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "environmental perception"}], ["state standards", {"concepts": "state standards", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "state standards"}], ["ecosystem resources", {"concepts": "ecosystem resources", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "ecosystem resources"}], ["staff scientist", {"concepts": "staff scientist", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "staff scientist"}], ["filtration services", {"concepts": "filtration services", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "filtration services"}], ["waterkeeper alliance", {"concepts": "waterkeeper alliance", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "waterkeeper alliance"}], ["improvement plans", {"concepts": "improvement plans", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "improvement plans"}], ["ecosystem components", {"concepts": "ecosystem components", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "ecosystem components"}], ["food web", {"concepts": "food web", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "food web"}], ["citizen scientists", {"concepts": "citizen scientists", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "citizen scientists"}], ["environmental nonprofit", {"concepts": "environmental nonprofit", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "environmental nonprofit"}], ["public access", {"concepts": "public access", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "public access"}], ["data collection", {"concepts": "data collection", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "data collection"}], ["rorschach test", {"concepts": "rorschach test", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "rorschach test"}], ["ecosystem functionality", {"concepts": "ecosystem functionality", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "ecosystem functionality"}], ["army corps of engineers", {"concepts": "army corps of engineers", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "army corps of engineers"}], ["mobile bay", {"concepts": "mobile bay", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "mobile bay"}], ["ecological value", {"concepts": "ecological value", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "ecological value"}], ["decision-making", {"concepts": "decision-making", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "decision-making"}], ["collaboration", {"concepts": "collaboration", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "collaboration"}], ["epa enforcement", {"concepts": "epa enforcement", "type": "concept", "cluster": "Environmental Collaboration", "node_size": 10, "label": "epa enforcement"}]], "Habitat Management": [["habitat", {"concepts": "habitat", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "habitat"}], ["riparian bank", {"concepts": "riparian bank", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "riparian bank"}], ["protected species habitat", {"concepts": "protected species habitat", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "protected species habitat"}], ["watershed", {"concepts": "watershed", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "watershed"}], ["habitat forming species", {"concepts": "habitat forming species", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "habitat forming species"}], ["habitat production", {"concepts": "habitat production", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "habitat production"}], ["invasive vegetation", {"concepts": "invasive vegetation", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "invasive vegetation"}], ["urbanized wildlife", {"concepts": "urbanized wildlife", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "urbanized wildlife"}], ["wildlife", {"concepts": "wildlife", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "wildlife"}], ["habitat restoration", {"concepts": "habitat restoration", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "habitat restoration"}], ["habitat protection", {"concepts": "habitat protection", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "habitat protection"}], ["habitat fragmentation", {"concepts": "habitat fragmentation", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "habitat fragmentation"}], ["native vegetation", {"concepts": "native vegetation", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "native vegetation"}], ["habitat functionality", {"concepts": "habitat functionality", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "habitat functionality"}], ["habitats", {"concepts": "habitats", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "habitats"}]], "Species Protection": [["sensitive species", {"concepts": "sensitive species", "type": "concept", "cluster": "Species Protection", "node_size": 10, "label": "sensitive species"}], ["species counts", {"concepts": "species counts", "type": "concept", "cluster": "Species Protection", "node_size": 10, "label": "species counts"}], ["harmful organisms", {"concepts": "harmful organisms", "type": "concept", "cluster": "Species Protection", "node_size": 10, "label": "harmful organisms"}], ["fish consumption", {"concepts": "fish consumption", "type": "concept", "cluster": "Species Protection", "node_size": 10, "label": "fish consumption"}], ["poster child species", {"concepts": "poster child species", "type": "concept", "cluster": "Species Protection", "node_size": 10, "label": "poster child species"}], ["keystone species", {"concepts": "keystone species", "type": "concept", "cluster": "Species Protection", "node_size": 10, "label": "keystone species"}], ["species migration", {"concepts": "species migration", "type": "concept", "cluster": "Species Protection", "node_size": 10, "label": "species migration"}], ["protected species", {"concepts": "protected species", "type": "concept", "cluster": "Species Protection", "node_size": 10, "label": "protected species"}], ["biodiversity", {"concepts": "biodiversity", "type": "concept", "cluster": "Species Protection", "node_size": 10, "label": "biodiversity"}], ["listed species", {"concepts": "listed species", "type": "concept", "cluster": "Species Protection", "node_size": 10, "label": "listed species"}], ["biodiversity data", {"concepts": "biodiversity data", "type": "concept", "cluster": "Species Protection", "node_size": 10, "label": "biodiversity data"}], ["species loss", {"concepts": "species loss", "type": "concept", "cluster": "Species Protection", "node_size": 10, "label": "species loss"}], ["propagation of fish", {"concepts": "propagation of fish", "type": "concept", "cluster": "Species Protection", "node_size": 10, "label": "propagation of fish"}], ["species of conservation concern", {"concepts": "species of conservation concern", "type": "concept", "cluster": "Species Protection", "node_size": 10, "label": "species of conservation concern"}]], "Regulatory Enforcement": [["after-the-fact permits", {"concepts": "after-the-fact permits", "type": "concept", "cluster": "Regulatory Enforcement", "node_size": 10, "label": "after-the-fact permits"}], ["regulatory agencies", {"concepts": "regulatory agencies", "type": "concept", "cluster": "Regulatory Enforcement", "node_size": 10, "label": "regulatory agencies"}], ["development credits", {"concepts": "development credits", "type": "concept", "cluster": "Regulatory Enforcement", "node_size": 10, "label": "development credits"}], ["regulatory enforcement", {"concepts": "regulatory enforcement", "type": "concept", "cluster": "Regulatory Enforcement", "node_size": 10, "label": "regulatory enforcement"}], ["litigation", {"concepts": "litigation", "type": "concept", "cluster": "Regulatory Enforcement", "node_size": 10, "label": "litigation"}], ["federal standards", {"concepts": "federal standards", "type": "concept", "cluster": "Regulatory Enforcement", "node_size": 10, "label": "federal standards"}], ["mitigation banks", {"concepts": "mitigation banks", "type": "concept", "cluster": "Regulatory Enforcement", "node_size": 10, "label": "mitigation banks"}], ["court involvement", {"concepts": "court involvement", "type": "concept", "cluster": "Regulatory Enforcement", "node_size": 10, "label": "court involvement"}], ["federal enforcement", {"concepts": "federal enforcement", "type": "concept", "cluster": "Regulatory Enforcement", "node_size": 10, "label": "federal enforcement"}]], "Water Quality Management": [["water quality enforcement", {"concepts": "water quality enforcement", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "water quality enforcement"}], ["oyster beds", {"concepts": "oyster beds", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "oyster beds"}], ["water improvement plans", {"concepts": "water improvement plans", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "water improvement plans"}], ["waterway designation", {"concepts": "waterway designation", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "waterway designation"}], ["wastewater treatment", {"concepts": "wastewater treatment", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "wastewater treatment"}], ["water quality", {"concepts": "water quality", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "water quality"}], ["seagrass beds", {"concepts": "seagrass beds", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "seagrass beds"}], ["impaired waterways", {"concepts": "impaired waterways", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "impaired waterways"}], ["wetlands", {"concepts": "wetlands", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "wetlands"}], ["water quality monitoring", {"concepts": "water quality monitoring", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "water quality monitoring"}], ["water quality thresholds", {"concepts": "water quality thresholds", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "water quality thresholds"}], ["pollution intervention", {"concepts": "pollution intervention", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "pollution intervention"}], ["tributary waters", {"concepts": "tributary waters", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "tributary waters"}], ["effluent", {"concepts": "effluent", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "effluent"}], ["marine resource management", {"concepts": "marine resource management", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "marine resource management"}], ["coastal waters", {"concepts": "coastal waters", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "coastal waters"}], ["clean water act", {"concepts": "clean water act", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "clean water act"}], ["recreational waterways", {"concepts": "recreational waterways", "type": "concept", "cluster": "Water Quality Management", "node_size": 10, "label": "recreational waterways"}]]};
+        const clusterEdges = {"Wildlife Conservation": [], "Environmental Collaboration": [], "Habitat Management": [], "Species Protection": [], "Regulatory Enforcement": [], "Water Quality Management": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

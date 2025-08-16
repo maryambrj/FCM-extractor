@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"Marine Conservation Management": {"concepts": "habitat-associated diversity, white house office of science and technology policy, policy language, policy intention, natural science, america the beautiful initiative, ecosystem services, science side, research communities, functional diversity, cbe, academic research, habitat-forming species, ecosystem diversity, nutrient cycling, biodiversity, grant programs, ngo management, problem-oriented engagement, genetic diversity, community functions, functional mechanism, ecosystem service valuation, individual species management, g7, public perspective, dunes, ngo partnership, policy precedent, social science, ngo research, nature portfolio, planning process, wind attenuation, system-based management, ecologist, carbon cycling, assistant director, policy perspective, farm bill programs, federal benefit cost analysis, nature-based solutions, food web-supporting species, biogeochemist, habitat functions, climate and environment team, system-oriented policy, green management, management context, decision makers, species diversity, usg perspective, federal benefit-cost analysis, management interventions, multilateral negotiations, facilitation functions, noaa, boundary organizations, policy, management practices, functional data, management outcomes, organizational barriers, private sector risk models, data limitations, functional implementation, conservation, lack of capacity, ecological interactions, rapid insight mechanisms, science-based framework, resource management, management objectives, policy side, harmful organisms, universities, system-oriented management, species richness, ngo partnerships, applied research, g20", "concept_list": ["habitat-associated diversity", "white house office of science and technology policy", "policy language", "policy intention", "natural science", "america the beautiful initiative", "ecosystem services", "science side", "research communities", "functional diversity", "cbe", "academic research", "habitat-forming species", "ecosystem diversity", "nutrient cycling", "biodiversity", "grant programs", "ngo management", "problem-oriented engagement", "genetic diversity", "community functions", "functional mechanism", "ecosystem service valuation", "individual species management", "g7", "public perspective", "dunes", "ngo partnership", "policy precedent", "social science", "ngo research", "nature portfolio", "planning process", "wind attenuation", "system-based management", "ecologist", "carbon cycling", "assistant director", "policy perspective", "farm bill programs", "federal benefit cost analysis", "nature-based solutions", "food web-supporting species", "biogeochemist", "habitat functions", "climate and environment team", "system-oriented policy", "green management", "management context", "decision makers", "species diversity", "usg perspective", "federal benefit-cost analysis", "management interventions", "multilateral negotiations", "facilitation functions", "noaa", "boundary organizations", "policy", "management practices", "functional data", "management outcomes", "organizational barriers", "private sector risk models", "data limitations", "functional implementation", "conservation", "lack of capacity", "ecological interactions", "rapid insight mechanisms", "science-based framework", "resource management", "management objectives", "policy side", "harmful organisms", "universities", "system-oriented management", "species richness", "ngo partnerships", "applied research", "g20"], "type": "cluster", "node_size": 258, "label": "Marine Conservation Management"}, "Ecosystem Policy & Management": {"concepts": "fishery management, species of conservation concern, marine management, marine outcomes, oyster reefs, mangroves, marine resource management, coral reefs, estuary management, natural resource management, conservation management, conservation actions, marshes, conservation organizations, coastal ecosystem restoration, water quality, flood risk reduction, marine system, conservation sciences", "concept_list": ["fishery management", "species of conservation concern", "marine management", "marine outcomes", "oyster reefs", "mangroves", "marine resource management", "coral reefs", "estuary management", "natural resource management", "conservation management", "conservation actions", "marshes", "conservation organizations", "coastal ecosystem restoration", "water quality", "flood risk reduction", "marine system", "conservation sciences"], "type": "cluster", "node_size": 72, "label": "Ecosystem Policy & Management"}};
+        const conceptData = {"habitat-associated diversity": {"concepts": "habitat-associated diversity", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "habitat-associated diversity"}, "white house office of science and technology policy": {"concepts": "white house office of science and technology policy", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "white house office of science and technology policy"}, "policy language": {"concepts": "policy language", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "policy language"}, "policy intention": {"concepts": "policy intention", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "policy intention"}, "natural science": {"concepts": "natural science", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "natural science"}, "america the beautiful initiative": {"concepts": "america the beautiful initiative", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "america the beautiful initiative"}, "ecosystem services": {"concepts": "ecosystem services", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "ecosystem services"}, "science side": {"concepts": "science side", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "science side"}, "research communities": {"concepts": "research communities", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "research communities"}, "functional diversity": {"concepts": "functional diversity", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "functional diversity"}, "cbe": {"concepts": "cbe", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "cbe"}, "academic research": {"concepts": "academic research", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "academic research"}, "habitat-forming species": {"concepts": "habitat-forming species", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "habitat-forming species"}, "ecosystem diversity": {"concepts": "ecosystem diversity", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "ecosystem diversity"}, "nutrient cycling": {"concepts": "nutrient cycling", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "nutrient cycling"}, "biodiversity": {"concepts": "biodiversity", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "biodiversity"}, "grant programs": {"concepts": "grant programs", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "grant programs"}, "ngo management": {"concepts": "ngo management", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "ngo management"}, "problem-oriented engagement": {"concepts": "problem-oriented engagement", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "problem-oriented engagement"}, "genetic diversity": {"concepts": "genetic diversity", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "genetic diversity"}, "community functions": {"concepts": "community functions", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "community functions"}, "functional mechanism": {"concepts": "functional mechanism", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "functional mechanism"}, "ecosystem service valuation": {"concepts": "ecosystem service valuation", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "ecosystem service valuation"}, "individual species management": {"concepts": "individual species management", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "individual species management"}, "g7": {"concepts": "g7", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "g7"}, "public perspective": {"concepts": "public perspective", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "public perspective"}, "dunes": {"concepts": "dunes", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "dunes"}, "ngo partnership": {"concepts": "ngo partnership", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "ngo partnership"}, "policy precedent": {"concepts": "policy precedent", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "policy precedent"}, "social science": {"concepts": "social science", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "social science"}, "ngo research": {"concepts": "ngo research", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "ngo research"}, "nature portfolio": {"concepts": "nature portfolio", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "nature portfolio"}, "planning process": {"concepts": "planning process", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "planning process"}, "wind attenuation": {"concepts": "wind attenuation", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "wind attenuation"}, "system-based management": {"concepts": "system-based management", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "system-based management"}, "ecologist": {"concepts": "ecologist", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "ecologist"}, "carbon cycling": {"concepts": "carbon cycling", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "carbon cycling"}, "assistant director": {"concepts": "assistant director", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "assistant director"}, "policy perspective": {"concepts": "policy perspective", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "policy perspective"}, "farm bill programs": {"concepts": "farm bill programs", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "farm bill programs"}, "federal benefit cost analysis": {"concepts": "federal benefit cost analysis", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "federal benefit cost analysis"}, "nature-based solutions": {"concepts": "nature-based solutions", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "nature-based solutions"}, "food web-supporting species": {"concepts": "food web-supporting species", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "food web-supporting species"}, "biogeochemist": {"concepts": "biogeochemist", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "biogeochemist"}, "habitat functions": {"concepts": "habitat functions", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "habitat functions"}, "climate and environment team": {"concepts": "climate and environment team", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "climate and environment team"}, "system-oriented policy": {"concepts": "system-oriented policy", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "system-oriented policy"}, "green management": {"concepts": "green management", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "green management"}, "management context": {"concepts": "management context", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "management context"}, "decision makers": {"concepts": "decision makers", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "decision makers"}, "species diversity": {"concepts": "species diversity", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "species diversity"}, "usg perspective": {"concepts": "usg perspective", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "usg perspective"}, "federal benefit-cost analysis": {"concepts": "federal benefit-cost analysis", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "federal benefit-cost analysis"}, "management interventions": {"concepts": "management interventions", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "management interventions"}, "multilateral negotiations": {"concepts": "multilateral negotiations", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "multilateral negotiations"}, "facilitation functions": {"concepts": "facilitation functions", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "facilitation functions"}, "noaa": {"concepts": "noaa", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "noaa"}, "boundary organizations": {"concepts": "boundary organizations", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "boundary organizations"}, "policy": {"concepts": "policy", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "policy"}, "management practices": {"concepts": "management practices", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "management practices"}, "functional data": {"concepts": "functional data", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "functional data"}, "management outcomes": {"concepts": "management outcomes", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "management outcomes"}, "organizational barriers": {"concepts": "organizational barriers", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "organizational barriers"}, "private sector risk models": {"concepts": "private sector risk models", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "private sector risk models"}, "data limitations": {"concepts": "data limitations", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "data limitations"}, "functional implementation": {"concepts": "functional implementation", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "functional implementation"}, "conservation": {"concepts": "conservation", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "conservation"}, "lack of capacity": {"concepts": "lack of capacity", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "lack of capacity"}, "ecological interactions": {"concepts": "ecological interactions", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "ecological interactions"}, "rapid insight mechanisms": {"concepts": "rapid insight mechanisms", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "rapid insight mechanisms"}, "science-based framework": {"concepts": "science-based framework", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "science-based framework"}, "resource management": {"concepts": "resource management", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "resource management"}, "management objectives": {"concepts": "management objectives", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "management objectives"}, "policy side": {"concepts": "policy side", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "policy side"}, "harmful organisms": {"concepts": "harmful organisms", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "harmful organisms"}, "universities": {"concepts": "universities", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "universities"}, "system-oriented management": {"concepts": "system-oriented management", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "system-oriented management"}, "species richness": {"concepts": "species richness", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "species richness"}, "ngo partnerships": {"concepts": "ngo partnerships", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "ngo partnerships"}, "applied research": {"concepts": "applied research", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "applied research"}, "g20": {"concepts": "g20", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "g20"}, "fishery management": {"concepts": "fishery management", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "fishery management"}, "species of conservation concern": {"concepts": "species of conservation concern", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "species of conservation concern"}, "marine management": {"concepts": "marine management", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "marine management"}, "marine outcomes": {"concepts": "marine outcomes", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "marine outcomes"}, "oyster reefs": {"concepts": "oyster reefs", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "oyster reefs"}, "mangroves": {"concepts": "mangroves", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "mangroves"}, "marine resource management": {"concepts": "marine resource management", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "marine resource management"}, "coral reefs": {"concepts": "coral reefs", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "coral reefs"}, "estuary management": {"concepts": "estuary management", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "estuary management"}, "natural resource management": {"concepts": "natural resource management", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "natural resource management"}, "conservation management": {"concepts": "conservation management", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "conservation management"}, "conservation actions": {"concepts": "conservation actions", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "conservation actions"}, "marshes": {"concepts": "marshes", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "marshes"}, "conservation organizations": {"concepts": "conservation organizations", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "conservation organizations"}, "coastal ecosystem restoration": {"concepts": "coastal ecosystem restoration", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "coastal ecosystem restoration"}, "water quality": {"concepts": "water quality", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "water quality"}, "flood risk reduction": {"concepts": "flood risk reduction", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "flood risk reduction"}, "marine system": {"concepts": "marine system", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "marine system"}, "conservation sciences": {"concepts": "conservation sciences", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "conservation sciences"}};
+        const interClusterEdges = [["Marine Conservation Management", "Ecosystem Policy & Management", {"weight": 1.0, "confidence": 0.8333333333333334, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Policy & Management", "Marine Conservation Management", {"weight": 1.0, "confidence": 0.8333333333333334, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {"Marine Conservation Management": [["habitat-associated diversity", {"concepts": "habitat-associated diversity", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "habitat-associated diversity"}], ["white house office of science and technology policy", {"concepts": "white house office of science and technology policy", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "white house office of science and technology policy"}], ["policy language", {"concepts": "policy language", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "policy language"}], ["policy intention", {"concepts": "policy intention", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "policy intention"}], ["natural science", {"concepts": "natural science", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "natural science"}], ["america the beautiful initiative", {"concepts": "america the beautiful initiative", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "america the beautiful initiative"}], ["ecosystem services", {"concepts": "ecosystem services", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "ecosystem services"}], ["science side", {"concepts": "science side", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "science side"}], ["research communities", {"concepts": "research communities", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "research communities"}], ["functional diversity", {"concepts": "functional diversity", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "functional diversity"}], ["cbe", {"concepts": "cbe", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "cbe"}], ["academic research", {"concepts": "academic research", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "academic research"}], ["habitat-forming species", {"concepts": "habitat-forming species", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "habitat-forming species"}], ["ecosystem diversity", {"concepts": "ecosystem diversity", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "ecosystem diversity"}], ["nutrient cycling", {"concepts": "nutrient cycling", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "nutrient cycling"}], ["biodiversity", {"concepts": "biodiversity", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "biodiversity"}], ["grant programs", {"concepts": "grant programs", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "grant programs"}], ["ngo management", {"concepts": "ngo management", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "ngo management"}], ["problem-oriented engagement", {"concepts": "problem-oriented engagement", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "problem-oriented engagement"}], ["genetic diversity", {"concepts": "genetic diversity", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "genetic diversity"}], ["community functions", {"concepts": "community functions", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "community functions"}], ["functional mechanism", {"concepts": "functional mechanism", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "functional mechanism"}], ["ecosystem service valuation", {"concepts": "ecosystem service valuation", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "ecosystem service valuation"}], ["individual species management", {"concepts": "individual species management", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "individual species management"}], ["g7", {"concepts": "g7", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "g7"}], ["public perspective", {"concepts": "public perspective", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "public perspective"}], ["dunes", {"concepts": "dunes", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "dunes"}], ["ngo partnership", {"concepts": "ngo partnership", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "ngo partnership"}], ["policy precedent", {"concepts": "policy precedent", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "policy precedent"}], ["social science", {"concepts": "social science", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "social science"}], ["ngo research", {"concepts": "ngo research", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "ngo research"}], ["nature portfolio", {"concepts": "nature portfolio", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "nature portfolio"}], ["planning process", {"concepts": "planning process", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "planning process"}], ["wind attenuation", {"concepts": "wind attenuation", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "wind attenuation"}], ["system-based management", {"concepts": "system-based management", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "system-based management"}], ["ecologist", {"concepts": "ecologist", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "ecologist"}], ["carbon cycling", {"concepts": "carbon cycling", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "carbon cycling"}], ["assistant director", {"concepts": "assistant director", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "assistant director"}], ["policy perspective", {"concepts": "policy perspective", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "policy perspective"}], ["farm bill programs", {"concepts": "farm bill programs", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "farm bill programs"}], ["federal benefit cost analysis", {"concepts": "federal benefit cost analysis", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "federal benefit cost analysis"}], ["nature-based solutions", {"concepts": "nature-based solutions", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "nature-based solutions"}], ["food web-supporting species", {"concepts": "food web-supporting species", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "food web-supporting species"}], ["biogeochemist", {"concepts": "biogeochemist", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "biogeochemist"}], ["habitat functions", {"concepts": "habitat functions", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "habitat functions"}], ["climate and environment team", {"concepts": "climate and environment team", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "climate and environment team"}], ["system-oriented policy", {"concepts": "system-oriented policy", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "system-oriented policy"}], ["green management", {"concepts": "green management", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "green management"}], ["management context", {"concepts": "management context", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "management context"}], ["decision makers", {"concepts": "decision makers", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "decision makers"}], ["species diversity", {"concepts": "species diversity", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "species diversity"}], ["usg perspective", {"concepts": "usg perspective", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "usg perspective"}], ["federal benefit-cost analysis", {"concepts": "federal benefit-cost analysis", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "federal benefit-cost analysis"}], ["management interventions", {"concepts": "management interventions", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "management interventions"}], ["multilateral negotiations", {"concepts": "multilateral negotiations", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "multilateral negotiations"}], ["facilitation functions", {"concepts": "facilitation functions", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "facilitation functions"}], ["noaa", {"concepts": "noaa", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "noaa"}], ["boundary organizations", {"concepts": "boundary organizations", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "boundary organizations"}], ["policy", {"concepts": "policy", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "policy"}], ["management practices", {"concepts": "management practices", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "management practices"}], ["functional data", {"concepts": "functional data", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "functional data"}], ["management outcomes", {"concepts": "management outcomes", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "management outcomes"}], ["organizational barriers", {"concepts": "organizational barriers", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "organizational barriers"}], ["private sector risk models", {"concepts": "private sector risk models", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "private sector risk models"}], ["data limitations", {"concepts": "data limitations", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "data limitations"}], ["functional implementation", {"concepts": "functional implementation", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "functional implementation"}], ["conservation", {"concepts": "conservation", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "conservation"}], ["lack of capacity", {"concepts": "lack of capacity", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "lack of capacity"}], ["ecological interactions", {"concepts": "ecological interactions", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "ecological interactions"}], ["rapid insight mechanisms", {"concepts": "rapid insight mechanisms", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "rapid insight mechanisms"}], ["science-based framework", {"concepts": "science-based framework", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "science-based framework"}], ["resource management", {"concepts": "resource management", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "resource management"}], ["management objectives", {"concepts": "management objectives", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "management objectives"}], ["policy side", {"concepts": "policy side", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "policy side"}], ["harmful organisms", {"concepts": "harmful organisms", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "harmful organisms"}], ["universities", {"concepts": "universities", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "universities"}], ["system-oriented management", {"concepts": "system-oriented management", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "system-oriented management"}], ["species richness", {"concepts": "species richness", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "species richness"}], ["ngo partnerships", {"concepts": "ngo partnerships", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "ngo partnerships"}], ["applied research", {"concepts": "applied research", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "applied research"}], ["g20", {"concepts": "g20", "type": "concept", "cluster": "Marine Conservation Management", "node_size": 10, "label": "g20"}]], "Ecosystem Policy & Management": [["fishery management", {"concepts": "fishery management", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "fishery management"}], ["species of conservation concern", {"concepts": "species of conservation concern", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "species of conservation concern"}], ["marine management", {"concepts": "marine management", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "marine management"}], ["marine outcomes", {"concepts": "marine outcomes", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "marine outcomes"}], ["oyster reefs", {"concepts": "oyster reefs", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "oyster reefs"}], ["mangroves", {"concepts": "mangroves", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "mangroves"}], ["marine resource management", {"concepts": "marine resource management", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "marine resource management"}], ["coral reefs", {"concepts": "coral reefs", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "coral reefs"}], ["estuary management", {"concepts": "estuary management", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "estuary management"}], ["natural resource management", {"concepts": "natural resource management", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "natural resource management"}], ["conservation management", {"concepts": "conservation management", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "conservation management"}], ["conservation actions", {"concepts": "conservation actions", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "conservation actions"}], ["marshes", {"concepts": "marshes", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "marshes"}], ["conservation organizations", {"concepts": "conservation organizations", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "conservation organizations"}], ["coastal ecosystem restoration", {"concepts": "coastal ecosystem restoration", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "coastal ecosystem restoration"}], ["water quality", {"concepts": "water quality", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "water quality"}], ["flood risk reduction", {"concepts": "flood risk reduction", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "flood risk reduction"}], ["marine system", {"concepts": "marine system", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "marine system"}], ["conservation sciences", {"concepts": "conservation sciences", "type": "concept", "cluster": "Ecosystem Policy & Management", "node_size": 10, "label": "conservation sciences"}]]};
+        const clusterEdges = {"Marine Conservation Management": [], "Ecosystem Policy & Management": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

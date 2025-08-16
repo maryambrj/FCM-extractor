@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"legacy effects": {"concepts": "legacy effects", "concept_list": ["legacy effects"], "type": "cluster", "node_size": 18, "label": "legacy effects"}, "land acquisition": {"concepts": "land acquisition", "concept_list": ["land acquisition"], "type": "cluster", "node_size": 18, "label": "land acquisition"}, "physiological stress": {"concepts": "physiological stress", "concept_list": ["physiological stress"], "type": "cluster", "node_size": 18, "label": "physiological stress"}, "salinity": {"concepts": "salinity", "concept_list": ["salinity"], "type": "cluster", "node_size": 18, "label": "salinity"}, "Marsh Management Governance": {"concepts": "easements, incentive structures, phragmites, researchers, property rights, thatch layer, noaa, accretion, disturbance, selective force, monitoring, restoration, drowning, runneling, behavior change, research institutions, academics, new england, gulf of mexico, ditching, tnc, epa, drainage, technical experts, flooding, economists, community members", "concept_list": ["easements", "incentive structures", "phragmites", "researchers", "property rights", "thatch layer", "noaa", "accretion", "disturbance", "selective force", "monitoring", "restoration", "drowning", "runneling", "behavior change", "research institutions", "academics", "new england", "gulf of mexico", "ditching", "tnc", "epa", "drainage", "technical experts", "flooding", "economists", "community members"], "type": "cluster", "node_size": 96, "label": "Marsh Management Governance"}, "Coastal Ecosystem Management": {"concepts": "restoration planting, management activities, ecosystem engineers, salt marsh birds, coastal management, high tide line, invasive species control, wetland ecology, community ecology, saltwater intrusion, ecological definition, prescribed burning, oyster farmers, social ecological system, coastal ecosystems, marsh creation, regulatory power, dredge oil creation, climate change stressors, water quality management, saltwater intrusion report, salish sea, fishermen, marine resource management, environmental stressors, tourism operators, invertebrates, dredge oil, fires, farmland, sea level rise, invasive species", "concept_list": ["restoration planting", "management activities", "ecosystem engineers", "salt marsh birds", "coastal management", "high tide line", "invasive species control", "wetland ecology", "community ecology", "saltwater intrusion", "ecological definition", "prescribed burning", "oyster farmers", "social ecological system", "coastal ecosystems", "marsh creation", "regulatory power", "dredge oil creation", "climate change stressors", "water quality management", "saltwater intrusion report", "salish sea", "fishermen", "marine resource management", "environmental stressors", "tourism operators", "invertebrates", "dredge oil", "fires", "farmland", "sea level rise", "invasive species"], "type": "cluster", "node_size": 111, "label": "Coastal Ecosystem Management"}, "Biodiversity Conservation": {"concepts": "primary producers, endangered species, rare species, food-web supporting species, adaptive potential, native habitat forming species, population genetics, habitat loss, habitat preferences, plant communities, biodiversity, habitat forming species, herbicide, harmful organisms, forest tree mortality, ecosystem services, plants, ghost forest formation, population genetic diversity, key food web supporting species, species biodiversity, rare endangered species", "concept_list": ["primary producers", "endangered species", "rare species", "food-web supporting species", "adaptive potential", "native habitat forming species", "population genetics", "habitat loss", "habitat preferences", "plant communities", "biodiversity", "habitat forming species", "herbicide", "harmful organisms", "forest tree mortality", "ecosystem services", "plants", "ghost forest formation", "population genetic diversity", "key food web supporting species", "species biodiversity", "rare endangered species"], "type": "cluster", "node_size": 81, "label": "Biodiversity Conservation"}, "Marsh Migration Challenges": {"concepts": "future marshes, storms, waterfront homeowners, marsh loss, high elevation, chesapeake bay, marsh migration corridors, waffle marshes, interior ponding, watershed", "concept_list": ["future marshes", "storms", "waterfront homeowners", "marsh loss", "high elevation", "chesapeake bay", "marsh migration corridors", "waffle marshes", "interior ponding", "watershed"], "type": "cluster", "node_size": 45, "label": "Marsh Migration Challenges"}, "Tidal Marsh Hydrology": {"concepts": "eutrophication, microtidal marshes, intertidal, tidal creek extension, hydrology, tidal marsh loss, salt marsh sparrows", "concept_list": ["eutrophication", "microtidal marshes", "intertidal", "tidal creek extension", "hydrology", "tidal marsh loss", "salt marsh sparrows"], "type": "cluster", "node_size": 36, "label": "Tidal Marsh Hydrology"}, "Regional Leadership Impact": {"concepts": "regional managers, global change drivers, legacy impacts", "concept_list": ["regional managers", "global change drivers", "legacy impacts"], "type": "cluster", "node_size": 24, "label": "Regional Leadership Impact"}, "Environmental Stress Response": {"concepts": "watermen, stress response, drought", "concept_list": ["watermen", "stress response", "drought"], "type": "cluster", "node_size": 24, "label": "Environmental Stress Response"}};
+        const conceptData = {"easements": {"concepts": "easements", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "easements"}, "incentive structures": {"concepts": "incentive structures", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "incentive structures"}, "phragmites": {"concepts": "phragmites", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "phragmites"}, "researchers": {"concepts": "researchers", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "researchers"}, "property rights": {"concepts": "property rights", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "property rights"}, "thatch layer": {"concepts": "thatch layer", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "thatch layer"}, "noaa": {"concepts": "noaa", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "noaa"}, "accretion": {"concepts": "accretion", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "accretion"}, "disturbance": {"concepts": "disturbance", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "disturbance"}, "selective force": {"concepts": "selective force", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "selective force"}, "monitoring": {"concepts": "monitoring", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "monitoring"}, "restoration": {"concepts": "restoration", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "restoration"}, "drowning": {"concepts": "drowning", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "drowning"}, "runneling": {"concepts": "runneling", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "runneling"}, "behavior change": {"concepts": "behavior change", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "behavior change"}, "research institutions": {"concepts": "research institutions", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "research institutions"}, "academics": {"concepts": "academics", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "academics"}, "new england": {"concepts": "new england", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "new england"}, "gulf of mexico": {"concepts": "gulf of mexico", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "gulf of mexico"}, "ditching": {"concepts": "ditching", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "ditching"}, "tnc": {"concepts": "tnc", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "tnc"}, "epa": {"concepts": "epa", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "epa"}, "drainage": {"concepts": "drainage", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "drainage"}, "technical experts": {"concepts": "technical experts", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "technical experts"}, "flooding": {"concepts": "flooding", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "flooding"}, "economists": {"concepts": "economists", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "economists"}, "community members": {"concepts": "community members", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "community members"}, "restoration planting": {"concepts": "restoration planting", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "restoration planting"}, "management activities": {"concepts": "management activities", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "management activities"}, "ecosystem engineers": {"concepts": "ecosystem engineers", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "ecosystem engineers"}, "salt marsh birds": {"concepts": "salt marsh birds", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "salt marsh birds"}, "coastal management": {"concepts": "coastal management", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "coastal management"}, "high tide line": {"concepts": "high tide line", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "high tide line"}, "invasive species control": {"concepts": "invasive species control", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "invasive species control"}, "wetland ecology": {"concepts": "wetland ecology", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "wetland ecology"}, "community ecology": {"concepts": "community ecology", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "community ecology"}, "saltwater intrusion": {"concepts": "saltwater intrusion", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "saltwater intrusion"}, "ecological definition": {"concepts": "ecological definition", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "ecological definition"}, "prescribed burning": {"concepts": "prescribed burning", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "prescribed burning"}, "oyster farmers": {"concepts": "oyster farmers", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "oyster farmers"}, "social ecological system": {"concepts": "social ecological system", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "social ecological system"}, "coastal ecosystems": {"concepts": "coastal ecosystems", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "coastal ecosystems"}, "marsh creation": {"concepts": "marsh creation", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "marsh creation"}, "regulatory power": {"concepts": "regulatory power", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "regulatory power"}, "dredge oil creation": {"concepts": "dredge oil creation", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "dredge oil creation"}, "climate change stressors": {"concepts": "climate change stressors", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "climate change stressors"}, "water quality management": {"concepts": "water quality management", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "water quality management"}, "saltwater intrusion report": {"concepts": "saltwater intrusion report", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "saltwater intrusion report"}, "salish sea": {"concepts": "salish sea", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "salish sea"}, "fishermen": {"concepts": "fishermen", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "fishermen"}, "marine resource management": {"concepts": "marine resource management", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "marine resource management"}, "environmental stressors": {"concepts": "environmental stressors", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "environmental stressors"}, "tourism operators": {"concepts": "tourism operators", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "tourism operators"}, "invertebrates": {"concepts": "invertebrates", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "invertebrates"}, "dredge oil": {"concepts": "dredge oil", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "dredge oil"}, "fires": {"concepts": "fires", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "fires"}, "farmland": {"concepts": "farmland", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "farmland"}, "sea level rise": {"concepts": "sea level rise", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "sea level rise"}, "invasive species": {"concepts": "invasive species", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "invasive species"}, "primary producers": {"concepts": "primary producers", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "primary producers"}, "endangered species": {"concepts": "endangered species", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "endangered species"}, "rare species": {"concepts": "rare species", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "rare species"}, "food-web supporting species": {"concepts": "food-web supporting species", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "food-web supporting species"}, "adaptive potential": {"concepts": "adaptive potential", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "adaptive potential"}, "native habitat forming species": {"concepts": "native habitat forming species", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "native habitat forming species"}, "population genetics": {"concepts": "population genetics", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "population genetics"}, "habitat loss": {"concepts": "habitat loss", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "habitat loss"}, "habitat preferences": {"concepts": "habitat preferences", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "habitat preferences"}, "plant communities": {"concepts": "plant communities", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "plant communities"}, "biodiversity": {"concepts": "biodiversity", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "biodiversity"}, "habitat forming species": {"concepts": "habitat forming species", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "habitat forming species"}, "herbicide": {"concepts": "herbicide", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "herbicide"}, "harmful organisms": {"concepts": "harmful organisms", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "harmful organisms"}, "forest tree mortality": {"concepts": "forest tree mortality", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "forest tree mortality"}, "ecosystem services": {"concepts": "ecosystem services", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "ecosystem services"}, "plants": {"concepts": "plants", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "plants"}, "ghost forest formation": {"concepts": "ghost forest formation", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "ghost forest formation"}, "population genetic diversity": {"concepts": "population genetic diversity", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "population genetic diversity"}, "key food web supporting species": {"concepts": "key food web supporting species", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "key food web supporting species"}, "species biodiversity": {"concepts": "species biodiversity", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "species biodiversity"}, "rare endangered species": {"concepts": "rare endangered species", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "rare endangered species"}, "future marshes": {"concepts": "future marshes", "type": "concept", "cluster": "Marsh Migration Challenges", "node_size": 10, "label": "future marshes"}, "storms": {"concepts": "storms", "type": "concept", "cluster": "Marsh Migration Challenges", "node_size": 10, "label": "storms"}, "waterfront homeowners": {"concepts": "waterfront homeowners", "type": "concept", "cluster": "Marsh Migration Challenges", "node_size": 10, "label": "waterfront homeowners"}, "marsh loss": {"concepts": "marsh loss", "type": "concept", "cluster": "Marsh Migration Challenges", "node_size": 10, "label": "marsh loss"}, "high elevation": {"concepts": "high elevation", "type": "concept", "cluster": "Marsh Migration Challenges", "node_size": 10, "label": "high elevation"}, "chesapeake bay": {"concepts": "chesapeake bay", "type": "concept", "cluster": "Marsh Migration Challenges", "node_size": 10, "label": "chesapeake bay"}, "marsh migration corridors": {"concepts": "marsh migration corridors", "type": "concept", "cluster": "Marsh Migration Challenges", "node_size": 10, "label": "marsh migration corridors"}, "waffle marshes": {"concepts": "waffle marshes", "type": "concept", "cluster": "Marsh Migration Challenges", "node_size": 10, "label": "waffle marshes"}, "interior ponding": {"concepts": "interior ponding", "type": "concept", "cluster": "Marsh Migration Challenges", "node_size": 10, "label": "interior ponding"}, "watershed": {"concepts": "watershed", "type": "concept", "cluster": "Marsh Migration Challenges", "node_size": 10, "label": "watershed"}, "eutrophication": {"concepts": "eutrophication", "type": "concept", "cluster": "Tidal Marsh Hydrology", "node_size": 10, "label": "eutrophication"}, "microtidal marshes": {"concepts": "microtidal marshes", "type": "concept", "cluster": "Tidal Marsh Hydrology", "node_size": 10, "label": "microtidal marshes"}, "intertidal": {"concepts": "intertidal", "type": "concept", "cluster": "Tidal Marsh Hydrology", "node_size": 10, "label": "intertidal"}, "tidal creek extension": {"concepts": "tidal creek extension", "type": "concept", "cluster": "Tidal Marsh Hydrology", "node_size": 10, "label": "tidal creek extension"}, "hydrology": {"concepts": "hydrology", "type": "concept", "cluster": "Tidal Marsh Hydrology", "node_size": 10, "label": "hydrology"}, "tidal marsh loss": {"concepts": "tidal marsh loss", "type": "concept", "cluster": "Tidal Marsh Hydrology", "node_size": 10, "label": "tidal marsh loss"}, "salt marsh sparrows": {"concepts": "salt marsh sparrows", "type": "concept", "cluster": "Tidal Marsh Hydrology", "node_size": 10, "label": "salt marsh sparrows"}, "regional managers": {"concepts": "regional managers", "type": "concept", "cluster": "Regional Leadership Impact", "node_size": 10, "label": "regional managers"}, "global change drivers": {"concepts": "global change drivers", "type": "concept", "cluster": "Regional Leadership Impact", "node_size": 10, "label": "global change drivers"}, "legacy impacts": {"concepts": "legacy impacts", "type": "concept", "cluster": "Regional Leadership Impact", "node_size": 10, "label": "legacy impacts"}, "watermen": {"concepts": "watermen", "type": "concept", "cluster": "Environmental Stress Response", "node_size": 10, "label": "watermen"}, "stress response": {"concepts": "stress response", "type": "concept", "cluster": "Environmental Stress Response", "node_size": 10, "label": "stress response"}, "drought": {"concepts": "drought", "type": "concept", "cluster": "Environmental Stress Response", "node_size": 10, "label": "drought"}};
+        const interClusterEdges = [["legacy effects", "Regional Leadership Impact", {"weight": 1.0, "confidence": 0.8699999999999999, "type": "inter_cluster", "style": "solid"}], ["legacy effects", "Marsh Management Governance", {"weight": 1.0, "confidence": 0.7999999999999999, "type": "inter_cluster", "style": "solid"}], ["legacy effects", "physiological stress", {"weight": 0.6, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["legacy effects", "salinity", {"weight": 0.6, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["land acquisition", "Marsh Migration Challenges", {"weight": 1.0, "confidence": 0.9400000000000001, "type": "inter_cluster", "style": "solid"}], ["land acquisition", "Biodiversity Conservation", {"weight": 1.0, "confidence": 0.8200000000000001, "type": "inter_cluster", "style": "solid"}], ["land acquisition", "Tidal Marsh Hydrology", {"weight": -0.6, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["physiological stress", "Environmental Stress Response", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["salinity", "Coastal Ecosystem Management", {"weight": 1.0, "confidence": 0.93, "type": "inter_cluster", "style": "solid"}], ["salinity", "physiological stress", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["salinity", "Marsh Migration Challenges", {"weight": 1.0, "confidence": 0.8099999999999999, "type": "inter_cluster", "style": "solid"}], ["salinity", "Marsh Management Governance", {"weight": 1.0, "confidence": 0.7500000000000001, "type": "inter_cluster", "style": "solid"}], ["salinity", "land acquisition", {"weight": 0.6, "confidence": 0.38999999999999996, "type": "inter_cluster", "style": "solid"}], ["Marsh Management Governance", "Biodiversity Conservation", {"weight": -1.0, "confidence": 0.9099999999999999, "type": "inter_cluster", "style": "solid"}], ["Marsh Management Governance", "land acquisition", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Marsh Management Governance", "Marsh Migration Challenges", {"weight": 1.0, "confidence": 0.8400000000000001, "type": "inter_cluster", "style": "solid"}], ["Marsh Management Governance", "Tidal Marsh Hydrology", {"weight": 0.6, "confidence": 0.8200000000000001, "type": "inter_cluster", "style": "solid"}], ["Marsh Management Governance", "physiological stress", {"weight": 1.0, "confidence": 0.82, "type": "inter_cluster", "style": "solid"}], ["Marsh Management Governance", "salinity", {"weight": 0.8, "confidence": 0.63, "type": "inter_cluster", "style": "solid"}], ["Marsh Management Governance", "Coastal Ecosystem Management", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Coastal Ecosystem Management", "physiological stress", {"weight": 1.0, "confidence": 0.93, "type": "inter_cluster", "style": "solid"}], ["Coastal Ecosystem Management", "Tidal Marsh Hydrology", {"weight": -0.2, "confidence": 0.8400000000000001, "type": "inter_cluster", "style": "solid"}], ["Coastal Ecosystem Management", "Marsh Management Governance", {"weight": 0.2, "confidence": 0.7700000000000001, "type": "inter_cluster", "style": "solid"}], ["Coastal Ecosystem Management", "Regional Leadership Impact", {"weight": 0.8, "confidence": 0.66, "type": "inter_cluster", "style": "solid"}], ["Coastal Ecosystem Management", "Environmental Stress Response", {"weight": 0.8, "confidence": 0.6000000000000001, "type": "inter_cluster", "style": "solid"}], ["Coastal Ecosystem Management", "legacy effects", {"weight": 0.5, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["Coastal Ecosystem Management", "land acquisition", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Biodiversity Conservation", "Coastal Ecosystem Management", {"weight": 0.6, "confidence": 0.9200000000000002, "type": "inter_cluster", "style": "solid"}], ["Biodiversity Conservation", "Tidal Marsh Hydrology", {"weight": -0.2, "confidence": 0.89, "type": "inter_cluster", "style": "solid"}], ["Biodiversity Conservation", "physiological stress", {"weight": -1.0, "confidence": 0.8299999999999998, "type": "inter_cluster", "style": "solid"}], ["Biodiversity Conservation", "Marsh Management Governance", {"weight": -0.6, "confidence": 0.8099999999999999, "type": "inter_cluster", "style": "solid"}], ["Biodiversity Conservation", "Regional Leadership Impact", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["Marsh Migration Challenges", "Biodiversity Conservation", {"weight": -0.2, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["Marsh Migration Challenges", "Coastal Ecosystem Management", {"weight": 1.0, "confidence": 0.78, "type": "inter_cluster", "style": "solid"}], ["Marsh Migration Challenges", "physiological stress", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Marsh Migration Challenges", "legacy effects", {"weight": 1.0, "confidence": 0.7375, "type": "inter_cluster", "style": "solid"}], ["Tidal Marsh Hydrology", "Marsh Migration Challenges", {"weight": 1.0, "confidence": 0.89, "type": "inter_cluster", "style": "solid"}], ["Tidal Marsh Hydrology", "Coastal Ecosystem Management", {"weight": 0.6, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Tidal Marsh Hydrology", "physiological stress", {"weight": 0.8, "confidence": 0.5800000000000001, "type": "inter_cluster", "style": "solid"}], ["Tidal Marsh Hydrology", "salinity", {"weight": 0.75, "confidence": 0.5125, "type": "inter_cluster", "style": "solid"}], ["Regional Leadership Impact", "legacy effects", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Regional Leadership Impact", "Marsh Management Governance", {"weight": 0.8, "confidence": 0.5199999999999999, "type": "inter_cluster", "style": "solid"}], ["Regional Leadership Impact", "salinity", {"weight": 0.6, "confidence": 0.45, "type": "inter_cluster", "style": "solid"}], ["Environmental Stress Response", "physiological stress", {"weight": 1.0, "confidence": 0.7799999999999999, "type": "inter_cluster", "style": "solid"}], ["Environmental Stress Response", "Biodiversity Conservation", {"weight": -0.2, "confidence": 0.77, "type": "inter_cluster", "style": "solid"}], ["Environmental Stress Response", "Tidal Marsh Hydrology", {"weight": 0.5, "confidence": 0.6875, "type": "inter_cluster", "style": "solid"}], ["Environmental Stress Response", "Marsh Migration Challenges", {"weight": 0.8, "confidence": 0.5599999999999999, "type": "inter_cluster", "style": "solid"}], ["Environmental Stress Response", "Coastal Ecosystem Management", {"weight": 0.6, "confidence": 0.38, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {"Marsh Management Governance": [["easements", {"concepts": "easements", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "easements"}], ["incentive structures", {"concepts": "incentive structures", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "incentive structures"}], ["phragmites", {"concepts": "phragmites", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "phragmites"}], ["researchers", {"concepts": "researchers", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "researchers"}], ["property rights", {"concepts": "property rights", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "property rights"}], ["thatch layer", {"concepts": "thatch layer", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "thatch layer"}], ["noaa", {"concepts": "noaa", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "noaa"}], ["accretion", {"concepts": "accretion", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "accretion"}], ["disturbance", {"concepts": "disturbance", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "disturbance"}], ["selective force", {"concepts": "selective force", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "selective force"}], ["monitoring", {"concepts": "monitoring", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "monitoring"}], ["restoration", {"concepts": "restoration", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "restoration"}], ["drowning", {"concepts": "drowning", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "drowning"}], ["runneling", {"concepts": "runneling", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "runneling"}], ["behavior change", {"concepts": "behavior change", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "behavior change"}], ["research institutions", {"concepts": "research institutions", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "research institutions"}], ["academics", {"concepts": "academics", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "academics"}], ["new england", {"concepts": "new england", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "new england"}], ["gulf of mexico", {"concepts": "gulf of mexico", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "gulf of mexico"}], ["ditching", {"concepts": "ditching", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "ditching"}], ["tnc", {"concepts": "tnc", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "tnc"}], ["epa", {"concepts": "epa", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "epa"}], ["drainage", {"concepts": "drainage", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "drainage"}], ["technical experts", {"concepts": "technical experts", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "technical experts"}], ["flooding", {"concepts": "flooding", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "flooding"}], ["economists", {"concepts": "economists", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "economists"}], ["community members", {"concepts": "community members", "type": "concept", "cluster": "Marsh Management Governance", "node_size": 10, "label": "community members"}]], "Coastal Ecosystem Management": [["restoration planting", {"concepts": "restoration planting", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "restoration planting"}], ["management activities", {"concepts": "management activities", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "management activities"}], ["ecosystem engineers", {"concepts": "ecosystem engineers", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "ecosystem engineers"}], ["salt marsh birds", {"concepts": "salt marsh birds", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "salt marsh birds"}], ["coastal management", {"concepts": "coastal management", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "coastal management"}], ["high tide line", {"concepts": "high tide line", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "high tide line"}], ["invasive species control", {"concepts": "invasive species control", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "invasive species control"}], ["wetland ecology", {"concepts": "wetland ecology", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "wetland ecology"}], ["community ecology", {"concepts": "community ecology", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "community ecology"}], ["saltwater intrusion", {"concepts": "saltwater intrusion", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "saltwater intrusion"}], ["ecological definition", {"concepts": "ecological definition", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "ecological definition"}], ["prescribed burning", {"concepts": "prescribed burning", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "prescribed burning"}], ["oyster farmers", {"concepts": "oyster farmers", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "oyster farmers"}], ["social ecological system", {"concepts": "social ecological system", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "social ecological system"}], ["coastal ecosystems", {"concepts": "coastal ecosystems", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "coastal ecosystems"}], ["marsh creation", {"concepts": "marsh creation", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "marsh creation"}], ["regulatory power", {"concepts": "regulatory power", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "regulatory power"}], ["dredge oil creation", {"concepts": "dredge oil creation", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "dredge oil creation"}], ["climate change stressors", {"concepts": "climate change stressors", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "climate change stressors"}], ["water quality management", {"concepts": "water quality management", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "water quality management"}], ["saltwater intrusion report", {"concepts": "saltwater intrusion report", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "saltwater intrusion report"}], ["salish sea", {"concepts": "salish sea", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "salish sea"}], ["fishermen", {"concepts": "fishermen", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "fishermen"}], ["marine resource management", {"concepts": "marine resource management", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "marine resource management"}], ["environmental stressors", {"concepts": "environmental stressors", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "environmental stressors"}], ["tourism operators", {"concepts": "tourism operators", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "tourism operators"}], ["invertebrates", {"concepts": "invertebrates", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "invertebrates"}], ["dredge oil", {"concepts": "dredge oil", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "dredge oil"}], ["fires", {"concepts": "fires", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "fires"}], ["farmland", {"concepts": "farmland", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "farmland"}], ["sea level rise", {"concepts": "sea level rise", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "sea level rise"}], ["invasive species", {"concepts": "invasive species", "type": "concept", "cluster": "Coastal Ecosystem Management", "node_size": 10, "label": "invasive species"}]], "Biodiversity Conservation": [["primary producers", {"concepts": "primary producers", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "primary producers"}], ["endangered species", {"concepts": "endangered species", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "endangered species"}], ["rare species", {"concepts": "rare species", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "rare species"}], ["food-web supporting species", {"concepts": "food-web supporting species", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "food-web supporting species"}], ["adaptive potential", {"concepts": "adaptive potential", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "adaptive potential"}], ["native habitat forming species", {"concepts": "native habitat forming species", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "native habitat forming species"}], ["population genetics", {"concepts": "population genetics", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "population genetics"}], ["habitat loss", {"concepts": "habitat loss", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "habitat loss"}], ["habitat preferences", {"concepts": "habitat preferences", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "habitat preferences"}], ["plant communities", {"concepts": "plant communities", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "plant communities"}], ["biodiversity", {"concepts": "biodiversity", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "biodiversity"}], ["habitat forming species", {"concepts": "habitat forming species", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "habitat forming species"}], ["herbicide", {"concepts": "herbicide", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "herbicide"}], ["harmful organisms", {"concepts": "harmful organisms", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "harmful organisms"}], ["forest tree mortality", {"concepts": "forest tree mortality", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "forest tree mortality"}], ["ecosystem services", {"concepts": "ecosystem services", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "ecosystem services"}], ["plants", {"concepts": "plants", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "plants"}], ["ghost forest formation", {"concepts": "ghost forest formation", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "ghost forest formation"}], ["population genetic diversity", {"concepts": "population genetic diversity", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "population genetic diversity"}], ["key food web supporting species", {"concepts": "key food web supporting species", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "key food web supporting species"}], ["species biodiversity", {"concepts": "species biodiversity", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "species biodiversity"}], ["rare endangered species", {"concepts": "rare endangered species", "type": "concept", "cluster": "Biodiversity Conservation", "node_size": 10, "label": "rare endangered species"}]], "Marsh Migration Challenges": [["future marshes", {"concepts": "future marshes", "type": "concept", "cluster": "Marsh Migration Challenges", "node_size": 10, "label": "future marshes"}], ["storms", {"concepts": "storms", "type": "concept", "cluster": "Marsh Migration Challenges", "node_size": 10, "label": "storms"}], ["waterfront homeowners", {"concepts": "waterfront homeowners", "type": "concept", "cluster": "Marsh Migration Challenges", "node_size": 10, "label": "waterfront homeowners"}], ["marsh loss", {"concepts": "marsh loss", "type": "concept", "cluster": "Marsh Migration Challenges", "node_size": 10, "label": "marsh loss"}], ["high elevation", {"concepts": "high elevation", "type": "concept", "cluster": "Marsh Migration Challenges", "node_size": 10, "label": "high elevation"}], ["chesapeake bay", {"concepts": "chesapeake bay", "type": "concept", "cluster": "Marsh Migration Challenges", "node_size": 10, "label": "chesapeake bay"}], ["marsh migration corridors", {"concepts": "marsh migration corridors", "type": "concept", "cluster": "Marsh Migration Challenges", "node_size": 10, "label": "marsh migration corridors"}], ["waffle marshes", {"concepts": "waffle marshes", "type": "concept", "cluster": "Marsh Migration Challenges", "node_size": 10, "label": "waffle marshes"}], ["interior ponding", {"concepts": "interior ponding", "type": "concept", "cluster": "Marsh Migration Challenges", "node_size": 10, "label": "interior ponding"}], ["watershed", {"concepts": "watershed", "type": "concept", "cluster": "Marsh Migration Challenges", "node_size": 10, "label": "watershed"}]], "Tidal Marsh Hydrology": [["eutrophication", {"concepts": "eutrophication", "type": "concept", "cluster": "Tidal Marsh Hydrology", "node_size": 10, "label": "eutrophication"}], ["microtidal marshes", {"concepts": "microtidal marshes", "type": "concept", "cluster": "Tidal Marsh Hydrology", "node_size": 10, "label": "microtidal marshes"}], ["intertidal", {"concepts": "intertidal", "type": "concept", "cluster": "Tidal Marsh Hydrology", "node_size": 10, "label": "intertidal"}], ["tidal creek extension", {"concepts": "tidal creek extension", "type": "concept", "cluster": "Tidal Marsh Hydrology", "node_size": 10, "label": "tidal creek extension"}], ["hydrology", {"concepts": "hydrology", "type": "concept", "cluster": "Tidal Marsh Hydrology", "node_size": 10, "label": "hydrology"}], ["tidal marsh loss", {"concepts": "tidal marsh loss", "type": "concept", "cluster": "Tidal Marsh Hydrology", "node_size": 10, "label": "tidal marsh loss"}], ["salt marsh sparrows", {"concepts": "salt marsh sparrows", "type": "concept", "cluster": "Tidal Marsh Hydrology", "node_size": 10, "label": "salt marsh sparrows"}]], "Regional Leadership Impact": [["regional managers", {"concepts": "regional managers", "type": "concept", "cluster": "Regional Leadership Impact", "node_size": 10, "label": "regional managers"}], ["global change drivers", {"concepts": "global change drivers", "type": "concept", "cluster": "Regional Leadership Impact", "node_size": 10, "label": "global change drivers"}], ["legacy impacts", {"concepts": "legacy impacts", "type": "concept", "cluster": "Regional Leadership Impact", "node_size": 10, "label": "legacy impacts"}]], "Environmental Stress Response": [["watermen", {"concepts": "watermen", "type": "concept", "cluster": "Environmental Stress Response", "node_size": 10, "label": "watermen"}], ["stress response", {"concepts": "stress response", "type": "concept", "cluster": "Environmental Stress Response", "node_size": 10, "label": "stress response"}], ["drought", {"concepts": "drought", "type": "concept", "cluster": "Environmental Stress Response", "node_size": 10, "label": "drought"}]]};
+        const clusterEdges = {"Marsh Management Governance": [], "Coastal Ecosystem Management": [], "Biodiversity Conservation": [], "Marsh Migration Challenges": [], "Tidal Marsh Hydrology": [], "Regional Leadership Impact": [], "Environmental Stress Response": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

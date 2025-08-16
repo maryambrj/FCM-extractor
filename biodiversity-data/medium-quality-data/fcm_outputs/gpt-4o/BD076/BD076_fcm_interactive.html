@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"Marine Biodiversity": {"concepts": "marine environment, salmon, fishing communities, rockfish, seaweed ecosystems, seaweed, ratfish, dogfish sharks, marine biodiversity, salmon stock, rocky reef, marine preserve, salish sea ecology, marine mammals, wildlife veterinarian", "concept_list": ["marine environment", "salmon", "fishing communities", "rockfish", "seaweed ecosystems", "seaweed", "ratfish", "dogfish sharks", "marine biodiversity", "salmon stock", "rocky reef", "marine preserve", "salish sea ecology", "marine mammals", "wildlife veterinarian"], "type": "cluster", "node_size": 60, "label": "Marine Biodiversity"}, "Resource Management": {"concepts": "regulation, resource managers, cycle, management, relationships, laws, system dynamics, tnc", "concept_list": ["regulation", "resource managers", "cycle", "management", "relationships", "laws", "system dynamics", "tnc"], "type": "cluster", "node_size": 39, "label": "Resource Management"}, "Marine Cleanup": {"concepts": "underwater cleanup events, salish sea diver, warming water, sea cucumbers, seals, sea lions, underwater cleanup, sea creatures, west seattle, sea stars, purple sea urchins, seadoc society, sea urchins, sea star wasting disease, sailor sea wild, sunflower sea star, sunflower sea stars, warming temperatures, scripps institution of oceanography", "concept_list": ["underwater cleanup events", "salish sea diver", "warming water", "sea cucumbers", "seals", "sea lions", "underwater cleanup", "sea creatures", "west seattle", "sea stars", "purple sea urchins", "seadoc society", "sea urchins", "sea star wasting disease", "sailor sea wild", "sunflower sea star", "sunflower sea stars", "warming temperatures", "scripps institution of oceanography"], "type": "cluster", "node_size": 72, "label": "Marine Cleanup"}, "Ecosystem Dynamics": {"concepts": "ecological dynamics, social ecological system, predator interaction, social media, ecosystem, ecosystem impact, healthy ecosystems, predator-prey dynamics", "concept_list": ["ecological dynamics", "social ecological system", "predator interaction", "social media", "ecosystem", "ecosystem impact", "healthy ecosystems", "predator-prey dynamics"], "type": "cluster", "node_size": 39, "label": "Ecosystem Dynamics"}, "Conservation Efforts": {"concepts": "conservation coordinator., forest conservation, conservation coordinator, kelp forests, habitat forming species, conservation concern, conservation work, habitat creep, southern resident orcas", "concept_list": ["conservation coordinator.", "forest conservation", "conservation coordinator", "kelp forests", "habitat forming species", "conservation concern", "conservation work", "habitat creep", "southern resident orcas"], "type": "cluster", "node_size": 42, "label": "Conservation Efforts"}, "Environmental Stressors": {"concepts": "pollution, environmental spiel, stressors, environmentally focused, environmental work", "concept_list": ["pollution", "environmental spiel", "stressors", "environmentally focused", "environmental work"], "type": "cluster", "node_size": 30, "label": "Environmental Stressors"}, "Ecosystem Management": {"concepts": "climate change, water taxi pier., grants, river ecosystems, nonprofits, eelgrass, food web, ecosystem health, management stressors, population management, environmental policy, resident orca population, california cucumber, state agencies, shorelines, stakeholders", "concept_list": ["climate change", "water taxi pier.", "grants", "river ecosystems", "nonprofits", "eelgrass", "food web", "ecosystem health", "management stressors", "population management", "environmental policy", "resident orca population", "california cucumber", "state agencies", "shorelines", "stakeholders"], "type": "cluster", "node_size": 63, "label": "Ecosystem Management"}, "Policy and Benefits": {"concepts": "business perspective, national nature assessment, economic benefits, policy landscape, social benefits, policy work", "concept_list": ["business perspective", "national nature assessment", "economic benefits", "policy landscape", "social benefits", "policy work"], "type": "cluster", "node_size": 33, "label": "Policy and Benefits"}};
+        const conceptData = {"marine environment": {"concepts": "marine environment", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "marine environment"}, "salmon": {"concepts": "salmon", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "salmon"}, "fishing communities": {"concepts": "fishing communities", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "fishing communities"}, "rockfish": {"concepts": "rockfish", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "rockfish"}, "seaweed ecosystems": {"concepts": "seaweed ecosystems", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "seaweed ecosystems"}, "seaweed": {"concepts": "seaweed", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "seaweed"}, "ratfish": {"concepts": "ratfish", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "ratfish"}, "dogfish sharks": {"concepts": "dogfish sharks", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "dogfish sharks"}, "marine biodiversity": {"concepts": "marine biodiversity", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "marine biodiversity"}, "salmon stock": {"concepts": "salmon stock", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "salmon stock"}, "rocky reef": {"concepts": "rocky reef", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "rocky reef"}, "marine preserve": {"concepts": "marine preserve", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "marine preserve"}, "salish sea ecology": {"concepts": "salish sea ecology", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "salish sea ecology"}, "marine mammals": {"concepts": "marine mammals", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "marine mammals"}, "wildlife veterinarian": {"concepts": "wildlife veterinarian", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "wildlife veterinarian"}, "regulation": {"concepts": "regulation", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "regulation"}, "resource managers": {"concepts": "resource managers", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "resource managers"}, "cycle": {"concepts": "cycle", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "cycle"}, "management": {"concepts": "management", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "management"}, "relationships": {"concepts": "relationships", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "relationships"}, "laws": {"concepts": "laws", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "laws"}, "system dynamics": {"concepts": "system dynamics", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "system dynamics"}, "tnc": {"concepts": "tnc", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "tnc"}, "underwater cleanup events": {"concepts": "underwater cleanup events", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "underwater cleanup events"}, "salish sea diver": {"concepts": "salish sea diver", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "salish sea diver"}, "warming water": {"concepts": "warming water", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "warming water"}, "sea cucumbers": {"concepts": "sea cucumbers", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "sea cucumbers"}, "seals": {"concepts": "seals", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "seals"}, "sea lions": {"concepts": "sea lions", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "sea lions"}, "underwater cleanup": {"concepts": "underwater cleanup", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "underwater cleanup"}, "sea creatures": {"concepts": "sea creatures", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "sea creatures"}, "west seattle": {"concepts": "west seattle", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "west seattle"}, "sea stars": {"concepts": "sea stars", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "sea stars"}, "purple sea urchins": {"concepts": "purple sea urchins", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "purple sea urchins"}, "seadoc society": {"concepts": "seadoc society", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "seadoc society"}, "sea urchins": {"concepts": "sea urchins", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "sea urchins"}, "sea star wasting disease": {"concepts": "sea star wasting disease", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "sea star wasting disease"}, "sailor sea wild": {"concepts": "sailor sea wild", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "sailor sea wild"}, "sunflower sea star": {"concepts": "sunflower sea star", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "sunflower sea star"}, "sunflower sea stars": {"concepts": "sunflower sea stars", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "sunflower sea stars"}, "warming temperatures": {"concepts": "warming temperatures", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "warming temperatures"}, "scripps institution of oceanography": {"concepts": "scripps institution of oceanography", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "scripps institution of oceanography"}, "ecological dynamics": {"concepts": "ecological dynamics", "type": "concept", "cluster": "Ecosystem Dynamics", "node_size": 10, "label": "ecological dynamics"}, "social ecological system": {"concepts": "social ecological system", "type": "concept", "cluster": "Ecosystem Dynamics", "node_size": 10, "label": "social ecological system"}, "predator interaction": {"concepts": "predator interaction", "type": "concept", "cluster": "Ecosystem Dynamics", "node_size": 10, "label": "predator interaction"}, "social media": {"concepts": "social media", "type": "concept", "cluster": "Ecosystem Dynamics", "node_size": 10, "label": "social media"}, "ecosystem": {"concepts": "ecosystem", "type": "concept", "cluster": "Ecosystem Dynamics", "node_size": 10, "label": "ecosystem"}, "ecosystem impact": {"concepts": "ecosystem impact", "type": "concept", "cluster": "Ecosystem Dynamics", "node_size": 10, "label": "ecosystem impact"}, "healthy ecosystems": {"concepts": "healthy ecosystems", "type": "concept", "cluster": "Ecosystem Dynamics", "node_size": 10, "label": "healthy ecosystems"}, "predator-prey dynamics": {"concepts": "predator-prey dynamics", "type": "concept", "cluster": "Ecosystem Dynamics", "node_size": 10, "label": "predator-prey dynamics"}, "conservation coordinator.": {"concepts": "conservation coordinator.", "type": "concept", "cluster": "Conservation Efforts", "node_size": 10, "label": "conservation coordinator."}, "forest conservation": {"concepts": "forest conservation", "type": "concept", "cluster": "Conservation Efforts", "node_size": 10, "label": "forest conservation"}, "conservation coordinator": {"concepts": "conservation coordinator", "type": "concept", "cluster": "Conservation Efforts", "node_size": 10, "label": "conservation coordinator"}, "kelp forests": {"concepts": "kelp forests", "type": "concept", "cluster": "Conservation Efforts", "node_size": 10, "label": "kelp forests"}, "habitat forming species": {"concepts": "habitat forming species", "type": "concept", "cluster": "Conservation Efforts", "node_size": 10, "label": "habitat forming species"}, "conservation concern": {"concepts": "conservation concern", "type": "concept", "cluster": "Conservation Efforts", "node_size": 10, "label": "conservation concern"}, "conservation work": {"concepts": "conservation work", "type": "concept", "cluster": "Conservation Efforts", "node_size": 10, "label": "conservation work"}, "habitat creep": {"concepts": "habitat creep", "type": "concept", "cluster": "Conservation Efforts", "node_size": 10, "label": "habitat creep"}, "southern resident orcas": {"concepts": "southern resident orcas", "type": "concept", "cluster": "Conservation Efforts", "node_size": 10, "label": "southern resident orcas"}, "pollution": {"concepts": "pollution", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "pollution"}, "environmental spiel": {"concepts": "environmental spiel", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "environmental spiel"}, "stressors": {"concepts": "stressors", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "stressors"}, "environmentally focused": {"concepts": "environmentally focused", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "environmentally focused"}, "environmental work": {"concepts": "environmental work", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "environmental work"}, "climate change": {"concepts": "climate change", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "climate change"}, "water taxi pier.": {"concepts": "water taxi pier.", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "water taxi pier."}, "grants": {"concepts": "grants", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "grants"}, "river ecosystems": {"concepts": "river ecosystems", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "river ecosystems"}, "nonprofits": {"concepts": "nonprofits", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "nonprofits"}, "eelgrass": {"concepts": "eelgrass", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "eelgrass"}, "food web": {"concepts": "food web", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "food web"}, "ecosystem health": {"concepts": "ecosystem health", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "ecosystem health"}, "management stressors": {"concepts": "management stressors", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "management stressors"}, "population management": {"concepts": "population management", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "population management"}, "environmental policy": {"concepts": "environmental policy", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "environmental policy"}, "resident orca population": {"concepts": "resident orca population", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "resident orca population"}, "california cucumber": {"concepts": "california cucumber", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "california cucumber"}, "state agencies": {"concepts": "state agencies", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "state agencies"}, "shorelines": {"concepts": "shorelines", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "shorelines"}, "stakeholders": {"concepts": "stakeholders", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "stakeholders"}, "business perspective": {"concepts": "business perspective", "type": "concept", "cluster": "Policy and Benefits", "node_size": 10, "label": "business perspective"}, "national nature assessment": {"concepts": "national nature assessment", "type": "concept", "cluster": "Policy and Benefits", "node_size": 10, "label": "national nature assessment"}, "economic benefits": {"concepts": "economic benefits", "type": "concept", "cluster": "Policy and Benefits", "node_size": 10, "label": "economic benefits"}, "policy landscape": {"concepts": "policy landscape", "type": "concept", "cluster": "Policy and Benefits", "node_size": 10, "label": "policy landscape"}, "social benefits": {"concepts": "social benefits", "type": "concept", "cluster": "Policy and Benefits", "node_size": 10, "label": "social benefits"}, "policy work": {"concepts": "policy work", "type": "concept", "cluster": "Policy and Benefits", "node_size": 10, "label": "policy work"}};
+        const interClusterEdges = [["Marine Biodiversity", "Ecosystem Dynamics", {"weight": 0.75, "confidence": 0.5625, "type": "inter_cluster", "style": "solid"}], ["Marine Biodiversity", "Marine Cleanup", {"weight": 0.75, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["Marine Biodiversity", "Environmental Stressors", {"weight": 0.6, "confidence": 0.44000000000000006, "type": "inter_cluster", "style": "solid"}], ["Marine Biodiversity", "Resource Management", {"weight": 0.2, "confidence": 0.13999999999999999, "type": "inter_cluster", "style": "solid"}], ["Resource Management", "Ecosystem Dynamics", {"weight": 0.8, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Resource Management", "Policy and Benefits", {"weight": 0.8, "confidence": 0.5800000000000001, "type": "inter_cluster", "style": "solid"}], ["Resource Management", "Environmental Stressors", {"weight": 0.5, "confidence": 0.3875, "type": "inter_cluster", "style": "solid"}], ["Resource Management", "Marine Biodiversity", {"weight": 0.5, "confidence": 0.3875, "type": "inter_cluster", "style": "solid"}], ["Resource Management", "Ecosystem Management", {"weight": 0.3333333333333333, "confidence": 0.25, "type": "inter_cluster", "style": "solid"}], ["Marine Cleanup", "Environmental Stressors", {"weight": 0.8, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Marine Cleanup", "Marine Biodiversity", {"weight": 0.8, "confidence": 0.61, "type": "inter_cluster", "style": "solid"}], ["Marine Cleanup", "Conservation Efforts", {"weight": 0.6, "confidence": 0.44000000000000006, "type": "inter_cluster", "style": "solid"}], ["Marine Cleanup", "Resource Management", {"weight": 0.6, "confidence": 0.45999999999999996, "type": "inter_cluster", "style": "solid"}], ["Marine Cleanup", "Policy and Benefits", {"weight": 0.4, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["Marine Cleanup", "Ecosystem Management", {"weight": 0.4, "confidence": 0.31, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Dynamics", "Conservation Efforts", {"weight": 0.6, "confidence": 0.47000000000000003, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Dynamics", "Ecosystem Management", {"weight": 0.6, "confidence": 0.45, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Dynamics", "Policy and Benefits", {"weight": 0.4, "confidence": 0.29, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Dynamics", "Marine Biodiversity", {"weight": 0.5, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Dynamics", "Resource Management", {"weight": 0.2, "confidence": 0.13, "type": "inter_cluster", "style": "solid"}], ["Conservation Efforts", "Marine Cleanup", {"weight": 0.8, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Conservation Efforts", "Environmental Stressors", {"weight": 0.8, "confidence": 0.62, "type": "inter_cluster", "style": "solid"}], ["Conservation Efforts", "Ecosystem Management", {"weight": 0.8, "confidence": 0.58, "type": "inter_cluster", "style": "solid"}], ["Conservation Efforts", "Ecosystem Dynamics", {"weight": 0.6, "confidence": 0.43000000000000005, "type": "inter_cluster", "style": "solid"}], ["Conservation Efforts", "Resource Management", {"weight": 0.6, "confidence": 0.44000000000000006, "type": "inter_cluster", "style": "solid"}], ["Conservation Efforts", "Marine Biodiversity", {"weight": 0.6, "confidence": 0.43, "type": "inter_cluster", "style": "solid"}], ["Conservation Efforts", "Policy and Benefits", {"weight": 0.3333333333333333, "confidence": 0.2333333333333333, "type": "inter_cluster", "style": "solid"}], ["Environmental Stressors", "Resource Management", {"weight": 0.6, "confidence": 0.48, "type": "inter_cluster", "style": "solid"}], ["Environmental Stressors", "Policy and Benefits", {"weight": 0.6, "confidence": 0.44000000000000006, "type": "inter_cluster", "style": "solid"}], ["Environmental Stressors", "Marine Biodiversity", {"weight": 0.3333333333333333, "confidence": 0.25, "type": "inter_cluster", "style": "solid"}], ["Environmental Stressors", "Conservation Efforts", {"weight": 0.2, "confidence": 0.15, "type": "inter_cluster", "style": "solid"}], ["Environmental Stressors", "Ecosystem Management", {"weight": 0.2, "confidence": 0.15, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Management", "Marine Cleanup", {"weight": 0.8, "confidence": 0.5900000000000001, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Management", "Policy and Benefits", {"weight": 0.6, "confidence": 0.45, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Management", "Conservation Efforts", {"weight": 0.75, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Management", "Resource Management", {"weight": 0.6, "confidence": 0.45, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Management", "Environmental Stressors", {"weight": 0.6666666666666666, "confidence": 0.5166666666666667, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Management", "Marine Biodiversity", {"weight": 0.4, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["Policy and Benefits", "Resource Management", {"weight": 0.8, "confidence": 0.5900000000000001, "type": "inter_cluster", "style": "solid"}], ["Policy and Benefits", "Ecosystem Dynamics", {"weight": 0.6, "confidence": 0.45, "type": "inter_cluster", "style": "solid"}], ["Policy and Benefits", "Marine Biodiversity", {"weight": 0.6, "confidence": 0.44000000000000006, "type": "inter_cluster", "style": "solid"}], ["Policy and Benefits", "Marine Cleanup", {"weight": 0.4, "confidence": 0.29, "type": "inter_cluster", "style": "solid"}], ["Policy and Benefits", "Ecosystem Management", {"weight": 0.4, "confidence": 0.32, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {"Marine Biodiversity": [["marine environment", {"concepts": "marine environment", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "marine environment"}], ["salmon", {"concepts": "salmon", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "salmon"}], ["fishing communities", {"concepts": "fishing communities", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "fishing communities"}], ["rockfish", {"concepts": "rockfish", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "rockfish"}], ["seaweed ecosystems", {"concepts": "seaweed ecosystems", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "seaweed ecosystems"}], ["seaweed", {"concepts": "seaweed", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "seaweed"}], ["ratfish", {"concepts": "ratfish", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "ratfish"}], ["dogfish sharks", {"concepts": "dogfish sharks", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "dogfish sharks"}], ["marine biodiversity", {"concepts": "marine biodiversity", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "marine biodiversity"}], ["salmon stock", {"concepts": "salmon stock", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "salmon stock"}], ["rocky reef", {"concepts": "rocky reef", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "rocky reef"}], ["marine preserve", {"concepts": "marine preserve", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "marine preserve"}], ["salish sea ecology", {"concepts": "salish sea ecology", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "salish sea ecology"}], ["marine mammals", {"concepts": "marine mammals", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "marine mammals"}], ["wildlife veterinarian", {"concepts": "wildlife veterinarian", "type": "concept", "cluster": "Marine Biodiversity", "node_size": 10, "label": "wildlife veterinarian"}]], "Resource Management": [["regulation", {"concepts": "regulation", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "regulation"}], ["resource managers", {"concepts": "resource managers", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "resource managers"}], ["cycle", {"concepts": "cycle", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "cycle"}], ["management", {"concepts": "management", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "management"}], ["relationships", {"concepts": "relationships", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "relationships"}], ["laws", {"concepts": "laws", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "laws"}], ["system dynamics", {"concepts": "system dynamics", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "system dynamics"}], ["tnc", {"concepts": "tnc", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "tnc"}]], "Marine Cleanup": [["underwater cleanup events", {"concepts": "underwater cleanup events", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "underwater cleanup events"}], ["salish sea diver", {"concepts": "salish sea diver", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "salish sea diver"}], ["warming water", {"concepts": "warming water", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "warming water"}], ["sea cucumbers", {"concepts": "sea cucumbers", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "sea cucumbers"}], ["seals", {"concepts": "seals", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "seals"}], ["sea lions", {"concepts": "sea lions", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "sea lions"}], ["underwater cleanup", {"concepts": "underwater cleanup", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "underwater cleanup"}], ["sea creatures", {"concepts": "sea creatures", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "sea creatures"}], ["west seattle", {"concepts": "west seattle", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "west seattle"}], ["sea stars", {"concepts": "sea stars", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "sea stars"}], ["purple sea urchins", {"concepts": "purple sea urchins", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "purple sea urchins"}], ["seadoc society", {"concepts": "seadoc society", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "seadoc society"}], ["sea urchins", {"concepts": "sea urchins", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "sea urchins"}], ["sea star wasting disease", {"concepts": "sea star wasting disease", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "sea star wasting disease"}], ["sailor sea wild", {"concepts": "sailor sea wild", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "sailor sea wild"}], ["sunflower sea star", {"concepts": "sunflower sea star", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "sunflower sea star"}], ["sunflower sea stars", {"concepts": "sunflower sea stars", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "sunflower sea stars"}], ["warming temperatures", {"concepts": "warming temperatures", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "warming temperatures"}], ["scripps institution of oceanography", {"concepts": "scripps institution of oceanography", "type": "concept", "cluster": "Marine Cleanup", "node_size": 10, "label": "scripps institution of oceanography"}]], "Ecosystem Dynamics": [["ecological dynamics", {"concepts": "ecological dynamics", "type": "concept", "cluster": "Ecosystem Dynamics", "node_size": 10, "label": "ecological dynamics"}], ["social ecological system", {"concepts": "social ecological system", "type": "concept", "cluster": "Ecosystem Dynamics", "node_size": 10, "label": "social ecological system"}], ["predator interaction", {"concepts": "predator interaction", "type": "concept", "cluster": "Ecosystem Dynamics", "node_size": 10, "label": "predator interaction"}], ["social media", {"concepts": "social media", "type": "concept", "cluster": "Ecosystem Dynamics", "node_size": 10, "label": "social media"}], ["ecosystem", {"concepts": "ecosystem", "type": "concept", "cluster": "Ecosystem Dynamics", "node_size": 10, "label": "ecosystem"}], ["ecosystem impact", {"concepts": "ecosystem impact", "type": "concept", "cluster": "Ecosystem Dynamics", "node_size": 10, "label": "ecosystem impact"}], ["healthy ecosystems", {"concepts": "healthy ecosystems", "type": "concept", "cluster": "Ecosystem Dynamics", "node_size": 10, "label": "healthy ecosystems"}], ["predator-prey dynamics", {"concepts": "predator-prey dynamics", "type": "concept", "cluster": "Ecosystem Dynamics", "node_size": 10, "label": "predator-prey dynamics"}]], "Conservation Efforts": [["conservation coordinator.", {"concepts": "conservation coordinator.", "type": "concept", "cluster": "Conservation Efforts", "node_size": 10, "label": "conservation coordinator."}], ["forest conservation", {"concepts": "forest conservation", "type": "concept", "cluster": "Conservation Efforts", "node_size": 10, "label": "forest conservation"}], ["conservation coordinator", {"concepts": "conservation coordinator", "type": "concept", "cluster": "Conservation Efforts", "node_size": 10, "label": "conservation coordinator"}], ["kelp forests", {"concepts": "kelp forests", "type": "concept", "cluster": "Conservation Efforts", "node_size": 10, "label": "kelp forests"}], ["habitat forming species", {"concepts": "habitat forming species", "type": "concept", "cluster": "Conservation Efforts", "node_size": 10, "label": "habitat forming species"}], ["conservation concern", {"concepts": "conservation concern", "type": "concept", "cluster": "Conservation Efforts", "node_size": 10, "label": "conservation concern"}], ["conservation work", {"concepts": "conservation work", "type": "concept", "cluster": "Conservation Efforts", "node_size": 10, "label": "conservation work"}], ["habitat creep", {"concepts": "habitat creep", "type": "concept", "cluster": "Conservation Efforts", "node_size": 10, "label": "habitat creep"}], ["southern resident orcas", {"concepts": "southern resident orcas", "type": "concept", "cluster": "Conservation Efforts", "node_size": 10, "label": "southern resident orcas"}]], "Environmental Stressors": [["pollution", {"concepts": "pollution", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "pollution"}], ["environmental spiel", {"concepts": "environmental spiel", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "environmental spiel"}], ["stressors", {"concepts": "stressors", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "stressors"}], ["environmentally focused", {"concepts": "environmentally focused", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "environmentally focused"}], ["environmental work", {"concepts": "environmental work", "type": "concept", "cluster": "Environmental Stressors", "node_size": 10, "label": "environmental work"}]], "Ecosystem Management": [["climate change", {"concepts": "climate change", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "climate change"}], ["water taxi pier.", {"concepts": "water taxi pier.", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "water taxi pier."}], ["grants", {"concepts": "grants", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "grants"}], ["river ecosystems", {"concepts": "river ecosystems", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "river ecosystems"}], ["nonprofits", {"concepts": "nonprofits", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "nonprofits"}], ["eelgrass", {"concepts": "eelgrass", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "eelgrass"}], ["food web", {"concepts": "food web", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "food web"}], ["ecosystem health", {"concepts": "ecosystem health", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "ecosystem health"}], ["management stressors", {"concepts": "management stressors", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "management stressors"}], ["population management", {"concepts": "population management", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "population management"}], ["environmental policy", {"concepts": "environmental policy", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "environmental policy"}], ["resident orca population", {"concepts": "resident orca population", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "resident orca population"}], ["california cucumber", {"concepts": "california cucumber", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "california cucumber"}], ["state agencies", {"concepts": "state agencies", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "state agencies"}], ["shorelines", {"concepts": "shorelines", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "shorelines"}], ["stakeholders", {"concepts": "stakeholders", "type": "concept", "cluster": "Ecosystem Management", "node_size": 10, "label": "stakeholders"}]], "Policy and Benefits": [["business perspective", {"concepts": "business perspective", "type": "concept", "cluster": "Policy and Benefits", "node_size": 10, "label": "business perspective"}], ["national nature assessment", {"concepts": "national nature assessment", "type": "concept", "cluster": "Policy and Benefits", "node_size": 10, "label": "national nature assessment"}], ["economic benefits", {"concepts": "economic benefits", "type": "concept", "cluster": "Policy and Benefits", "node_size": 10, "label": "economic benefits"}], ["policy landscape", {"concepts": "policy landscape", "type": "concept", "cluster": "Policy and Benefits", "node_size": 10, "label": "policy landscape"}], ["social benefits", {"concepts": "social benefits", "type": "concept", "cluster": "Policy and Benefits", "node_size": 10, "label": "social benefits"}], ["policy work", {"concepts": "policy work", "type": "concept", "cluster": "Policy and Benefits", "node_size": 10, "label": "policy work"}]]};
+        const clusterEdges = {"Marine Biodiversity": [], "Resource Management": [], "Marine Cleanup": [], "Ecosystem Dynamics": [], "Conservation Efforts": [], "Environmental Stressors": [], "Ecosystem Management": [], "Policy and Benefits": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"marine recreational activities": {"concepts": "marine recreational activities", "concept_list": ["marine recreational activities"], "type": "cluster", "node_size": 18, "label": "marine recreational activities"}, "Economic and Social Impacts": {"concepts": "snorkeling, snorkeling trips, trips, island hopping, psychological map, litter, boating, snorkeling trip", "concept_list": ["snorkeling", "snorkeling trips", "trips", "island hopping", "psychological map", "litter", "boating", "snorkeling trip"], "type": "cluster", "node_size": 39, "label": "Economic and Social Impacts"}, "Government Regulations": {"concepts": "sustainably keeping, social impacts, economic impact, different audience, economic impacts, social benefits, economical benefits, business, negative impacts", "concept_list": ["sustainably keeping", "social impacts", "economic impact", "different audience", "economic impacts", "social benefits", "economical benefits", "business", "negative impacts"], "type": "cluster", "node_size": 42, "label": "Government Regulations"}, "Environmental Factors": {"concepts": "policies, state trooper, local government, size regulation, regulations, government hearings, inshore charter, boat regulations", "concept_list": ["policies", "state trooper", "local government", "size regulation", "regulations", "government hearings", "inshore charter", "boat regulations"], "type": "cluster", "node_size": 39, "label": "Environmental Factors"}, "Social Media Reviews": {"concepts": "biodiversity, boat captains, red drum, red snapper, environmental groups, environmental factors, manatees, predatory animals, unique ecosystems", "concept_list": ["biodiversity", "boat captains", "red drum", "red snapper", "environmental groups", "environmental factors", "manatees", "predatory animals", "unique ecosystems"], "type": "cluster", "node_size": 42, "label": "Social Media Reviews"}, "Island Activities": {"concepts": "social media, reviews, experience, guides, trip bookings, social media presence, youtube videos, review", "concept_list": ["social media", "reviews", "experience", "guides", "trip bookings", "social media presence", "youtube videos", "review"], "type": "cluster", "node_size": 39, "label": "Island Activities"}, "Coastal Locations": {"concepts": "st. john's bayou, heron bay, dauphin island, weeks bay, st. john\u2019s bayou", "concept_list": ["st. john's bayou", "heron bay", "dauphin island", "weeks bay", "st. john\u2019s bayou"], "type": "cluster", "node_size": 30, "label": "Coastal Locations"}, "Fishing Activities": {"concepts": "filets, commercial license, boat traffic, anonymity, trash, grill and chill, concept mapping, sheepshead, management decisions, harassment, charter captain, cognitive mapping, confidentiality, expensive meal, fishing", "concept_list": ["filets", "commercial license", "boat traffic", "anonymity", "trash", "grill and chill", "concept mapping", "sheepshead", "management decisions", "harassment", "charter captain", "cognitive mapping", "confidentiality", "expensive meal", "fishing"], "type": "cluster", "node_size": 60, "label": "Fishing Activities"}, "Dolphin Cruises": {"concepts": "dolphin cruise guide, dolphin cruise boats, dolphin cruise, dolphin cruises", "concept_list": ["dolphin cruise guide", "dolphin cruise boats", "dolphin cruise", "dolphin cruises"], "type": "cluster", "node_size": 27, "label": "Dolphin Cruises"}, "Leisure Cruises": {"concepts": "booze cruise, dolphins, sunset cruises", "concept_list": ["booze cruise", "dolphins", "sunset cruises"], "type": "cluster", "node_size": 24, "label": "Leisure Cruises"}, "Fish Species": {"concepts": "flounder, white trout, speckled trout, spawning, flounder research, fish diversity, breeder fish", "concept_list": ["flounder", "white trout", "speckled trout", "spawning", "flounder research", "fish diversity", "breeder fish"], "type": "cluster", "node_size": 36, "label": "Fish Species"}, "Coastal Ecosystems": {"concepts": "intercoastal waterways, estuaries, seagrass, fishing guides, coastal biodiversity, marine biodiversity, seagrass bed, marine life", "concept_list": ["intercoastal waterways", "estuaries", "seagrass", "fishing guides", "coastal biodiversity", "marine biodiversity", "seagrass bed", "marine life"], "type": "cluster", "node_size": 39, "label": "Coastal Ecosystems"}, "Fishing Regulations": {"concepts": "fishing license, fish regulations, marine regulations, fishing charters, fisheries management, fishery, recreational fishing, marine police", "concept_list": ["fishing license", "fish regulations", "marine regulations", "fishing charters", "fisheries management", "fishery", "recreational fishing", "marine police"], "type": "cluster", "node_size": 39, "label": "Fishing Regulations"}, "Marine Conservation": {"concepts": "spawners, little lagoon, water filtration, oyster reefs, seagrass protection, overfishing, jellyfish, poaching, fishery experience", "concept_list": ["spawners", "little lagoon", "water filtration", "oyster reefs", "seagrass protection", "overfishing", "jellyfish", "poaching", "fishery experience"], "type": "cluster", "node_size": 42, "label": "Marine Conservation"}};
+        const conceptData = {"snorkeling": {"concepts": "snorkeling", "type": "concept", "cluster": "Economic and Social Impacts", "node_size": 10, "label": "snorkeling"}, "snorkeling trips": {"concepts": "snorkeling trips", "type": "concept", "cluster": "Economic and Social Impacts", "node_size": 10, "label": "snorkeling trips"}, "trips": {"concepts": "trips", "type": "concept", "cluster": "Economic and Social Impacts", "node_size": 10, "label": "trips"}, "island hopping": {"concepts": "island hopping", "type": "concept", "cluster": "Economic and Social Impacts", "node_size": 10, "label": "island hopping"}, "psychological map": {"concepts": "psychological map", "type": "concept", "cluster": "Economic and Social Impacts", "node_size": 10, "label": "psychological map"}, "litter": {"concepts": "litter", "type": "concept", "cluster": "Economic and Social Impacts", "node_size": 10, "label": "litter"}, "boating": {"concepts": "boating", "type": "concept", "cluster": "Economic and Social Impacts", "node_size": 10, "label": "boating"}, "snorkeling trip": {"concepts": "snorkeling trip", "type": "concept", "cluster": "Economic and Social Impacts", "node_size": 10, "label": "snorkeling trip"}, "sustainably keeping": {"concepts": "sustainably keeping", "type": "concept", "cluster": "Government Regulations", "node_size": 10, "label": "sustainably keeping"}, "social impacts": {"concepts": "social impacts", "type": "concept", "cluster": "Government Regulations", "node_size": 10, "label": "social impacts"}, "economic impact": {"concepts": "economic impact", "type": "concept", "cluster": "Government Regulations", "node_size": 10, "label": "economic impact"}, "different audience": {"concepts": "different audience", "type": "concept", "cluster": "Government Regulations", "node_size": 10, "label": "different audience"}, "economic impacts": {"concepts": "economic impacts", "type": "concept", "cluster": "Government Regulations", "node_size": 10, "label": "economic impacts"}, "social benefits": {"concepts": "social benefits", "type": "concept", "cluster": "Government Regulations", "node_size": 10, "label": "social benefits"}, "economical benefits": {"concepts": "economical benefits", "type": "concept", "cluster": "Government Regulations", "node_size": 10, "label": "economical benefits"}, "business": {"concepts": "business", "type": "concept", "cluster": "Government Regulations", "node_size": 10, "label": "business"}, "negative impacts": {"concepts": "negative impacts", "type": "concept", "cluster": "Government Regulations", "node_size": 10, "label": "negative impacts"}, "policies": {"concepts": "policies", "type": "concept", "cluster": "Environmental Factors", "node_size": 10, "label": "policies"}, "state trooper": {"concepts": "state trooper", "type": "concept", "cluster": "Environmental Factors", "node_size": 10, "label": "state trooper"}, "local government": {"concepts": "local government", "type": "concept", "cluster": "Environmental Factors", "node_size": 10, "label": "local government"}, "size regulation": {"concepts": "size regulation", "type": "concept", "cluster": "Environmental Factors", "node_size": 10, "label": "size regulation"}, "regulations": {"concepts": "regulations", "type": "concept", "cluster": "Environmental Factors", "node_size": 10, "label": "regulations"}, "government hearings": {"concepts": "government hearings", "type": "concept", "cluster": "Environmental Factors", "node_size": 10, "label": "government hearings"}, "inshore charter": {"concepts": "inshore charter", "type": "concept", "cluster": "Environmental Factors", "node_size": 10, "label": "inshore charter"}, "boat regulations": {"concepts": "boat regulations", "type": "concept", "cluster": "Environmental Factors", "node_size": 10, "label": "boat regulations"}, "biodiversity": {"concepts": "biodiversity", "type": "concept", "cluster": "Social Media Reviews", "node_size": 10, "label": "biodiversity"}, "boat captains": {"concepts": "boat captains", "type": "concept", "cluster": "Social Media Reviews", "node_size": 10, "label": "boat captains"}, "red drum": {"concepts": "red drum", "type": "concept", "cluster": "Social Media Reviews", "node_size": 10, "label": "red drum"}, "red snapper": {"concepts": "red snapper", "type": "concept", "cluster": "Social Media Reviews", "node_size": 10, "label": "red snapper"}, "environmental groups": {"concepts": "environmental groups", "type": "concept", "cluster": "Social Media Reviews", "node_size": 10, "label": "environmental groups"}, "environmental factors": {"concepts": "environmental factors", "type": "concept", "cluster": "Social Media Reviews", "node_size": 10, "label": "environmental factors"}, "manatees": {"concepts": "manatees", "type": "concept", "cluster": "Social Media Reviews", "node_size": 10, "label": "manatees"}, "predatory animals": {"concepts": "predatory animals", "type": "concept", "cluster": "Social Media Reviews", "node_size": 10, "label": "predatory animals"}, "unique ecosystems": {"concepts": "unique ecosystems", "type": "concept", "cluster": "Social Media Reviews", "node_size": 10, "label": "unique ecosystems"}, "social media": {"concepts": "social media", "type": "concept", "cluster": "Island Activities", "node_size": 10, "label": "social media"}, "reviews": {"concepts": "reviews", "type": "concept", "cluster": "Island Activities", "node_size": 10, "label": "reviews"}, "experience": {"concepts": "experience", "type": "concept", "cluster": "Island Activities", "node_size": 10, "label": "experience"}, "guides": {"concepts": "guides", "type": "concept", "cluster": "Island Activities", "node_size": 10, "label": "guides"}, "trip bookings": {"concepts": "trip bookings", "type": "concept", "cluster": "Island Activities", "node_size": 10, "label": "trip bookings"}, "social media presence": {"concepts": "social media presence", "type": "concept", "cluster": "Island Activities", "node_size": 10, "label": "social media presence"}, "youtube videos": {"concepts": "youtube videos", "type": "concept", "cluster": "Island Activities", "node_size": 10, "label": "youtube videos"}, "review": {"concepts": "review", "type": "concept", "cluster": "Island Activities", "node_size": 10, "label": "review"}, "st. john's bayou": {"concepts": "st. john's bayou", "type": "concept", "cluster": "Coastal Locations", "node_size": 10, "label": "st. john's bayou"}, "heron bay": {"concepts": "heron bay", "type": "concept", "cluster": "Coastal Locations", "node_size": 10, "label": "heron bay"}, "dauphin island": {"concepts": "dauphin island", "type": "concept", "cluster": "Coastal Locations", "node_size": 10, "label": "dauphin island"}, "weeks bay": {"concepts": "weeks bay", "type": "concept", "cluster": "Coastal Locations", "node_size": 10, "label": "weeks bay"}, "st. john\u2019s bayou": {"concepts": "st. john\u2019s bayou", "type": "concept", "cluster": "Coastal Locations", "node_size": 10, "label": "st. john\u2019s bayou"}, "filets": {"concepts": "filets", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "filets"}, "commercial license": {"concepts": "commercial license", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "commercial license"}, "boat traffic": {"concepts": "boat traffic", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "boat traffic"}, "anonymity": {"concepts": "anonymity", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "anonymity"}, "trash": {"concepts": "trash", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "trash"}, "grill and chill": {"concepts": "grill and chill", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "grill and chill"}, "concept mapping": {"concepts": "concept mapping", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "concept mapping"}, "sheepshead": {"concepts": "sheepshead", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "sheepshead"}, "management decisions": {"concepts": "management decisions", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "management decisions"}, "harassment": {"concepts": "harassment", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "harassment"}, "charter captain": {"concepts": "charter captain", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "charter captain"}, "cognitive mapping": {"concepts": "cognitive mapping", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "cognitive mapping"}, "confidentiality": {"concepts": "confidentiality", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "confidentiality"}, "expensive meal": {"concepts": "expensive meal", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "expensive meal"}, "fishing": {"concepts": "fishing", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "fishing"}, "dolphin cruise guide": {"concepts": "dolphin cruise guide", "type": "concept", "cluster": "Dolphin Cruises", "node_size": 10, "label": "dolphin cruise guide"}, "dolphin cruise boats": {"concepts": "dolphin cruise boats", "type": "concept", "cluster": "Dolphin Cruises", "node_size": 10, "label": "dolphin cruise boats"}, "dolphin cruise": {"concepts": "dolphin cruise", "type": "concept", "cluster": "Dolphin Cruises", "node_size": 10, "label": "dolphin cruise"}, "dolphin cruises": {"concepts": "dolphin cruises", "type": "concept", "cluster": "Dolphin Cruises", "node_size": 10, "label": "dolphin cruises"}, "booze cruise": {"concepts": "booze cruise", "type": "concept", "cluster": "Leisure Cruises", "node_size": 10, "label": "booze cruise"}, "dolphins": {"concepts": "dolphins", "type": "concept", "cluster": "Leisure Cruises", "node_size": 10, "label": "dolphins"}, "sunset cruises": {"concepts": "sunset cruises", "type": "concept", "cluster": "Leisure Cruises", "node_size": 10, "label": "sunset cruises"}, "flounder": {"concepts": "flounder", "type": "concept", "cluster": "Fish Species", "node_size": 10, "label": "flounder"}, "white trout": {"concepts": "white trout", "type": "concept", "cluster": "Fish Species", "node_size": 10, "label": "white trout"}, "speckled trout": {"concepts": "speckled trout", "type": "concept", "cluster": "Fish Species", "node_size": 10, "label": "speckled trout"}, "spawning": {"concepts": "spawning", "type": "concept", "cluster": "Fish Species", "node_size": 10, "label": "spawning"}, "flounder research": {"concepts": "flounder research", "type": "concept", "cluster": "Fish Species", "node_size": 10, "label": "flounder research"}, "fish diversity": {"concepts": "fish diversity", "type": "concept", "cluster": "Fish Species", "node_size": 10, "label": "fish diversity"}, "breeder fish": {"concepts": "breeder fish", "type": "concept", "cluster": "Fish Species", "node_size": 10, "label": "breeder fish"}, "intercoastal waterways": {"concepts": "intercoastal waterways", "type": "concept", "cluster": "Coastal Ecosystems", "node_size": 10, "label": "intercoastal waterways"}, "estuaries": {"concepts": "estuaries", "type": "concept", "cluster": "Coastal Ecosystems", "node_size": 10, "label": "estuaries"}, "seagrass": {"concepts": "seagrass", "type": "concept", "cluster": "Coastal Ecosystems", "node_size": 10, "label": "seagrass"}, "fishing guides": {"concepts": "fishing guides", "type": "concept", "cluster": "Coastal Ecosystems", "node_size": 10, "label": "fishing guides"}, "coastal biodiversity": {"concepts": "coastal biodiversity", "type": "concept", "cluster": "Coastal Ecosystems", "node_size": 10, "label": "coastal biodiversity"}, "marine biodiversity": {"concepts": "marine biodiversity", "type": "concept", "cluster": "Coastal Ecosystems", "node_size": 10, "label": "marine biodiversity"}, "seagrass bed": {"concepts": "seagrass bed", "type": "concept", "cluster": "Coastal Ecosystems", "node_size": 10, "label": "seagrass bed"}, "marine life": {"concepts": "marine life", "type": "concept", "cluster": "Coastal Ecosystems", "node_size": 10, "label": "marine life"}, "fishing license": {"concepts": "fishing license", "type": "concept", "cluster": "Fishing Regulations", "node_size": 10, "label": "fishing license"}, "fish regulations": {"concepts": "fish regulations", "type": "concept", "cluster": "Fishing Regulations", "node_size": 10, "label": "fish regulations"}, "marine regulations": {"concepts": "marine regulations", "type": "concept", "cluster": "Fishing Regulations", "node_size": 10, "label": "marine regulations"}, "fishing charters": {"concepts": "fishing charters", "type": "concept", "cluster": "Fishing Regulations", "node_size": 10, "label": "fishing charters"}, "fisheries management": {"concepts": "fisheries management", "type": "concept", "cluster": "Fishing Regulations", "node_size": 10, "label": "fisheries management"}, "fishery": {"concepts": "fishery", "type": "concept", "cluster": "Fishing Regulations", "node_size": 10, "label": "fishery"}, "recreational fishing": {"concepts": "recreational fishing", "type": "concept", "cluster": "Fishing Regulations", "node_size": 10, "label": "recreational fishing"}, "marine police": {"concepts": "marine police", "type": "concept", "cluster": "Fishing Regulations", "node_size": 10, "label": "marine police"}, "spawners": {"concepts": "spawners", "type": "concept", "cluster": "Marine Conservation", "node_size": 10, "label": "spawners"}, "little lagoon": {"concepts": "little lagoon", "type": "concept", "cluster": "Marine Conservation", "node_size": 10, "label": "little lagoon"}, "water filtration": {"concepts": "water filtration", "type": "concept", "cluster": "Marine Conservation", "node_size": 10, "label": "water filtration"}, "oyster reefs": {"concepts": "oyster reefs", "type": "concept", "cluster": "Marine Conservation", "node_size": 10, "label": "oyster reefs"}, "seagrass protection": {"concepts": "seagrass protection", "type": "concept", "cluster": "Marine Conservation", "node_size": 10, "label": "seagrass protection"}, "overfishing": {"concepts": "overfishing", "type": "concept", "cluster": "Marine Conservation", "node_size": 10, "label": "overfishing"}, "jellyfish": {"concepts": "jellyfish", "type": "concept", "cluster": "Marine Conservation", "node_size": 10, "label": "jellyfish"}, "poaching": {"concepts": "poaching", "type": "concept", "cluster": "Marine Conservation", "node_size": 10, "label": "poaching"}, "fishery experience": {"concepts": "fishery experience", "type": "concept", "cluster": "Marine Conservation", "node_size": 10, "label": "fishery experience"}};
+        const interClusterEdges = [["marine recreational activities", "Government Regulations", {"weight": 0.75, "confidence": 0.5875, "type": "inter_cluster", "style": "solid"}], ["marine recreational activities", "Marine Conservation", {"weight": 0.6, "confidence": 0.45, "type": "inter_cluster", "style": "solid"}], ["marine recreational activities", "Social Media Reviews", {"weight": 0.6, "confidence": 0.44000000000000006, "type": "inter_cluster", "style": "solid"}], ["marine recreational activities", "Fishing Activities", {"weight": 0.6666666666666666, "confidence": 0.5166666666666666, "type": "inter_cluster", "style": "solid"}], ["Economic and Social Impacts", "Social Media Reviews", {"weight": 0.8, "confidence": 0.64, "type": "inter_cluster", "style": "solid"}], ["Economic and Social Impacts", "Fish Species", {"weight": 0.75, "confidence": 0.5625, "type": "inter_cluster", "style": "solid"}], ["Economic and Social Impacts", "marine recreational activities", {"weight": 1.0, "confidence": 0.8500000000000001, "type": "inter_cluster", "style": "solid"}], ["Economic and Social Impacts", "Leisure Cruises", {"weight": 0.2, "confidence": 0.16999999999999998, "type": "inter_cluster", "style": "solid"}], ["Government Regulations", "Environmental Factors", {"weight": 1.0, "confidence": 0.7625, "type": "inter_cluster", "style": "solid"}], ["Government Regulations", "Fishing Regulations", {"weight": 1.0, "confidence": 0.7833333333333333, "type": "inter_cluster", "style": "solid"}], ["Government Regulations", "marine recreational activities", {"weight": 1.0, "confidence": 0.7749999999999999, "type": "inter_cluster", "style": "solid"}], ["Environmental Factors", "Fish Species", {"weight": 1.0, "confidence": 0.8100000000000002, "type": "inter_cluster", "style": "solid"}], ["Environmental Factors", "Coastal Locations", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["Environmental Factors", "Fishing Activities", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Environmental Factors", "Dolphin Cruises", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Social Media Reviews", "Government Regulations", {"weight": 0.8, "confidence": 0.62, "type": "inter_cluster", "style": "solid"}], ["Social Media Reviews", "Economic and Social Impacts", {"weight": 0.6, "confidence": 0.47000000000000003, "type": "inter_cluster", "style": "solid"}], ["Social Media Reviews", "Island Activities", {"weight": 0.6666666666666666, "confidence": 0.5166666666666667, "type": "inter_cluster", "style": "solid"}], ["Island Activities", "Marine Conservation", {"weight": 0.6, "confidence": 0.45999999999999996, "type": "inter_cluster", "style": "solid"}], ["Island Activities", "Social Media Reviews", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["Coastal Locations", "Environmental Factors", {"weight": 0.5, "confidence": 0.3875, "type": "inter_cluster", "style": "solid"}], ["Coastal Locations", "Fishing Activities", {"weight": 0.5, "confidence": 0.3875, "type": "inter_cluster", "style": "solid"}], ["Coastal Locations", "Leisure Cruises", {"weight": 0.5, "confidence": 0.3875, "type": "inter_cluster", "style": "solid"}], ["Coastal Locations", "Fishing Regulations", {"weight": 0.5, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["Fishing Activities", "marine recreational activities", {"weight": 1.0, "confidence": 0.78, "type": "inter_cluster", "style": "solid"}], ["Fishing Activities", "Environmental Factors", {"weight": 0.75, "confidence": 0.5375, "type": "inter_cluster", "style": "solid"}], ["Fishing Activities", "Leisure Cruises", {"weight": 0.6, "confidence": 0.47000000000000003, "type": "inter_cluster", "style": "solid"}], ["Fishing Activities", "Island Activities", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["Dolphin Cruises", "Coastal Locations", {"weight": 0.5, "confidence": 0.38749999999999996, "type": "inter_cluster", "style": "solid"}], ["Dolphin Cruises", "Government Regulations", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Dolphin Cruises", "Economic and Social Impacts", {"weight": 0.5, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["Leisure Cruises", "Government Regulations", {"weight": 1.0, "confidence": 0.78, "type": "inter_cluster", "style": "solid"}], ["Leisure Cruises", "Dolphin Cruises", {"weight": 0.75, "confidence": 0.575, "type": "inter_cluster", "style": "solid"}], ["Leisure Cruises", "Social Media Reviews", {"weight": 0.5, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["Leisure Cruises", "Marine Conservation", {"weight": 0.4, "confidence": 0.34, "type": "inter_cluster", "style": "solid"}], ["Leisure Cruises", "Economic and Social Impacts", {"weight": 0.2, "confidence": 0.13, "type": "inter_cluster", "style": "solid"}], ["Fish Species", "Social Media Reviews", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Fish Species", "Government Regulations", {"weight": 0.5, "confidence": 0.375, "type": "inter_cluster", "style": "solid"}], ["Fish Species", "Coastal Locations", {"weight": 0.5, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["Coastal Ecosystems", "Environmental Factors", {"weight": 1.0, "confidence": 0.76, "type": "inter_cluster", "style": "solid"}], ["Coastal Ecosystems", "Fish Species", {"weight": 1.0, "confidence": 0.8374999999999999, "type": "inter_cluster", "style": "solid"}], ["Coastal Ecosystems", "Dolphin Cruises", {"weight": 0.8, "confidence": 0.68, "type": "inter_cluster", "style": "solid"}], ["Coastal Ecosystems", "Fishing Activities", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Coastal Ecosystems", "Fishing Regulations", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Coastal Ecosystems", "Coastal Locations", {"weight": 0.6666666666666666, "confidence": 0.48333333333333334, "type": "inter_cluster", "style": "solid"}], ["Coastal Ecosystems", "Island Activities", {"weight": 0.25, "confidence": 0.2125, "type": "inter_cluster", "style": "solid"}], ["Marine Conservation", "Fish Species", {"weight": 0.8, "confidence": 0.6599999999999999, "type": "inter_cluster", "style": "solid"}], ["Marine Conservation", "Economic and Social Impacts", {"weight": 0.75, "confidence": 0.6000000000000001, "type": "inter_cluster", "style": "solid"}], ["Marine Conservation", "Social Media Reviews", {"weight": 0.6666666666666666, "confidence": 0.5499999999999999, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {"Economic and Social Impacts": [["snorkeling", {"concepts": "snorkeling", "type": "concept", "cluster": "Economic and Social Impacts", "node_size": 10, "label": "snorkeling"}], ["snorkeling trips", {"concepts": "snorkeling trips", "type": "concept", "cluster": "Economic and Social Impacts", "node_size": 10, "label": "snorkeling trips"}], ["trips", {"concepts": "trips", "type": "concept", "cluster": "Economic and Social Impacts", "node_size": 10, "label": "trips"}], ["island hopping", {"concepts": "island hopping", "type": "concept", "cluster": "Economic and Social Impacts", "node_size": 10, "label": "island hopping"}], ["psychological map", {"concepts": "psychological map", "type": "concept", "cluster": "Economic and Social Impacts", "node_size": 10, "label": "psychological map"}], ["litter", {"concepts": "litter", "type": "concept", "cluster": "Economic and Social Impacts", "node_size": 10, "label": "litter"}], ["boating", {"concepts": "boating", "type": "concept", "cluster": "Economic and Social Impacts", "node_size": 10, "label": "boating"}], ["snorkeling trip", {"concepts": "snorkeling trip", "type": "concept", "cluster": "Economic and Social Impacts", "node_size": 10, "label": "snorkeling trip"}]], "Government Regulations": [["sustainably keeping", {"concepts": "sustainably keeping", "type": "concept", "cluster": "Government Regulations", "node_size": 10, "label": "sustainably keeping"}], ["social impacts", {"concepts": "social impacts", "type": "concept", "cluster": "Government Regulations", "node_size": 10, "label": "social impacts"}], ["economic impact", {"concepts": "economic impact", "type": "concept", "cluster": "Government Regulations", "node_size": 10, "label": "economic impact"}], ["different audience", {"concepts": "different audience", "type": "concept", "cluster": "Government Regulations", "node_size": 10, "label": "different audience"}], ["economic impacts", {"concepts": "economic impacts", "type": "concept", "cluster": "Government Regulations", "node_size": 10, "label": "economic impacts"}], ["social benefits", {"concepts": "social benefits", "type": "concept", "cluster": "Government Regulations", "node_size": 10, "label": "social benefits"}], ["economical benefits", {"concepts": "economical benefits", "type": "concept", "cluster": "Government Regulations", "node_size": 10, "label": "economical benefits"}], ["business", {"concepts": "business", "type": "concept", "cluster": "Government Regulations", "node_size": 10, "label": "business"}], ["negative impacts", {"concepts": "negative impacts", "type": "concept", "cluster": "Government Regulations", "node_size": 10, "label": "negative impacts"}]], "Environmental Factors": [["policies", {"concepts": "policies", "type": "concept", "cluster": "Environmental Factors", "node_size": 10, "label": "policies"}], ["state trooper", {"concepts": "state trooper", "type": "concept", "cluster": "Environmental Factors", "node_size": 10, "label": "state trooper"}], ["local government", {"concepts": "local government", "type": "concept", "cluster": "Environmental Factors", "node_size": 10, "label": "local government"}], ["size regulation", {"concepts": "size regulation", "type": "concept", "cluster": "Environmental Factors", "node_size": 10, "label": "size regulation"}], ["regulations", {"concepts": "regulations", "type": "concept", "cluster": "Environmental Factors", "node_size": 10, "label": "regulations"}], ["government hearings", {"concepts": "government hearings", "type": "concept", "cluster": "Environmental Factors", "node_size": 10, "label": "government hearings"}], ["inshore charter", {"concepts": "inshore charter", "type": "concept", "cluster": "Environmental Factors", "node_size": 10, "label": "inshore charter"}], ["boat regulations", {"concepts": "boat regulations", "type": "concept", "cluster": "Environmental Factors", "node_size": 10, "label": "boat regulations"}]], "Social Media Reviews": [["biodiversity", {"concepts": "biodiversity", "type": "concept", "cluster": "Social Media Reviews", "node_size": 10, "label": "biodiversity"}], ["boat captains", {"concepts": "boat captains", "type": "concept", "cluster": "Social Media Reviews", "node_size": 10, "label": "boat captains"}], ["red drum", {"concepts": "red drum", "type": "concept", "cluster": "Social Media Reviews", "node_size": 10, "label": "red drum"}], ["red snapper", {"concepts": "red snapper", "type": "concept", "cluster": "Social Media Reviews", "node_size": 10, "label": "red snapper"}], ["environmental groups", {"concepts": "environmental groups", "type": "concept", "cluster": "Social Media Reviews", "node_size": 10, "label": "environmental groups"}], ["environmental factors", {"concepts": "environmental factors", "type": "concept", "cluster": "Social Media Reviews", "node_size": 10, "label": "environmental factors"}], ["manatees", {"concepts": "manatees", "type": "concept", "cluster": "Social Media Reviews", "node_size": 10, "label": "manatees"}], ["predatory animals", {"concepts": "predatory animals", "type": "concept", "cluster": "Social Media Reviews", "node_size": 10, "label": "predatory animals"}], ["unique ecosystems", {"concepts": "unique ecosystems", "type": "concept", "cluster": "Social Media Reviews", "node_size": 10, "label": "unique ecosystems"}]], "Island Activities": [["social media", {"concepts": "social media", "type": "concept", "cluster": "Island Activities", "node_size": 10, "label": "social media"}], ["reviews", {"concepts": "reviews", "type": "concept", "cluster": "Island Activities", "node_size": 10, "label": "reviews"}], ["experience", {"concepts": "experience", "type": "concept", "cluster": "Island Activities", "node_size": 10, "label": "experience"}], ["guides", {"concepts": "guides", "type": "concept", "cluster": "Island Activities", "node_size": 10, "label": "guides"}], ["trip bookings", {"concepts": "trip bookings", "type": "concept", "cluster": "Island Activities", "node_size": 10, "label": "trip bookings"}], ["social media presence", {"concepts": "social media presence", "type": "concept", "cluster": "Island Activities", "node_size": 10, "label": "social media presence"}], ["youtube videos", {"concepts": "youtube videos", "type": "concept", "cluster": "Island Activities", "node_size": 10, "label": "youtube videos"}], ["review", {"concepts": "review", "type": "concept", "cluster": "Island Activities", "node_size": 10, "label": "review"}]], "Coastal Locations": [["st. john's bayou", {"concepts": "st. john's bayou", "type": "concept", "cluster": "Coastal Locations", "node_size": 10, "label": "st. john's bayou"}], ["heron bay", {"concepts": "heron bay", "type": "concept", "cluster": "Coastal Locations", "node_size": 10, "label": "heron bay"}], ["dauphin island", {"concepts": "dauphin island", "type": "concept", "cluster": "Coastal Locations", "node_size": 10, "label": "dauphin island"}], ["weeks bay", {"concepts": "weeks bay", "type": "concept", "cluster": "Coastal Locations", "node_size": 10, "label": "weeks bay"}], ["st. john\u2019s bayou", {"concepts": "st. john\u2019s bayou", "type": "concept", "cluster": "Coastal Locations", "node_size": 10, "label": "st. john\u2019s bayou"}]], "Fishing Activities": [["filets", {"concepts": "filets", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "filets"}], ["commercial license", {"concepts": "commercial license", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "commercial license"}], ["boat traffic", {"concepts": "boat traffic", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "boat traffic"}], ["anonymity", {"concepts": "anonymity", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "anonymity"}], ["trash", {"concepts": "trash", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "trash"}], ["grill and chill", {"concepts": "grill and chill", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "grill and chill"}], ["concept mapping", {"concepts": "concept mapping", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "concept mapping"}], ["sheepshead", {"concepts": "sheepshead", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "sheepshead"}], ["management decisions", {"concepts": "management decisions", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "management decisions"}], ["harassment", {"concepts": "harassment", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "harassment"}], ["charter captain", {"concepts": "charter captain", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "charter captain"}], ["cognitive mapping", {"concepts": "cognitive mapping", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "cognitive mapping"}], ["confidentiality", {"concepts": "confidentiality", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "confidentiality"}], ["expensive meal", {"concepts": "expensive meal", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "expensive meal"}], ["fishing", {"concepts": "fishing", "type": "concept", "cluster": "Fishing Activities", "node_size": 10, "label": "fishing"}]], "Dolphin Cruises": [["dolphin cruise guide", {"concepts": "dolphin cruise guide", "type": "concept", "cluster": "Dolphin Cruises", "node_size": 10, "label": "dolphin cruise guide"}], ["dolphin cruise boats", {"concepts": "dolphin cruise boats", "type": "concept", "cluster": "Dolphin Cruises", "node_size": 10, "label": "dolphin cruise boats"}], ["dolphin cruise", {"concepts": "dolphin cruise", "type": "concept", "cluster": "Dolphin Cruises", "node_size": 10, "label": "dolphin cruise"}], ["dolphin cruises", {"concepts": "dolphin cruises", "type": "concept", "cluster": "Dolphin Cruises", "node_size": 10, "label": "dolphin cruises"}]], "Leisure Cruises": [["booze cruise", {"concepts": "booze cruise", "type": "concept", "cluster": "Leisure Cruises", "node_size": 10, "label": "booze cruise"}], ["dolphins", {"concepts": "dolphins", "type": "concept", "cluster": "Leisure Cruises", "node_size": 10, "label": "dolphins"}], ["sunset cruises", {"concepts": "sunset cruises", "type": "concept", "cluster": "Leisure Cruises", "node_size": 10, "label": "sunset cruises"}]], "Fish Species": [["flounder", {"concepts": "flounder", "type": "concept", "cluster": "Fish Species", "node_size": 10, "label": "flounder"}], ["white trout", {"concepts": "white trout", "type": "concept", "cluster": "Fish Species", "node_size": 10, "label": "white trout"}], ["speckled trout", {"concepts": "speckled trout", "type": "concept", "cluster": "Fish Species", "node_size": 10, "label": "speckled trout"}], ["spawning", {"concepts": "spawning", "type": "concept", "cluster": "Fish Species", "node_size": 10, "label": "spawning"}], ["flounder research", {"concepts": "flounder research", "type": "concept", "cluster": "Fish Species", "node_size": 10, "label": "flounder research"}], ["fish diversity", {"concepts": "fish diversity", "type": "concept", "cluster": "Fish Species", "node_size": 10, "label": "fish diversity"}], ["breeder fish", {"concepts": "breeder fish", "type": "concept", "cluster": "Fish Species", "node_size": 10, "label": "breeder fish"}]], "Coastal Ecosystems": [["intercoastal waterways", {"concepts": "intercoastal waterways", "type": "concept", "cluster": "Coastal Ecosystems", "node_size": 10, "label": "intercoastal waterways"}], ["estuaries", {"concepts": "estuaries", "type": "concept", "cluster": "Coastal Ecosystems", "node_size": 10, "label": "estuaries"}], ["seagrass", {"concepts": "seagrass", "type": "concept", "cluster": "Coastal Ecosystems", "node_size": 10, "label": "seagrass"}], ["fishing guides", {"concepts": "fishing guides", "type": "concept", "cluster": "Coastal Ecosystems", "node_size": 10, "label": "fishing guides"}], ["coastal biodiversity", {"concepts": "coastal biodiversity", "type": "concept", "cluster": "Coastal Ecosystems", "node_size": 10, "label": "coastal biodiversity"}], ["marine biodiversity", {"concepts": "marine biodiversity", "type": "concept", "cluster": "Coastal Ecosystems", "node_size": 10, "label": "marine biodiversity"}], ["seagrass bed", {"concepts": "seagrass bed", "type": "concept", "cluster": "Coastal Ecosystems", "node_size": 10, "label": "seagrass bed"}], ["marine life", {"concepts": "marine life", "type": "concept", "cluster": "Coastal Ecosystems", "node_size": 10, "label": "marine life"}]], "Fishing Regulations": [["fishing license", {"concepts": "fishing license", "type": "concept", "cluster": "Fishing Regulations", "node_size": 10, "label": "fishing license"}], ["fish regulations", {"concepts": "fish regulations", "type": "concept", "cluster": "Fishing Regulations", "node_size": 10, "label": "fish regulations"}], ["marine regulations", {"concepts": "marine regulations", "type": "concept", "cluster": "Fishing Regulations", "node_size": 10, "label": "marine regulations"}], ["fishing charters", {"concepts": "fishing charters", "type": "concept", "cluster": "Fishing Regulations", "node_size": 10, "label": "fishing charters"}], ["fisheries management", {"concepts": "fisheries management", "type": "concept", "cluster": "Fishing Regulations", "node_size": 10, "label": "fisheries management"}], ["fishery", {"concepts": "fishery", "type": "concept", "cluster": "Fishing Regulations", "node_size": 10, "label": "fishery"}], ["recreational fishing", {"concepts": "recreational fishing", "type": "concept", "cluster": "Fishing Regulations", "node_size": 10, "label": "recreational fishing"}], ["marine police", {"concepts": "marine police", "type": "concept", "cluster": "Fishing Regulations", "node_size": 10, "label": "marine police"}]], "Marine Conservation": [["spawners", {"concepts": "spawners", "type": "concept", "cluster": "Marine Conservation", "node_size": 10, "label": "spawners"}], ["little lagoon", {"concepts": "little lagoon", "type": "concept", "cluster": "Marine Conservation", "node_size": 10, "label": "little lagoon"}], ["water filtration", {"concepts": "water filtration", "type": "concept", "cluster": "Marine Conservation", "node_size": 10, "label": "water filtration"}], ["oyster reefs", {"concepts": "oyster reefs", "type": "concept", "cluster": "Marine Conservation", "node_size": 10, "label": "oyster reefs"}], ["seagrass protection", {"concepts": "seagrass protection", "type": "concept", "cluster": "Marine Conservation", "node_size": 10, "label": "seagrass protection"}], ["overfishing", {"concepts": "overfishing", "type": "concept", "cluster": "Marine Conservation", "node_size": 10, "label": "overfishing"}], ["jellyfish", {"concepts": "jellyfish", "type": "concept", "cluster": "Marine Conservation", "node_size": 10, "label": "jellyfish"}], ["poaching", {"concepts": "poaching", "type": "concept", "cluster": "Marine Conservation", "node_size": 10, "label": "poaching"}], ["fishery experience", {"concepts": "fishery experience", "type": "concept", "cluster": "Marine Conservation", "node_size": 10, "label": "fishery experience"}]]};
+        const clusterEdges = {"Economic and Social Impacts": [], "Government Regulations": [], "Environmental Factors": [], "Social Media Reviews": [], "Island Activities": [], "Coastal Locations": [], "Fishing Activities": [], "Dolphin Cruises": [], "Leisure Cruises": [], "Fish Species": [], "Coastal Ecosystems": [], "Fishing Regulations": [], "Marine Conservation": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

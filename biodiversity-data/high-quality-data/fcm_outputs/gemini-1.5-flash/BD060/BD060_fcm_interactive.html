@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"restoration planting": {"concepts": "restoration planting", "concept_list": ["restoration planting"], "type": "cluster", "node_size": 18, "label": "restoration planting"}, "stakeholder perspectives": {"concepts": "stakeholder perspectives", "concept_list": ["stakeholder perspectives"], "type": "cluster", "node_size": 18, "label": "stakeholder perspectives"}, "Biodiversity": {"concepts": "biodiversity management, species biodiversity", "concept_list": ["biodiversity management", "species biodiversity"], "type": "cluster", "node_size": 21, "label": "Biodiversity"}, "Resource Management": {"concepts": "management approaches, resource management", "concept_list": ["management approaches", "resource management"], "type": "cluster", "node_size": 21, "label": "Resource Management"}, "Species Conservation": {"concepts": "conservation, species diversity", "concept_list": ["conservation", "species diversity"], "type": "cluster", "node_size": 21, "label": "Species Conservation"}, "Invasive Genetics": {"concepts": "harmful organisms, population genetics", "concept_list": ["harmful organisms", "population genetics"], "type": "cluster", "node_size": 21, "label": "Invasive Genetics"}, "Wetland Disturbance": {"concepts": "drainage, legacy effects, marsh creation, disturbance", "concept_list": ["drainage", "legacy effects", "marsh creation", "disturbance"], "type": "cluster", "node_size": 27, "label": "Wetland Disturbance"}, "Species Selection": {"concepts": "population genetic diversity, invasive species", "concept_list": ["population genetic diversity", "invasive species"], "type": "cluster", "node_size": 21, "label": "Species Selection"}, "Habitat Engineers": {"concepts": "ecosystem engineers, habitat forming species, habitat species", "concept_list": ["ecosystem engineers", "habitat forming species", "habitat species"], "type": "cluster", "node_size": 24, "label": "Habitat Engineers"}, "Coastal Bird Impact": {"concepts": "sea level rise, coastal ecosystems, salt marsh birds", "concept_list": ["sea level rise", "coastal ecosystems", "salt marsh birds"], "type": "cluster", "node_size": 24, "label": "Coastal Bird Impact"}, "Wetland Degradation": {"concepts": "tidal marsh loss, ecological disturbance, wetland ecology", "concept_list": ["tidal marsh loss", "ecological disturbance", "wetland ecology"], "type": "cluster", "node_size": 24, "label": "Wetland Degradation"}, "Marsh Stressors": {"concepts": "marsh loss, stressors", "concept_list": ["marsh loss", "stressors"], "type": "cluster", "node_size": 21, "label": "Marsh Stressors"}, "Habitat Management": {"concepts": "prescribed burning, habitat, resource users, climate change", "concept_list": ["prescribed burning", "habitat", "resource users", "climate change"], "type": "cluster", "node_size": 27, "label": "Habitat Management"}};
+        const conceptData = {"biodiversity management": {"concepts": "biodiversity management", "type": "concept", "cluster": "Biodiversity", "node_size": 10, "label": "biodiversity management"}, "species biodiversity": {"concepts": "species biodiversity", "type": "concept", "cluster": "Biodiversity", "node_size": 10, "label": "species biodiversity"}, "management approaches": {"concepts": "management approaches", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "management approaches"}, "resource management": {"concepts": "resource management", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "resource management"}, "conservation": {"concepts": "conservation", "type": "concept", "cluster": "Species Conservation", "node_size": 10, "label": "conservation"}, "species diversity": {"concepts": "species diversity", "type": "concept", "cluster": "Species Conservation", "node_size": 10, "label": "species diversity"}, "harmful organisms": {"concepts": "harmful organisms", "type": "concept", "cluster": "Invasive Genetics", "node_size": 10, "label": "harmful organisms"}, "population genetics": {"concepts": "population genetics", "type": "concept", "cluster": "Invasive Genetics", "node_size": 10, "label": "population genetics"}, "drainage": {"concepts": "drainage", "type": "concept", "cluster": "Wetland Disturbance", "node_size": 10, "label": "drainage"}, "legacy effects": {"concepts": "legacy effects", "type": "concept", "cluster": "Wetland Disturbance", "node_size": 10, "label": "legacy effects"}, "marsh creation": {"concepts": "marsh creation", "type": "concept", "cluster": "Wetland Disturbance", "node_size": 10, "label": "marsh creation"}, "disturbance": {"concepts": "disturbance", "type": "concept", "cluster": "Wetland Disturbance", "node_size": 10, "label": "disturbance"}, "population genetic diversity": {"concepts": "population genetic diversity", "type": "concept", "cluster": "Species Selection", "node_size": 10, "label": "population genetic diversity"}, "invasive species": {"concepts": "invasive species", "type": "concept", "cluster": "Species Selection", "node_size": 10, "label": "invasive species"}, "ecosystem engineers": {"concepts": "ecosystem engineers", "type": "concept", "cluster": "Habitat Engineers", "node_size": 10, "label": "ecosystem engineers"}, "habitat forming species": {"concepts": "habitat forming species", "type": "concept", "cluster": "Habitat Engineers", "node_size": 10, "label": "habitat forming species"}, "habitat species": {"concepts": "habitat species", "type": "concept", "cluster": "Habitat Engineers", "node_size": 10, "label": "habitat species"}, "sea level rise": {"concepts": "sea level rise", "type": "concept", "cluster": "Coastal Bird Impact", "node_size": 10, "label": "sea level rise"}, "coastal ecosystems": {"concepts": "coastal ecosystems", "type": "concept", "cluster": "Coastal Bird Impact", "node_size": 10, "label": "coastal ecosystems"}, "salt marsh birds": {"concepts": "salt marsh birds", "type": "concept", "cluster": "Coastal Bird Impact", "node_size": 10, "label": "salt marsh birds"}, "tidal marsh loss": {"concepts": "tidal marsh loss", "type": "concept", "cluster": "Wetland Degradation", "node_size": 10, "label": "tidal marsh loss"}, "ecological disturbance": {"concepts": "ecological disturbance", "type": "concept", "cluster": "Wetland Degradation", "node_size": 10, "label": "ecological disturbance"}, "wetland ecology": {"concepts": "wetland ecology", "type": "concept", "cluster": "Wetland Degradation", "node_size": 10, "label": "wetland ecology"}, "marsh loss": {"concepts": "marsh loss", "type": "concept", "cluster": "Marsh Stressors", "node_size": 10, "label": "marsh loss"}, "stressors": {"concepts": "stressors", "type": "concept", "cluster": "Marsh Stressors", "node_size": 10, "label": "stressors"}, "prescribed burning": {"concepts": "prescribed burning", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "prescribed burning"}, "habitat": {"concepts": "habitat", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "habitat"}, "resource users": {"concepts": "resource users", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "resource users"}, "climate change": {"concepts": "climate change", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "climate change"}};
+        const interClusterEdges = [["restoration planting", "Habitat Engineers", {"weight": 1.0, "confidence": 0.9199999999999999, "type": "inter_cluster", "style": "solid"}], ["restoration planting", "Species Conservation", {"weight": 1.0, "confidence": 0.9099999999999999, "type": "inter_cluster", "style": "solid"}], ["restoration planting", "Marsh Stressors", {"weight": -1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["restoration planting", "Wetland Degradation", {"weight": -1.0, "confidence": 0.89, "type": "inter_cluster", "style": "solid"}], ["restoration planting", "Coastal Bird Impact", {"weight": -0.4, "confidence": 0.5900000000000001, "type": "inter_cluster", "style": "solid"}], ["restoration planting", "Invasive Genetics", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Biodiversity", "restoration planting", {"weight": 1.0, "confidence": 0.7899999999999999, "type": "inter_cluster", "style": "solid"}], ["Biodiversity", "Wetland Disturbance", {"weight": 1.0, "confidence": 0.7299999999999999, "type": "inter_cluster", "style": "solid"}], ["Biodiversity", "Species Selection", {"weight": -0.2, "confidence": 0.6899999999999998, "type": "inter_cluster", "style": "solid"}], ["Biodiversity", "Wetland Degradation", {"weight": -1.0, "confidence": 0.875, "type": "inter_cluster", "style": "solid"}], ["Biodiversity", "Habitat Management", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Resource Management", "Species Conservation", {"weight": 1.0, "confidence": 0.8400000000000001, "type": "inter_cluster", "style": "solid"}], ["Resource Management", "Biodiversity", {"weight": 1.0, "confidence": 0.9325, "type": "inter_cluster", "style": "solid"}], ["Resource Management", "Wetland Degradation", {"weight": -1.0, "confidence": 0.79, "type": "inter_cluster", "style": "solid"}], ["Resource Management", "Wetland Disturbance", {"weight": 1.0, "confidence": 0.76, "type": "inter_cluster", "style": "solid"}], ["Resource Management", "Habitat Engineers", {"weight": 1.0, "confidence": 0.8125, "type": "inter_cluster", "style": "solid"}], ["Resource Management", "Habitat Management", {"weight": 1.0, "confidence": 0.7166666666666667, "type": "inter_cluster", "style": "solid"}], ["Species Conservation", "Biodiversity", {"weight": 1.0, "confidence": 0.9399999999999998, "type": "inter_cluster", "style": "solid"}], ["Species Conservation", "Marsh Stressors", {"weight": -1.0, "confidence": 0.875, "type": "inter_cluster", "style": "solid"}], ["Species Conservation", "restoration planting", {"weight": 1.0, "confidence": 0.8624999999999999, "type": "inter_cluster", "style": "solid"}], ["Species Conservation", "Resource Management", {"weight": 1.0, "confidence": 0.8374999999999999, "type": "inter_cluster", "style": "solid"}], ["Invasive Genetics", "Species Conservation", {"weight": -1.0, "confidence": 0.8300000000000001, "type": "inter_cluster", "style": "solid"}], ["Invasive Genetics", "Resource Management", {"weight": 0.2, "confidence": 0.8299999999999998, "type": "inter_cluster", "style": "solid"}], ["Invasive Genetics", "Habitat Engineers", {"weight": -1.0, "confidence": 0.82, "type": "inter_cluster", "style": "solid"}], ["Invasive Genetics", "Wetland Degradation", {"weight": 0.8, "confidence": 0.57, "type": "inter_cluster", "style": "solid"}], ["Wetland Disturbance", "Species Conservation", {"weight": -0.2, "confidence": 0.6900000000000001, "type": "inter_cluster", "style": "solid"}], ["Species Selection", "Wetland Degradation", {"weight": 0.6, "confidence": 0.6900000000000001, "type": "inter_cluster", "style": "solid"}], ["Species Selection", "Habitat Engineers", {"weight": -0.5, "confidence": 0.7375, "type": "inter_cluster", "style": "solid"}], ["Habitat Engineers", "Species Conservation", {"weight": 1.0, "confidence": 0.9259999999999999, "type": "inter_cluster", "style": "solid"}], ["Habitat Engineers", "Species Selection", {"weight": -0.2, "confidence": 0.7100000000000001, "type": "inter_cluster", "style": "solid"}], ["Habitat Engineers", "restoration planting", {"weight": 1.0, "confidence": 0.8833333333333334, "type": "inter_cluster", "style": "solid"}], ["Habitat Engineers", "Wetland Disturbance", {"weight": -0.75, "confidence": 0.5125, "type": "inter_cluster", "style": "solid"}], ["Habitat Engineers", "Habitat Management", {"weight": -0.6, "confidence": 0.36, "type": "inter_cluster", "style": "solid"}], ["Habitat Engineers", "stakeholder perspectives", {"weight": 0.4, "confidence": 0.25999999999999995, "type": "inter_cluster", "style": "solid"}], ["Habitat Engineers", "Resource Management", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Coastal Bird Impact", "Wetland Degradation", {"weight": 1.0, "confidence": 0.9560000000000001, "type": "inter_cluster", "style": "solid"}], ["Coastal Bird Impact", "Marsh Stressors", {"weight": 1.0, "confidence": 0.9400000000000001, "type": "inter_cluster", "style": "solid"}], ["Coastal Bird Impact", "Resource Management", {"weight": 0.2, "confidence": 0.82, "type": "inter_cluster", "style": "solid"}], ["Coastal Bird Impact", "Species Conservation", {"weight": -0.6, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Coastal Bird Impact", "Species Selection", {"weight": -1.0, "confidence": 0.7200000000000001, "type": "inter_cluster", "style": "solid"}], ["Coastal Bird Impact", "Invasive Genetics", {"weight": 0.2, "confidence": 0.41, "type": "inter_cluster", "style": "solid"}], ["Wetland Degradation", "Coastal Bird Impact", {"weight": 0.6, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["Wetland Degradation", "Biodiversity", {"weight": 0.2, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Marsh Stressors", "restoration planting", {"weight": 0.2, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["Marsh Stressors", "Resource Management", {"weight": 0.2, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["Marsh Stressors", "Invasive Genetics", {"weight": 0.6, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Habitat Management", "Resource Management", {"weight": 1.0, "confidence": 0.7300000000000001, "type": "inter_cluster", "style": "solid"}], ["Habitat Management", "Wetland Degradation", {"weight": -0.8, "confidence": 0.49000000000000005, "type": "inter_cluster", "style": "solid"}], ["Habitat Management", "Biodiversity", {"weight": 1.0, "confidence": 0.6666666666666666, "type": "inter_cluster", "style": "solid"}], ["Habitat Management", "Marsh Stressors", {"weight": -0.75, "confidence": 0.4625, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {"Biodiversity": [["biodiversity management", {"concepts": "biodiversity management", "type": "concept", "cluster": "Biodiversity", "node_size": 10, "label": "biodiversity management"}], ["species biodiversity", {"concepts": "species biodiversity", "type": "concept", "cluster": "Biodiversity", "node_size": 10, "label": "species biodiversity"}]], "Resource Management": [["management approaches", {"concepts": "management approaches", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "management approaches"}], ["resource management", {"concepts": "resource management", "type": "concept", "cluster": "Resource Management", "node_size": 10, "label": "resource management"}]], "Species Conservation": [["conservation", {"concepts": "conservation", "type": "concept", "cluster": "Species Conservation", "node_size": 10, "label": "conservation"}], ["species diversity", {"concepts": "species diversity", "type": "concept", "cluster": "Species Conservation", "node_size": 10, "label": "species diversity"}]], "Invasive Genetics": [["harmful organisms", {"concepts": "harmful organisms", "type": "concept", "cluster": "Invasive Genetics", "node_size": 10, "label": "harmful organisms"}], ["population genetics", {"concepts": "population genetics", "type": "concept", "cluster": "Invasive Genetics", "node_size": 10, "label": "population genetics"}]], "Wetland Disturbance": [["drainage", {"concepts": "drainage", "type": "concept", "cluster": "Wetland Disturbance", "node_size": 10, "label": "drainage"}], ["legacy effects", {"concepts": "legacy effects", "type": "concept", "cluster": "Wetland Disturbance", "node_size": 10, "label": "legacy effects"}], ["marsh creation", {"concepts": "marsh creation", "type": "concept", "cluster": "Wetland Disturbance", "node_size": 10, "label": "marsh creation"}], ["disturbance", {"concepts": "disturbance", "type": "concept", "cluster": "Wetland Disturbance", "node_size": 10, "label": "disturbance"}]], "Species Selection": [["population genetic diversity", {"concepts": "population genetic diversity", "type": "concept", "cluster": "Species Selection", "node_size": 10, "label": "population genetic diversity"}], ["invasive species", {"concepts": "invasive species", "type": "concept", "cluster": "Species Selection", "node_size": 10, "label": "invasive species"}]], "Habitat Engineers": [["ecosystem engineers", {"concepts": "ecosystem engineers", "type": "concept", "cluster": "Habitat Engineers", "node_size": 10, "label": "ecosystem engineers"}], ["habitat forming species", {"concepts": "habitat forming species", "type": "concept", "cluster": "Habitat Engineers", "node_size": 10, "label": "habitat forming species"}], ["habitat species", {"concepts": "habitat species", "type": "concept", "cluster": "Habitat Engineers", "node_size": 10, "label": "habitat species"}]], "Coastal Bird Impact": [["sea level rise", {"concepts": "sea level rise", "type": "concept", "cluster": "Coastal Bird Impact", "node_size": 10, "label": "sea level rise"}], ["coastal ecosystems", {"concepts": "coastal ecosystems", "type": "concept", "cluster": "Coastal Bird Impact", "node_size": 10, "label": "coastal ecosystems"}], ["salt marsh birds", {"concepts": "salt marsh birds", "type": "concept", "cluster": "Coastal Bird Impact", "node_size": 10, "label": "salt marsh birds"}]], "Wetland Degradation": [["tidal marsh loss", {"concepts": "tidal marsh loss", "type": "concept", "cluster": "Wetland Degradation", "node_size": 10, "label": "tidal marsh loss"}], ["ecological disturbance", {"concepts": "ecological disturbance", "type": "concept", "cluster": "Wetland Degradation", "node_size": 10, "label": "ecological disturbance"}], ["wetland ecology", {"concepts": "wetland ecology", "type": "concept", "cluster": "Wetland Degradation", "node_size": 10, "label": "wetland ecology"}]], "Marsh Stressors": [["marsh loss", {"concepts": "marsh loss", "type": "concept", "cluster": "Marsh Stressors", "node_size": 10, "label": "marsh loss"}], ["stressors", {"concepts": "stressors", "type": "concept", "cluster": "Marsh Stressors", "node_size": 10, "label": "stressors"}]], "Habitat Management": [["prescribed burning", {"concepts": "prescribed burning", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "prescribed burning"}], ["habitat", {"concepts": "habitat", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "habitat"}], ["resource users", {"concepts": "resource users", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "resource users"}], ["climate change", {"concepts": "climate change", "type": "concept", "cluster": "Habitat Management", "node_size": 10, "label": "climate change"}]]};
+        const clusterEdges = {"Biodiversity": [], "Resource Management": [], "Species Conservation": [], "Invasive Genetics": [], "Wetland Disturbance": [], "Species Selection": [], "Habitat Engineers": [], "Coastal Bird Impact": [], "Wetland Degradation": [], "Marsh Stressors": [], "Habitat Management": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

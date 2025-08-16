@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"salmon populations": {"concepts": "salmon populations", "concept_list": ["salmon populations"], "type": "cluster", "node_size": 18, "label": "salmon populations"}, "River Restoration": {"concepts": "water quality, chemicals, harmful organisms, overfishing, ecosystem, food webs, biodiversity, development impact", "concept_list": ["water quality", "chemicals", "harmful organisms", "overfishing", "ecosystem", "food webs", "biodiversity", "development impact"], "type": "cluster", "node_size": 39, "label": "River Restoration"}, "Tribal Engagement": {"concepts": "dam removal, habitat, nutrient enhancement, ecosystem services", "concept_list": ["dam removal", "habitat", "nutrient enhancement", "ecosystem services"], "type": "cluster", "node_size": 27, "label": "Tribal Engagement"}, "Puget Sound Harvest": {"concepts": "treaty tribes, tribal involvement, stakeholders, ecosystem management", "concept_list": ["treaty tribes", "tribal involvement", "stakeholders", "ecosystem management"], "type": "cluster", "node_size": 27, "label": "Puget Sound Harvest"}, "Habitat Impacts": {"concepts": "harvest, species, cca, puget sound", "concept_list": ["harvest", "species", "cca", "puget sound"], "type": "cluster", "node_size": 27, "label": "Habitat Impacts"}, "Ecosystem Health": {"concepts": "habitat degradation, habitat restoration, policies, bycatch", "concept_list": ["habitat degradation", "habitat restoration", "policies", "bycatch"], "type": "cluster", "node_size": 27, "label": "Ecosystem Health"}, "Salmon Fisheries": {"concepts": "salmon conservation, salmon, wild salmon, commercial fishing", "concept_list": ["salmon conservation", "salmon", "wild salmon", "commercial fishing"], "type": "cluster", "node_size": 27, "label": "Salmon Fisheries"}, "Fishery Management": {"concepts": "recreational fishing, fisheries management, hatchery salmon, hatchery fish", "concept_list": ["recreational fishing", "fisheries management", "hatchery salmon", "hatchery fish"], "type": "cluster", "node_size": 27, "label": "Fishery Management"}};
+        const conceptData = {"water quality": {"concepts": "water quality", "type": "concept", "cluster": "River Restoration", "node_size": 10, "label": "water quality"}, "chemicals": {"concepts": "chemicals", "type": "concept", "cluster": "River Restoration", "node_size": 10, "label": "chemicals"}, "harmful organisms": {"concepts": "harmful organisms", "type": "concept", "cluster": "River Restoration", "node_size": 10, "label": "harmful organisms"}, "overfishing": {"concepts": "overfishing", "type": "concept", "cluster": "River Restoration", "node_size": 10, "label": "overfishing"}, "ecosystem": {"concepts": "ecosystem", "type": "concept", "cluster": "River Restoration", "node_size": 10, "label": "ecosystem"}, "food webs": {"concepts": "food webs", "type": "concept", "cluster": "River Restoration", "node_size": 10, "label": "food webs"}, "biodiversity": {"concepts": "biodiversity", "type": "concept", "cluster": "River Restoration", "node_size": 10, "label": "biodiversity"}, "development impact": {"concepts": "development impact", "type": "concept", "cluster": "River Restoration", "node_size": 10, "label": "development impact"}, "dam removal": {"concepts": "dam removal", "type": "concept", "cluster": "Tribal Engagement", "node_size": 10, "label": "dam removal"}, "habitat": {"concepts": "habitat", "type": "concept", "cluster": "Tribal Engagement", "node_size": 10, "label": "habitat"}, "nutrient enhancement": {"concepts": "nutrient enhancement", "type": "concept", "cluster": "Tribal Engagement", "node_size": 10, "label": "nutrient enhancement"}, "ecosystem services": {"concepts": "ecosystem services", "type": "concept", "cluster": "Tribal Engagement", "node_size": 10, "label": "ecosystem services"}, "treaty tribes": {"concepts": "treaty tribes", "type": "concept", "cluster": "Puget Sound Harvest", "node_size": 10, "label": "treaty tribes"}, "tribal involvement": {"concepts": "tribal involvement", "type": "concept", "cluster": "Puget Sound Harvest", "node_size": 10, "label": "tribal involvement"}, "stakeholders": {"concepts": "stakeholders", "type": "concept", "cluster": "Puget Sound Harvest", "node_size": 10, "label": "stakeholders"}, "ecosystem management": {"concepts": "ecosystem management", "type": "concept", "cluster": "Puget Sound Harvest", "node_size": 10, "label": "ecosystem management"}, "harvest": {"concepts": "harvest", "type": "concept", "cluster": "Habitat Impacts", "node_size": 10, "label": "harvest"}, "species": {"concepts": "species", "type": "concept", "cluster": "Habitat Impacts", "node_size": 10, "label": "species"}, "cca": {"concepts": "cca", "type": "concept", "cluster": "Habitat Impacts", "node_size": 10, "label": "cca"}, "puget sound": {"concepts": "puget sound", "type": "concept", "cluster": "Habitat Impacts", "node_size": 10, "label": "puget sound"}, "habitat degradation": {"concepts": "habitat degradation", "type": "concept", "cluster": "Ecosystem Health", "node_size": 10, "label": "habitat degradation"}, "habitat restoration": {"concepts": "habitat restoration", "type": "concept", "cluster": "Ecosystem Health", "node_size": 10, "label": "habitat restoration"}, "policies": {"concepts": "policies", "type": "concept", "cluster": "Ecosystem Health", "node_size": 10, "label": "policies"}, "bycatch": {"concepts": "bycatch", "type": "concept", "cluster": "Ecosystem Health", "node_size": 10, "label": "bycatch"}, "salmon conservation": {"concepts": "salmon conservation", "type": "concept", "cluster": "Salmon Fisheries", "node_size": 10, "label": "salmon conservation"}, "salmon": {"concepts": "salmon", "type": "concept", "cluster": "Salmon Fisheries", "node_size": 10, "label": "salmon"}, "wild salmon": {"concepts": "wild salmon", "type": "concept", "cluster": "Salmon Fisheries", "node_size": 10, "label": "wild salmon"}, "commercial fishing": {"concepts": "commercial fishing", "type": "concept", "cluster": "Salmon Fisheries", "node_size": 10, "label": "commercial fishing"}, "recreational fishing": {"concepts": "recreational fishing", "type": "concept", "cluster": "Fishery Management", "node_size": 10, "label": "recreational fishing"}, "fisheries management": {"concepts": "fisheries management", "type": "concept", "cluster": "Fishery Management", "node_size": 10, "label": "fisheries management"}, "hatchery salmon": {"concepts": "hatchery salmon", "type": "concept", "cluster": "Fishery Management", "node_size": 10, "label": "hatchery salmon"}, "hatchery fish": {"concepts": "hatchery fish", "type": "concept", "cluster": "Fishery Management", "node_size": 10, "label": "hatchery fish"}};
+        const interClusterEdges = [["salmon populations", "Salmon Fisheries", {"weight": 1.0, "confidence": 0.89, "type": "inter_cluster", "style": "solid"}], ["salmon populations", "Habitat Impacts", {"weight": -0.6, "confidence": 0.86, "type": "inter_cluster", "style": "solid"}], ["salmon populations", "River Restoration", {"weight": -0.6, "confidence": 0.8099999999999999, "type": "inter_cluster", "style": "solid"}], ["salmon populations", "Ecosystem Health", {"weight": -0.6, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["salmon populations", "Tribal Engagement", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["salmon populations", "Fishery Management", {"weight": 0.6, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["salmon populations", "Puget Sound Harvest", {"weight": 1.0, "confidence": 0.63, "type": "inter_cluster", "style": "solid"}], ["River Restoration", "salmon populations", {"weight": -1.0, "confidence": 0.8400000000000001, "type": "inter_cluster", "style": "solid"}], ["River Restoration", "Salmon Fisheries", {"weight": -1.0, "confidence": 0.79, "type": "inter_cluster", "style": "solid"}], ["River Restoration", "Ecosystem Health", {"weight": -0.2, "confidence": 0.7299999999999999, "type": "inter_cluster", "style": "solid"}], ["River Restoration", "Habitat Impacts", {"weight": -0.6, "confidence": 0.73, "type": "inter_cluster", "style": "solid"}], ["River Restoration", "Fishery Management", {"weight": -1.0, "confidence": 0.71, "type": "inter_cluster", "style": "solid"}], ["River Restoration", "Puget Sound Harvest", {"weight": -0.2, "confidence": 0.67, "type": "inter_cluster", "style": "solid"}], ["River Restoration", "Tribal Engagement", {"weight": -0.6, "confidence": 0.6599999999999999, "type": "inter_cluster", "style": "solid"}], ["Tribal Engagement", "salmon populations", {"weight": 1.0, "confidence": 0.79, "type": "inter_cluster", "style": "solid"}], ["Tribal Engagement", "River Restoration", {"weight": 1.0, "confidence": 0.71, "type": "inter_cluster", "style": "solid"}], ["Tribal Engagement", "Ecosystem Health", {"weight": -0.6, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Tribal Engagement", "Puget Sound Harvest", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Tribal Engagement", "Habitat Impacts", {"weight": 0.8, "confidence": 0.53, "type": "inter_cluster", "style": "solid"}], ["Puget Sound Harvest", "salmon populations", {"weight": 1.0, "confidence": 0.6399999999999999, "type": "inter_cluster", "style": "solid"}], ["Puget Sound Harvest", "Tribal Engagement", {"weight": 1.0, "confidence": 0.59, "type": "inter_cluster", "style": "solid"}], ["Puget Sound Harvest", "Salmon Fisheries", {"weight": 1.0, "confidence": 0.5900000000000001, "type": "inter_cluster", "style": "solid"}], ["Puget Sound Harvest", "Fishery Management", {"weight": 0.2, "confidence": 0.56, "type": "inter_cluster", "style": "solid"}], ["Puget Sound Harvest", "River Restoration", {"weight": 1.0, "confidence": 0.56, "type": "inter_cluster", "style": "solid"}], ["Puget Sound Harvest", "Ecosystem Health", {"weight": 1.0, "confidence": 0.54, "type": "inter_cluster", "style": "solid"}], ["Habitat Impacts", "salmon populations", {"weight": -1.0, "confidence": 0.9199999999999999, "type": "inter_cluster", "style": "solid"}], ["Habitat Impacts", "Salmon Fisheries", {"weight": -1.0, "confidence": 0.9199999999999999, "type": "inter_cluster", "style": "solid"}], ["Habitat Impacts", "Ecosystem Health", {"weight": -0.6, "confidence": 0.67, "type": "inter_cluster", "style": "solid"}], ["Habitat Impacts", "Puget Sound Harvest", {"weight": -0.6, "confidence": 0.6199999999999999, "type": "inter_cluster", "style": "solid"}], ["Habitat Impacts", "Fishery Management", {"weight": -1.0, "confidence": 0.7875, "type": "inter_cluster", "style": "solid"}], ["Habitat Impacts", "Tribal Engagement", {"weight": -0.2, "confidence": 0.43, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Health", "salmon populations", {"weight": -1.0, "confidence": 0.8300000000000001, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Health", "Salmon Fisheries", {"weight": -1.0, "confidence": 0.79, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Health", "River Restoration", {"weight": -0.2, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Health", "Fishery Management", {"weight": -1.0, "confidence": 0.71, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Health", "Tribal Engagement", {"weight": -1.0, "confidence": 0.6900000000000001, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Health", "Habitat Impacts", {"weight": -0.3333333333333333, "confidence": 0.6833333333333332, "type": "inter_cluster", "style": "solid"}], ["Salmon Fisheries", "Habitat Impacts", {"weight": -1.0, "confidence": 0.8699999999999999, "type": "inter_cluster", "style": "solid"}], ["Salmon Fisheries", "salmon populations", {"weight": 0.6, "confidence": 0.86, "type": "inter_cluster", "style": "solid"}], ["Salmon Fisheries", "River Restoration", {"weight": -1.0, "confidence": 0.7699999999999999, "type": "inter_cluster", "style": "solid"}], ["Salmon Fisheries", "Ecosystem Health", {"weight": -1.0, "confidence": 0.74, "type": "inter_cluster", "style": "solid"}], ["Salmon Fisheries", "Fishery Management", {"weight": -1.0, "confidence": 0.74, "type": "inter_cluster", "style": "solid"}], ["Salmon Fisheries", "Puget Sound Harvest", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["Salmon Fisheries", "Tribal Engagement", {"weight": 1.0, "confidence": 0.7124999999999999, "type": "inter_cluster", "style": "solid"}], ["Fishery Management", "Habitat Impacts", {"weight": -0.6, "confidence": 0.69, "type": "inter_cluster", "style": "solid"}], ["Fishery Management", "Salmon Fisheries", {"weight": -0.6, "confidence": 0.6799999999999999, "type": "inter_cluster", "style": "solid"}], ["Fishery Management", "salmon populations", {"weight": 0.2, "confidence": 0.6700000000000002, "type": "inter_cluster", "style": "solid"}], ["Fishery Management", "River Restoration", {"weight": -0.2, "confidence": 0.63, "type": "inter_cluster", "style": "solid"}], ["Fishery Management", "Ecosystem Health", {"weight": -0.2, "confidence": 0.62, "type": "inter_cluster", "style": "solid"}], ["Fishery Management", "Puget Sound Harvest", {"weight": 0.2, "confidence": 0.5599999999999999, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {"River Restoration": [["water quality", {"concepts": "water quality", "type": "concept", "cluster": "River Restoration", "node_size": 10, "label": "water quality"}], ["chemicals", {"concepts": "chemicals", "type": "concept", "cluster": "River Restoration", "node_size": 10, "label": "chemicals"}], ["harmful organisms", {"concepts": "harmful organisms", "type": "concept", "cluster": "River Restoration", "node_size": 10, "label": "harmful organisms"}], ["overfishing", {"concepts": "overfishing", "type": "concept", "cluster": "River Restoration", "node_size": 10, "label": "overfishing"}], ["ecosystem", {"concepts": "ecosystem", "type": "concept", "cluster": "River Restoration", "node_size": 10, "label": "ecosystem"}], ["food webs", {"concepts": "food webs", "type": "concept", "cluster": "River Restoration", "node_size": 10, "label": "food webs"}], ["biodiversity", {"concepts": "biodiversity", "type": "concept", "cluster": "River Restoration", "node_size": 10, "label": "biodiversity"}], ["development impact", {"concepts": "development impact", "type": "concept", "cluster": "River Restoration", "node_size": 10, "label": "development impact"}]], "Tribal Engagement": [["dam removal", {"concepts": "dam removal", "type": "concept", "cluster": "Tribal Engagement", "node_size": 10, "label": "dam removal"}], ["habitat", {"concepts": "habitat", "type": "concept", "cluster": "Tribal Engagement", "node_size": 10, "label": "habitat"}], ["nutrient enhancement", {"concepts": "nutrient enhancement", "type": "concept", "cluster": "Tribal Engagement", "node_size": 10, "label": "nutrient enhancement"}], ["ecosystem services", {"concepts": "ecosystem services", "type": "concept", "cluster": "Tribal Engagement", "node_size": 10, "label": "ecosystem services"}]], "Puget Sound Harvest": [["treaty tribes", {"concepts": "treaty tribes", "type": "concept", "cluster": "Puget Sound Harvest", "node_size": 10, "label": "treaty tribes"}], ["tribal involvement", {"concepts": "tribal involvement", "type": "concept", "cluster": "Puget Sound Harvest", "node_size": 10, "label": "tribal involvement"}], ["stakeholders", {"concepts": "stakeholders", "type": "concept", "cluster": "Puget Sound Harvest", "node_size": 10, "label": "stakeholders"}], ["ecosystem management", {"concepts": "ecosystem management", "type": "concept", "cluster": "Puget Sound Harvest", "node_size": 10, "label": "ecosystem management"}]], "Habitat Impacts": [["harvest", {"concepts": "harvest", "type": "concept", "cluster": "Habitat Impacts", "node_size": 10, "label": "harvest"}], ["species", {"concepts": "species", "type": "concept", "cluster": "Habitat Impacts", "node_size": 10, "label": "species"}], ["cca", {"concepts": "cca", "type": "concept", "cluster": "Habitat Impacts", "node_size": 10, "label": "cca"}], ["puget sound", {"concepts": "puget sound", "type": "concept", "cluster": "Habitat Impacts", "node_size": 10, "label": "puget sound"}]], "Ecosystem Health": [["habitat degradation", {"concepts": "habitat degradation", "type": "concept", "cluster": "Ecosystem Health", "node_size": 10, "label": "habitat degradation"}], ["habitat restoration", {"concepts": "habitat restoration", "type": "concept", "cluster": "Ecosystem Health", "node_size": 10, "label": "habitat restoration"}], ["policies", {"concepts": "policies", "type": "concept", "cluster": "Ecosystem Health", "node_size": 10, "label": "policies"}], ["bycatch", {"concepts": "bycatch", "type": "concept", "cluster": "Ecosystem Health", "node_size": 10, "label": "bycatch"}]], "Salmon Fisheries": [["salmon conservation", {"concepts": "salmon conservation", "type": "concept", "cluster": "Salmon Fisheries", "node_size": 10, "label": "salmon conservation"}], ["salmon", {"concepts": "salmon", "type": "concept", "cluster": "Salmon Fisheries", "node_size": 10, "label": "salmon"}], ["wild salmon", {"concepts": "wild salmon", "type": "concept", "cluster": "Salmon Fisheries", "node_size": 10, "label": "wild salmon"}], ["commercial fishing", {"concepts": "commercial fishing", "type": "concept", "cluster": "Salmon Fisheries", "node_size": 10, "label": "commercial fishing"}]], "Fishery Management": [["recreational fishing", {"concepts": "recreational fishing", "type": "concept", "cluster": "Fishery Management", "node_size": 10, "label": "recreational fishing"}], ["fisheries management", {"concepts": "fisheries management", "type": "concept", "cluster": "Fishery Management", "node_size": 10, "label": "fisheries management"}], ["hatchery salmon", {"concepts": "hatchery salmon", "type": "concept", "cluster": "Fishery Management", "node_size": 10, "label": "hatchery salmon"}], ["hatchery fish", {"concepts": "hatchery fish", "type": "concept", "cluster": "Fishery Management", "node_size": 10, "label": "hatchery fish"}]]};
+        const clusterEdges = {"River Restoration": [], "Tribal Engagement": [], "Puget Sound Harvest": [], "Habitat Impacts": [], "Ecosystem Health": [], "Salmon Fisheries": [], "Fishery Management": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

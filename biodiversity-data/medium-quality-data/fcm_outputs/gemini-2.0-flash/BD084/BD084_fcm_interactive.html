@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"adult abundance estimation": {"concepts": "adult abundance estimation", "concept_list": ["adult abundance estimation"], "type": "cluster", "node_size": 18, "label": "adult abundance estimation"}, "predation hypothesis": {"concepts": "predation hypothesis", "concept_list": ["predation hypothesis"], "type": "cluster", "node_size": 18, "label": "predation hypothesis"}, "tribal managers": {"concepts": "tribal managers", "concept_list": ["tribal managers"], "type": "cluster", "node_size": 18, "label": "tribal managers"}, "fishermen": {"concepts": "fishermen", "concept_list": ["fishermen"], "type": "cluster", "node_size": 18, "label": "fishermen"}, "System Interactions": {"concepts": "definitions, measure, life cycle modeling, key aspects, measurement, relative weights, variability", "concept_list": ["definitions", "measure", "life cycle modeling", "key aspects", "measurement", "relative weights", "variability"], "type": "cluster", "node_size": 36, "label": "System Interactions"}, "Expert Roles": {"concepts": "system components, relationships, system dynamics, system perspective, food web, steelhead, resilience, buffering, interactions, natural system", "concept_list": ["system components", "relationships", "system dynamics", "system perspective", "food web", "steelhead", "resilience", "buffering", "interactions", "natural system"], "type": "cluster", "node_size": 45, "label": "Expert Roles"}, "Human Perspectives": {"concepts": "researchers, academics, area of expertise, ngo practitioners", "concept_list": ["researchers", "academics", "area of expertise", "ngo practitioners"], "type": "cluster", "node_size": 27, "label": "Human Perspectives"}, "Salmon Biology": {"concepts": "individual perspectives, case studies, unintended consequences, access, resource users, interviews, natural origin, ecotourism, life history, cultural impact, human dimensions, scenario analysis, recovery goals, homeowners", "concept_list": ["individual perspectives", "case studies", "unintended consequences", "access", "resource users", "interviews", "natural origin", "ecotourism", "life history", "cultural impact", "human dimensions", "scenario analysis", "recovery goals", "homeowners"], "type": "cluster", "node_size": 57, "label": "Salmon Biology"}, "Modeling & Measurement": {"concepts": "salmon, adult fish, salmon diversity, spawning, hatchery fish, adult abundance, natural origin fish", "concept_list": ["salmon", "adult fish", "salmon diversity", "spawning", "hatchery fish", "adult abundance", "natural origin fish"], "type": "cluster", "node_size": 36, "label": "Modeling & Measurement"}, "Hatchery Operations": {"concepts": "hatchery releases, hatcheries", "concept_list": ["hatchery releases", "hatcheries"], "type": "cluster", "node_size": 21, "label": "Hatchery Operations"}, "Marine Ecosystem Dynamics": {"concepts": "harmful organisms, coastal dynamics, marine environment, marine mammal protection, marine predators, environmental variables, sea surface temperature, marine, marine resource users, marine resource management, coastal, ocean conditions, marine survival, oyster farmers", "concept_list": ["harmful organisms", "coastal dynamics", "marine environment", "marine mammal protection", "marine predators", "environmental variables", "sea surface temperature", "marine", "marine resource users", "marine resource management", "coastal", "ocean conditions", "marine survival", "oyster farmers"], "type": "cluster", "node_size": 57, "label": "Marine Ecosystem Dynamics"}, "Stream Restoration Ecology": {"concepts": "keystone species, stream ecology, habitat restoration", "concept_list": ["keystone species", "stream ecology", "habitat restoration"], "type": "cluster", "node_size": 24, "label": "Stream Restoration Ecology"}, "Ecosystem Conservation": {"concepts": "ecosystem services, habitat degradation, endangered species, biodiversity, conservation concern", "concept_list": ["ecosystem services", "habitat degradation", "endangered species", "biodiversity", "conservation concern"], "type": "cluster", "node_size": 30, "label": "Ecosystem Conservation"}, "Hatchery Practices": {"concepts": "biodiversity definitions, biodiversity value, conservation organizations", "concept_list": ["biodiversity definitions", "biodiversity value", "conservation organizations"], "type": "cluster", "node_size": 24, "label": "Hatchery Practices"}, "Management Practices": {"concepts": "resource management, management decisions, management approaches, management tools, management strategy, management trade-offs", "concept_list": ["resource management", "management decisions", "management approaches", "management tools", "management strategy", "management trade-offs"], "type": "cluster", "node_size": 33, "label": "Management Practices"}, "Meeting Collaboration": {"concepts": "individual meetings, collaborative discussion, collaborative tool", "concept_list": ["individual meetings", "collaborative discussion", "collaborative tool"], "type": "cluster", "node_size": 24, "label": "Meeting Collaboration"}, "Community Collaboration": {"concepts": "workshop setting, community members, tribal meetings, collaborative model", "concept_list": ["workshop setting", "community members", "tribal meetings", "collaborative model"], "type": "cluster", "node_size": 27, "label": "Community Collaboration"}, "Concept Definition": {"concepts": "operationalization, operationalize, conceptualize, conceptualization", "concept_list": ["operationalization", "operationalize", "conceptualize", "conceptualization"], "type": "cluster", "node_size": 27, "label": "Concept Definition"}, "Harvest Management": {"concepts": "harvest control, harvest, harvest control rules, weak stock management", "concept_list": ["harvest control", "harvest", "harvest control rules", "weak stock management"], "type": "cluster", "node_size": 27, "label": "Harvest Management"}, "Policy Stakeholders": {"concepts": "policy people, stakeholders affected, stakeholder groups", "concept_list": ["policy people", "stakeholders affected", "stakeholder groups"], "type": "cluster", "node_size": 24, "label": "Policy Stakeholders"}, "Conservation Portfolio": {"concepts": "return timing, genetic diversity, mental model, portfolio effects, conservation, portfolio effect", "concept_list": ["return timing", "genetic diversity", "mental model", "portfolio effects", "conservation", "portfolio effect"], "type": "cluster", "node_size": 33, "label": "Conservation Portfolio"}, "Fisheries Locations": {"concepts": "alaskan fisheries, canadian fisheries, fisheries", "concept_list": ["alaskan fisheries", "canadian fisheries", "fisheries"], "type": "cluster", "node_size": 24, "label": "Fisheries Locations"}, "Fisheries Management": {"concepts": "fisheries selection, fisheries management", "concept_list": ["fisheries selection", "fisheries management"], "type": "cluster", "node_size": 21, "label": "Fisheries Management"}};
+        const conceptData = {"definitions": {"concepts": "definitions", "type": "concept", "cluster": "System Interactions", "node_size": 10, "label": "definitions"}, "measure": {"concepts": "measure", "type": "concept", "cluster": "System Interactions", "node_size": 10, "label": "measure"}, "life cycle modeling": {"concepts": "life cycle modeling", "type": "concept", "cluster": "System Interactions", "node_size": 10, "label": "life cycle modeling"}, "key aspects": {"concepts": "key aspects", "type": "concept", "cluster": "System Interactions", "node_size": 10, "label": "key aspects"}, "measurement": {"concepts": "measurement", "type": "concept", "cluster": "System Interactions", "node_size": 10, "label": "measurement"}, "relative weights": {"concepts": "relative weights", "type": "concept", "cluster": "System Interactions", "node_size": 10, "label": "relative weights"}, "variability": {"concepts": "variability", "type": "concept", "cluster": "System Interactions", "node_size": 10, "label": "variability"}, "system components": {"concepts": "system components", "type": "concept", "cluster": "Expert Roles", "node_size": 10, "label": "system components"}, "relationships": {"concepts": "relationships", "type": "concept", "cluster": "Expert Roles", "node_size": 10, "label": "relationships"}, "system dynamics": {"concepts": "system dynamics", "type": "concept", "cluster": "Expert Roles", "node_size": 10, "label": "system dynamics"}, "system perspective": {"concepts": "system perspective", "type": "concept", "cluster": "Expert Roles", "node_size": 10, "label": "system perspective"}, "food web": {"concepts": "food web", "type": "concept", "cluster": "Expert Roles", "node_size": 10, "label": "food web"}, "steelhead": {"concepts": "steelhead", "type": "concept", "cluster": "Expert Roles", "node_size": 10, "label": "steelhead"}, "resilience": {"concepts": "resilience", "type": "concept", "cluster": "Expert Roles", "node_size": 10, "label": "resilience"}, "buffering": {"concepts": "buffering", "type": "concept", "cluster": "Expert Roles", "node_size": 10, "label": "buffering"}, "interactions": {"concepts": "interactions", "type": "concept", "cluster": "Expert Roles", "node_size": 10, "label": "interactions"}, "natural system": {"concepts": "natural system", "type": "concept", "cluster": "Expert Roles", "node_size": 10, "label": "natural system"}, "researchers": {"concepts": "researchers", "type": "concept", "cluster": "Human Perspectives", "node_size": 10, "label": "researchers"}, "academics": {"concepts": "academics", "type": "concept", "cluster": "Human Perspectives", "node_size": 10, "label": "academics"}, "area of expertise": {"concepts": "area of expertise", "type": "concept", "cluster": "Human Perspectives", "node_size": 10, "label": "area of expertise"}, "ngo practitioners": {"concepts": "ngo practitioners", "type": "concept", "cluster": "Human Perspectives", "node_size": 10, "label": "ngo practitioners"}, "individual perspectives": {"concepts": "individual perspectives", "type": "concept", "cluster": "Salmon Biology", "node_size": 10, "label": "individual perspectives"}, "case studies": {"concepts": "case studies", "type": "concept", "cluster": "Salmon Biology", "node_size": 10, "label": "case studies"}, "unintended consequences": {"concepts": "unintended consequences", "type": "concept", "cluster": "Salmon Biology", "node_size": 10, "label": "unintended consequences"}, "access": {"concepts": "access", "type": "concept", "cluster": "Salmon Biology", "node_size": 10, "label": "access"}, "resource users": {"concepts": "resource users", "type": "concept", "cluster": "Salmon Biology", "node_size": 10, "label": "resource users"}, "interviews": {"concepts": "interviews", "type": "concept", "cluster": "Salmon Biology", "node_size": 10, "label": "interviews"}, "natural origin": {"concepts": "natural origin", "type": "concept", "cluster": "Salmon Biology", "node_size": 10, "label": "natural origin"}, "ecotourism": {"concepts": "ecotourism", "type": "concept", "cluster": "Salmon Biology", "node_size": 10, "label": "ecotourism"}, "life history": {"concepts": "life history", "type": "concept", "cluster": "Salmon Biology", "node_size": 10, "label": "life history"}, "cultural impact": {"concepts": "cultural impact", "type": "concept", "cluster": "Salmon Biology", "node_size": 10, "label": "cultural impact"}, "human dimensions": {"concepts": "human dimensions", "type": "concept", "cluster": "Salmon Biology", "node_size": 10, "label": "human dimensions"}, "scenario analysis": {"concepts": "scenario analysis", "type": "concept", "cluster": "Salmon Biology", "node_size": 10, "label": "scenario analysis"}, "recovery goals": {"concepts": "recovery goals", "type": "concept", "cluster": "Salmon Biology", "node_size": 10, "label": "recovery goals"}, "homeowners": {"concepts": "homeowners", "type": "concept", "cluster": "Salmon Biology", "node_size": 10, "label": "homeowners"}, "salmon": {"concepts": "salmon", "type": "concept", "cluster": "Modeling & Measurement", "node_size": 10, "label": "salmon"}, "adult fish": {"concepts": "adult fish", "type": "concept", "cluster": "Modeling & Measurement", "node_size": 10, "label": "adult fish"}, "salmon diversity": {"concepts": "salmon diversity", "type": "concept", "cluster": "Modeling & Measurement", "node_size": 10, "label": "salmon diversity"}, "spawning": {"concepts": "spawning", "type": "concept", "cluster": "Modeling & Measurement", "node_size": 10, "label": "spawning"}, "hatchery fish": {"concepts": "hatchery fish", "type": "concept", "cluster": "Modeling & Measurement", "node_size": 10, "label": "hatchery fish"}, "adult abundance": {"concepts": "adult abundance", "type": "concept", "cluster": "Modeling & Measurement", "node_size": 10, "label": "adult abundance"}, "natural origin fish": {"concepts": "natural origin fish", "type": "concept", "cluster": "Modeling & Measurement", "node_size": 10, "label": "natural origin fish"}, "hatchery releases": {"concepts": "hatchery releases", "type": "concept", "cluster": "Hatchery Operations", "node_size": 10, "label": "hatchery releases"}, "hatcheries": {"concepts": "hatcheries", "type": "concept", "cluster": "Hatchery Operations", "node_size": 10, "label": "hatcheries"}, "harmful organisms": {"concepts": "harmful organisms", "type": "concept", "cluster": "Marine Ecosystem Dynamics", "node_size": 10, "label": "harmful organisms"}, "coastal dynamics": {"concepts": "coastal dynamics", "type": "concept", "cluster": "Marine Ecosystem Dynamics", "node_size": 10, "label": "coastal dynamics"}, "marine environment": {"concepts": "marine environment", "type": "concept", "cluster": "Marine Ecosystem Dynamics", "node_size": 10, "label": "marine environment"}, "marine mammal protection": {"concepts": "marine mammal protection", "type": "concept", "cluster": "Marine Ecosystem Dynamics", "node_size": 10, "label": "marine mammal protection"}, "marine predators": {"concepts": "marine predators", "type": "concept", "cluster": "Marine Ecosystem Dynamics", "node_size": 10, "label": "marine predators"}, "environmental variables": {"concepts": "environmental variables", "type": "concept", "cluster": "Marine Ecosystem Dynamics", "node_size": 10, "label": "environmental variables"}, "sea surface temperature": {"concepts": "sea surface temperature", "type": "concept", "cluster": "Marine Ecosystem Dynamics", "node_size": 10, "label": "sea surface temperature"}, "marine": {"concepts": "marine", "type": "concept", "cluster": "Marine Ecosystem Dynamics", "node_size": 10, "label": "marine"}, "marine resource users": {"concepts": "marine resource users", "type": "concept", "cluster": "Marine Ecosystem Dynamics", "node_size": 10, "label": "marine resource users"}, "marine resource management": {"concepts": "marine resource management", "type": "concept", "cluster": "Marine Ecosystem Dynamics", "node_size": 10, "label": "marine resource management"}, "coastal": {"concepts": "coastal", "type": "concept", "cluster": "Marine Ecosystem Dynamics", "node_size": 10, "label": "coastal"}, "ocean conditions": {"concepts": "ocean conditions", "type": "concept", "cluster": "Marine Ecosystem Dynamics", "node_size": 10, "label": "ocean conditions"}, "marine survival": {"concepts": "marine survival", "type": "concept", "cluster": "Marine Ecosystem Dynamics", "node_size": 10, "label": "marine survival"}, "oyster farmers": {"concepts": "oyster farmers", "type": "concept", "cluster": "Marine Ecosystem Dynamics", "node_size": 10, "label": "oyster farmers"}, "keystone species": {"concepts": "keystone species", "type": "concept", "cluster": "Stream Restoration Ecology", "node_size": 10, "label": "keystone species"}, "stream ecology": {"concepts": "stream ecology", "type": "concept", "cluster": "Stream Restoration Ecology", "node_size": 10, "label": "stream ecology"}, "habitat restoration": {"concepts": "habitat restoration", "type": "concept", "cluster": "Stream Restoration Ecology", "node_size": 10, "label": "habitat restoration"}, "ecosystem services": {"concepts": "ecosystem services", "type": "concept", "cluster": "Ecosystem Conservation", "node_size": 10, "label": "ecosystem services"}, "habitat degradation": {"concepts": "habitat degradation", "type": "concept", "cluster": "Ecosystem Conservation", "node_size": 10, "label": "habitat degradation"}, "endangered species": {"concepts": "endangered species", "type": "concept", "cluster": "Ecosystem Conservation", "node_size": 10, "label": "endangered species"}, "biodiversity": {"concepts": "biodiversity", "type": "concept", "cluster": "Ecosystem Conservation", "node_size": 10, "label": "biodiversity"}, "conservation concern": {"concepts": "conservation concern", "type": "concept", "cluster": "Ecosystem Conservation", "node_size": 10, "label": "conservation concern"}, "biodiversity definitions": {"concepts": "biodiversity definitions", "type": "concept", "cluster": "Hatchery Practices", "node_size": 10, "label": "biodiversity definitions"}, "biodiversity value": {"concepts": "biodiversity value", "type": "concept", "cluster": "Hatchery Practices", "node_size": 10, "label": "biodiversity value"}, "conservation organizations": {"concepts": "conservation organizations", "type": "concept", "cluster": "Hatchery Practices", "node_size": 10, "label": "conservation organizations"}, "resource management": {"concepts": "resource management", "type": "concept", "cluster": "Management Practices", "node_size": 10, "label": "resource management"}, "management decisions": {"concepts": "management decisions", "type": "concept", "cluster": "Management Practices", "node_size": 10, "label": "management decisions"}, "management approaches": {"concepts": "management approaches", "type": "concept", "cluster": "Management Practices", "node_size": 10, "label": "management approaches"}, "management tools": {"concepts": "management tools", "type": "concept", "cluster": "Management Practices", "node_size": 10, "label": "management tools"}, "management strategy": {"concepts": "management strategy", "type": "concept", "cluster": "Management Practices", "node_size": 10, "label": "management strategy"}, "management trade-offs": {"concepts": "management trade-offs", "type": "concept", "cluster": "Management Practices", "node_size": 10, "label": "management trade-offs"}, "individual meetings": {"concepts": "individual meetings", "type": "concept", "cluster": "Meeting Collaboration", "node_size": 10, "label": "individual meetings"}, "collaborative discussion": {"concepts": "collaborative discussion", "type": "concept", "cluster": "Meeting Collaboration", "node_size": 10, "label": "collaborative discussion"}, "collaborative tool": {"concepts": "collaborative tool", "type": "concept", "cluster": "Meeting Collaboration", "node_size": 10, "label": "collaborative tool"}, "workshop setting": {"concepts": "workshop setting", "type": "concept", "cluster": "Community Collaboration", "node_size": 10, "label": "workshop setting"}, "community members": {"concepts": "community members", "type": "concept", "cluster": "Community Collaboration", "node_size": 10, "label": "community members"}, "tribal meetings": {"concepts": "tribal meetings", "type": "concept", "cluster": "Community Collaboration", "node_size": 10, "label": "tribal meetings"}, "collaborative model": {"concepts": "collaborative model", "type": "concept", "cluster": "Community Collaboration", "node_size": 10, "label": "collaborative model"}, "operationalization": {"concepts": "operationalization", "type": "concept", "cluster": "Concept Definition", "node_size": 10, "label": "operationalization"}, "operationalize": {"concepts": "operationalize", "type": "concept", "cluster": "Concept Definition", "node_size": 10, "label": "operationalize"}, "conceptualize": {"concepts": "conceptualize", "type": "concept", "cluster": "Concept Definition", "node_size": 10, "label": "conceptualize"}, "conceptualization": {"concepts": "conceptualization", "type": "concept", "cluster": "Concept Definition", "node_size": 10, "label": "conceptualization"}, "harvest control": {"concepts": "harvest control", "type": "concept", "cluster": "Harvest Management", "node_size": 10, "label": "harvest control"}, "harvest": {"concepts": "harvest", "type": "concept", "cluster": "Harvest Management", "node_size": 10, "label": "harvest"}, "harvest control rules": {"concepts": "harvest control rules", "type": "concept", "cluster": "Harvest Management", "node_size": 10, "label": "harvest control rules"}, "weak stock management": {"concepts": "weak stock management", "type": "concept", "cluster": "Harvest Management", "node_size": 10, "label": "weak stock management"}, "policy people": {"concepts": "policy people", "type": "concept", "cluster": "Policy Stakeholders", "node_size": 10, "label": "policy people"}, "stakeholders affected": {"concepts": "stakeholders affected", "type": "concept", "cluster": "Policy Stakeholders", "node_size": 10, "label": "stakeholders affected"}, "stakeholder groups": {"concepts": "stakeholder groups", "type": "concept", "cluster": "Policy Stakeholders", "node_size": 10, "label": "stakeholder groups"}, "return timing": {"concepts": "return timing", "type": "concept", "cluster": "Conservation Portfolio", "node_size": 10, "label": "return timing"}, "genetic diversity": {"concepts": "genetic diversity", "type": "concept", "cluster": "Conservation Portfolio", "node_size": 10, "label": "genetic diversity"}, "mental model": {"concepts": "mental model", "type": "concept", "cluster": "Conservation Portfolio", "node_size": 10, "label": "mental model"}, "portfolio effects": {"concepts": "portfolio effects", "type": "concept", "cluster": "Conservation Portfolio", "node_size": 10, "label": "portfolio effects"}, "conservation": {"concepts": "conservation", "type": "concept", "cluster": "Conservation Portfolio", "node_size": 10, "label": "conservation"}, "portfolio effect": {"concepts": "portfolio effect", "type": "concept", "cluster": "Conservation Portfolio", "node_size": 10, "label": "portfolio effect"}, "alaskan fisheries": {"concepts": "alaskan fisheries", "type": "concept", "cluster": "Fisheries Locations", "node_size": 10, "label": "alaskan fisheries"}, "canadian fisheries": {"concepts": "canadian fisheries", "type": "concept", "cluster": "Fisheries Locations", "node_size": 10, "label": "canadian fisheries"}, "fisheries": {"concepts": "fisheries", "type": "concept", "cluster": "Fisheries Locations", "node_size": 10, "label": "fisheries"}, "fisheries selection": {"concepts": "fisheries selection", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "fisheries selection"}, "fisheries management": {"concepts": "fisheries management", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "fisheries management"}};
+        const interClusterEdges = [["adult abundance estimation", "Human Perspectives", {"weight": 0.8, "confidence": 0.37, "type": "inter_cluster", "style": "solid"}], ["adult abundance estimation", "fishermen", {"weight": 0.6666666666666666, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["adult abundance estimation", "Concept Definition", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["predation hypothesis", "adult abundance estimation", {"weight": -0.3333333333333333, "confidence": 0.4666666666666666, "type": "inter_cluster", "style": "solid"}], ["predation hypothesis", "Management Practices", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["predation hypothesis", "Fisheries Locations", {"weight": -0.5, "confidence": 0.2, "type": "inter_cluster", "style": "solid"}], ["tribal managers", "Meeting Collaboration", {"weight": 1.0, "confidence": 0.525, "type": "inter_cluster", "style": "solid"}], ["tribal managers", "Ecosystem Conservation", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["tribal managers", "Fisheries Locations", {"weight": -0.5, "confidence": 0.15, "type": "inter_cluster", "style": "solid"}], ["tribal managers", "fishermen", {"weight": 0.2, "confidence": 0.12, "type": "inter_cluster", "style": "solid"}], ["fishermen", "Human Perspectives", {"weight": 0.6, "confidence": 0.24, "type": "inter_cluster", "style": "solid"}], ["System Interactions", "Conservation Portfolio", {"weight": 1.0, "confidence": 0.5625, "type": "inter_cluster", "style": "solid"}], ["Expert Roles", "Modeling & Measurement", {"weight": 1.0, "confidence": 0.71, "type": "inter_cluster", "style": "solid"}], ["Expert Roles", "System Interactions", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["Expert Roles", "Hatchery Practices", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["Expert Roles", "adult abundance estimation", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["Human Perspectives", "Community Collaboration", {"weight": 1.0, "confidence": 0.66, "type": "inter_cluster", "style": "solid"}], ["Human Perspectives", "Hatchery Operations", {"weight": 0.75, "confidence": 0.275, "type": "inter_cluster", "style": "solid"}], ["Salmon Biology", "Meeting Collaboration", {"weight": 1.0, "confidence": 0.6599999999999999, "type": "inter_cluster", "style": "solid"}], ["Salmon Biology", "Expert Roles", {"weight": 1.0, "confidence": 0.5700000000000001, "type": "inter_cluster", "style": "solid"}], ["Salmon Biology", "Stream Restoration Ecology", {"weight": 1.0, "confidence": 0.42500000000000004, "type": "inter_cluster", "style": "solid"}], ["Salmon Biology", "Hatchery Operations", {"weight": 0.25, "confidence": 0.1, "type": "inter_cluster", "style": "solid"}], ["Modeling & Measurement", "Expert Roles", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Modeling & Measurement", "Harvest Management", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Modeling & Measurement", "predation hypothesis", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["Hatchery Operations", "Policy Stakeholders", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["Hatchery Operations", "tribal managers", {"weight": 0.5, "confidence": 0.2125, "type": "inter_cluster", "style": "solid"}], ["Marine Ecosystem Dynamics", "Ecosystem Conservation", {"weight": -1.0, "confidence": 0.6799999999999999, "type": "inter_cluster", "style": "solid"}], ["Marine Ecosystem Dynamics", "Expert Roles", {"weight": 1.0, "confidence": 0.57, "type": "inter_cluster", "style": "solid"}], ["Marine Ecosystem Dynamics", "Fisheries Management", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["Stream Restoration Ecology", "Management Practices", {"weight": 1.0, "confidence": 0.6333333333333333, "type": "inter_cluster", "style": "solid"}], ["Stream Restoration Ecology", "Ecosystem Conservation", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["Stream Restoration Ecology", "Fisheries Management", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Conservation", "Expert Roles", {"weight": 1.0, "confidence": 0.6125, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Conservation", "Harvest Management", {"weight": 1.0, "confidence": 0.425, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Conservation", "adult abundance estimation", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["Ecosystem Conservation", "Policy Stakeholders", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["Hatchery Practices", "Concept Definition", {"weight": 1.0, "confidence": 0.6799999999999999, "type": "inter_cluster", "style": "solid"}], ["Management Practices", "Modeling & Measurement", {"weight": 1.0, "confidence": 0.64, "type": "inter_cluster", "style": "solid"}], ["Management Practices", "Stream Restoration Ecology", {"weight": 1.0, "confidence": 0.6000000000000001, "type": "inter_cluster", "style": "solid"}], ["Management Practices", "Marine Ecosystem Dynamics", {"weight": 1.0, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["Meeting Collaboration", "Modeling & Measurement", {"weight": 0.6666666666666666, "confidence": 0.25, "type": "inter_cluster", "style": "solid"}], ["Community Collaboration", "Ecosystem Conservation", {"weight": 1.0, "confidence": 0.475, "type": "inter_cluster", "style": "solid"}], ["Community Collaboration", "Conservation Portfolio", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["Concept Definition", "Salmon Biology", {"weight": 0.4, "confidence": 0.19, "type": "inter_cluster", "style": "solid"}], ["Concept Definition", "Meeting Collaboration", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Harvest Management", "Modeling & Measurement", {"weight": 1.0, "confidence": 0.64, "type": "inter_cluster", "style": "solid"}], ["Harvest Management", "Fisheries Locations", {"weight": -0.2, "confidence": 0.5800000000000001, "type": "inter_cluster", "style": "solid"}], ["Harvest Management", "Expert Roles", {"weight": 1.0, "confidence": 0.45, "type": "inter_cluster", "style": "solid"}], ["Harvest Management", "Salmon Biology", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["Policy Stakeholders", "predation hypothesis", {"weight": 0.4, "confidence": 0.16, "type": "inter_cluster", "style": "solid"}], ["Policy Stakeholders", "Stream Restoration Ecology", {"weight": 0.3333333333333333, "confidence": 0.13333333333333333, "type": "inter_cluster", "style": "solid"}], ["Policy Stakeholders", "Fisheries Locations", {"weight": 0.3333333333333333, "confidence": 0.13333333333333333, "type": "inter_cluster", "style": "solid"}], ["Policy Stakeholders", "adult abundance estimation", {"weight": 0.3333333333333333, "confidence": 0.09999999999999999, "type": "inter_cluster", "style": "solid"}], ["Conservation Portfolio", "Ecosystem Conservation", {"weight": 1.0, "confidence": 0.6799999999999999, "type": "inter_cluster", "style": "solid"}], ["Conservation Portfolio", "Management Practices", {"weight": 1.0, "confidence": 0.6166666666666667, "type": "inter_cluster", "style": "solid"}], ["Conservation Portfolio", "Meeting Collaboration", {"weight": 0.25, "confidence": 0.15, "type": "inter_cluster", "style": "solid"}], ["Conservation Portfolio", "Stream Restoration Ecology", {"weight": 0.5, "confidence": 0.2, "type": "inter_cluster", "style": "solid"}], ["Fisheries Locations", "Ecosystem Conservation", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Fisheries Locations", "adult abundance estimation", {"weight": -0.25, "confidence": 0.15, "type": "inter_cluster", "style": "solid"}], ["Fisheries Locations", "Concept Definition", {"weight": -0.5, "confidence": 0.15, "type": "inter_cluster", "style": "solid"}], ["Fisheries Management", "Modeling & Measurement", {"weight": 1.0, "confidence": 0.5499999999999999, "type": "inter_cluster", "style": "solid"}], ["Fisheries Management", "System Interactions", {"weight": 0.6, "confidence": 0.32999999999999996, "type": "inter_cluster", "style": "solid"}], ["Fisheries Management", "Stream Restoration Ecology", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["Fisheries Management", "Salmon Biology", {"weight": 0.25, "confidence": 0.125, "type": "inter_cluster", "style": "solid"}], ["Fisheries Management", "Marine Ecosystem Dynamics", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {"System Interactions": [["definitions", {"concepts": "definitions", "type": "concept", "cluster": "System Interactions", "node_size": 10, "label": "definitions"}], ["measure", {"concepts": "measure", "type": "concept", "cluster": "System Interactions", "node_size": 10, "label": "measure"}], ["life cycle modeling", {"concepts": "life cycle modeling", "type": "concept", "cluster": "System Interactions", "node_size": 10, "label": "life cycle modeling"}], ["key aspects", {"concepts": "key aspects", "type": "concept", "cluster": "System Interactions", "node_size": 10, "label": "key aspects"}], ["measurement", {"concepts": "measurement", "type": "concept", "cluster": "System Interactions", "node_size": 10, "label": "measurement"}], ["relative weights", {"concepts": "relative weights", "type": "concept", "cluster": "System Interactions", "node_size": 10, "label": "relative weights"}], ["variability", {"concepts": "variability", "type": "concept", "cluster": "System Interactions", "node_size": 10, "label": "variability"}]], "Expert Roles": [["system components", {"concepts": "system components", "type": "concept", "cluster": "Expert Roles", "node_size": 10, "label": "system components"}], ["relationships", {"concepts": "relationships", "type": "concept", "cluster": "Expert Roles", "node_size": 10, "label": "relationships"}], ["system dynamics", {"concepts": "system dynamics", "type": "concept", "cluster": "Expert Roles", "node_size": 10, "label": "system dynamics"}], ["system perspective", {"concepts": "system perspective", "type": "concept", "cluster": "Expert Roles", "node_size": 10, "label": "system perspective"}], ["food web", {"concepts": "food web", "type": "concept", "cluster": "Expert Roles", "node_size": 10, "label": "food web"}], ["steelhead", {"concepts": "steelhead", "type": "concept", "cluster": "Expert Roles", "node_size": 10, "label": "steelhead"}], ["resilience", {"concepts": "resilience", "type": "concept", "cluster": "Expert Roles", "node_size": 10, "label": "resilience"}], ["buffering", {"concepts": "buffering", "type": "concept", "cluster": "Expert Roles", "node_size": 10, "label": "buffering"}], ["interactions", {"concepts": "interactions", "type": "concept", "cluster": "Expert Roles", "node_size": 10, "label": "interactions"}], ["natural system", {"concepts": "natural system", "type": "concept", "cluster": "Expert Roles", "node_size": 10, "label": "natural system"}]], "Human Perspectives": [["researchers", {"concepts": "researchers", "type": "concept", "cluster": "Human Perspectives", "node_size": 10, "label": "researchers"}], ["academics", {"concepts": "academics", "type": "concept", "cluster": "Human Perspectives", "node_size": 10, "label": "academics"}], ["area of expertise", {"concepts": "area of expertise", "type": "concept", "cluster": "Human Perspectives", "node_size": 10, "label": "area of expertise"}], ["ngo practitioners", {"concepts": "ngo practitioners", "type": "concept", "cluster": "Human Perspectives", "node_size": 10, "label": "ngo practitioners"}]], "Salmon Biology": [["individual perspectives", {"concepts": "individual perspectives", "type": "concept", "cluster": "Salmon Biology", "node_size": 10, "label": "individual perspectives"}], ["case studies", {"concepts": "case studies", "type": "concept", "cluster": "Salmon Biology", "node_size": 10, "label": "case studies"}], ["unintended consequences", {"concepts": "unintended consequences", "type": "concept", "cluster": "Salmon Biology", "node_size": 10, "label": "unintended consequences"}], ["access", {"concepts": "access", "type": "concept", "cluster": "Salmon Biology", "node_size": 10, "label": "access"}], ["resource users", {"concepts": "resource users", "type": "concept", "cluster": "Salmon Biology", "node_size": 10, "label": "resource users"}], ["interviews", {"concepts": "interviews", "type": "concept", "cluster": "Salmon Biology", "node_size": 10, "label": "interviews"}], ["natural origin", {"concepts": "natural origin", "type": "concept", "cluster": "Salmon Biology", "node_size": 10, "label": "natural origin"}], ["ecotourism", {"concepts": "ecotourism", "type": "concept", "cluster": "Salmon Biology", "node_size": 10, "label": "ecotourism"}], ["life history", {"concepts": "life history", "type": "concept", "cluster": "Salmon Biology", "node_size": 10, "label": "life history"}], ["cultural impact", {"concepts": "cultural impact", "type": "concept", "cluster": "Salmon Biology", "node_size": 10, "label": "cultural impact"}], ["human dimensions", {"concepts": "human dimensions", "type": "concept", "cluster": "Salmon Biology", "node_size": 10, "label": "human dimensions"}], ["scenario analysis", {"concepts": "scenario analysis", "type": "concept", "cluster": "Salmon Biology", "node_size": 10, "label": "scenario analysis"}], ["recovery goals", {"concepts": "recovery goals", "type": "concept", "cluster": "Salmon Biology", "node_size": 10, "label": "recovery goals"}], ["homeowners", {"concepts": "homeowners", "type": "concept", "cluster": "Salmon Biology", "node_size": 10, "label": "homeowners"}]], "Modeling & Measurement": [["salmon", {"concepts": "salmon", "type": "concept", "cluster": "Modeling & Measurement", "node_size": 10, "label": "salmon"}], ["adult fish", {"concepts": "adult fish", "type": "concept", "cluster": "Modeling & Measurement", "node_size": 10, "label": "adult fish"}], ["salmon diversity", {"concepts": "salmon diversity", "type": "concept", "cluster": "Modeling & Measurement", "node_size": 10, "label": "salmon diversity"}], ["spawning", {"concepts": "spawning", "type": "concept", "cluster": "Modeling & Measurement", "node_size": 10, "label": "spawning"}], ["hatchery fish", {"concepts": "hatchery fish", "type": "concept", "cluster": "Modeling & Measurement", "node_size": 10, "label": "hatchery fish"}], ["adult abundance", {"concepts": "adult abundance", "type": "concept", "cluster": "Modeling & Measurement", "node_size": 10, "label": "adult abundance"}], ["natural origin fish", {"concepts": "natural origin fish", "type": "concept", "cluster": "Modeling & Measurement", "node_size": 10, "label": "natural origin fish"}]], "Hatchery Operations": [["hatchery releases", {"concepts": "hatchery releases", "type": "concept", "cluster": "Hatchery Operations", "node_size": 10, "label": "hatchery releases"}], ["hatcheries", {"concepts": "hatcheries", "type": "concept", "cluster": "Hatchery Operations", "node_size": 10, "label": "hatcheries"}]], "Marine Ecosystem Dynamics": [["harmful organisms", {"concepts": "harmful organisms", "type": "concept", "cluster": "Marine Ecosystem Dynamics", "node_size": 10, "label": "harmful organisms"}], ["coastal dynamics", {"concepts": "coastal dynamics", "type": "concept", "cluster": "Marine Ecosystem Dynamics", "node_size": 10, "label": "coastal dynamics"}], ["marine environment", {"concepts": "marine environment", "type": "concept", "cluster": "Marine Ecosystem Dynamics", "node_size": 10, "label": "marine environment"}], ["marine mammal protection", {"concepts": "marine mammal protection", "type": "concept", "cluster": "Marine Ecosystem Dynamics", "node_size": 10, "label": "marine mammal protection"}], ["marine predators", {"concepts": "marine predators", "type": "concept", "cluster": "Marine Ecosystem Dynamics", "node_size": 10, "label": "marine predators"}], ["environmental variables", {"concepts": "environmental variables", "type": "concept", "cluster": "Marine Ecosystem Dynamics", "node_size": 10, "label": "environmental variables"}], ["sea surface temperature", {"concepts": "sea surface temperature", "type": "concept", "cluster": "Marine Ecosystem Dynamics", "node_size": 10, "label": "sea surface temperature"}], ["marine", {"concepts": "marine", "type": "concept", "cluster": "Marine Ecosystem Dynamics", "node_size": 10, "label": "marine"}], ["marine resource users", {"concepts": "marine resource users", "type": "concept", "cluster": "Marine Ecosystem Dynamics", "node_size": 10, "label": "marine resource users"}], ["marine resource management", {"concepts": "marine resource management", "type": "concept", "cluster": "Marine Ecosystem Dynamics", "node_size": 10, "label": "marine resource management"}], ["coastal", {"concepts": "coastal", "type": "concept", "cluster": "Marine Ecosystem Dynamics", "node_size": 10, "label": "coastal"}], ["ocean conditions", {"concepts": "ocean conditions", "type": "concept", "cluster": "Marine Ecosystem Dynamics", "node_size": 10, "label": "ocean conditions"}], ["marine survival", {"concepts": "marine survival", "type": "concept", "cluster": "Marine Ecosystem Dynamics", "node_size": 10, "label": "marine survival"}], ["oyster farmers", {"concepts": "oyster farmers", "type": "concept", "cluster": "Marine Ecosystem Dynamics", "node_size": 10, "label": "oyster farmers"}]], "Stream Restoration Ecology": [["keystone species", {"concepts": "keystone species", "type": "concept", "cluster": "Stream Restoration Ecology", "node_size": 10, "label": "keystone species"}], ["stream ecology", {"concepts": "stream ecology", "type": "concept", "cluster": "Stream Restoration Ecology", "node_size": 10, "label": "stream ecology"}], ["habitat restoration", {"concepts": "habitat restoration", "type": "concept", "cluster": "Stream Restoration Ecology", "node_size": 10, "label": "habitat restoration"}]], "Ecosystem Conservation": [["ecosystem services", {"concepts": "ecosystem services", "type": "concept", "cluster": "Ecosystem Conservation", "node_size": 10, "label": "ecosystem services"}], ["habitat degradation", {"concepts": "habitat degradation", "type": "concept", "cluster": "Ecosystem Conservation", "node_size": 10, "label": "habitat degradation"}], ["endangered species", {"concepts": "endangered species", "type": "concept", "cluster": "Ecosystem Conservation", "node_size": 10, "label": "endangered species"}], ["biodiversity", {"concepts": "biodiversity", "type": "concept", "cluster": "Ecosystem Conservation", "node_size": 10, "label": "biodiversity"}], ["conservation concern", {"concepts": "conservation concern", "type": "concept", "cluster": "Ecosystem Conservation", "node_size": 10, "label": "conservation concern"}]], "Hatchery Practices": [["biodiversity definitions", {"concepts": "biodiversity definitions", "type": "concept", "cluster": "Hatchery Practices", "node_size": 10, "label": "biodiversity definitions"}], ["biodiversity value", {"concepts": "biodiversity value", "type": "concept", "cluster": "Hatchery Practices", "node_size": 10, "label": "biodiversity value"}], ["conservation organizations", {"concepts": "conservation organizations", "type": "concept", "cluster": "Hatchery Practices", "node_size": 10, "label": "conservation organizations"}]], "Management Practices": [["resource management", {"concepts": "resource management", "type": "concept", "cluster": "Management Practices", "node_size": 10, "label": "resource management"}], ["management decisions", {"concepts": "management decisions", "type": "concept", "cluster": "Management Practices", "node_size": 10, "label": "management decisions"}], ["management approaches", {"concepts": "management approaches", "type": "concept", "cluster": "Management Practices", "node_size": 10, "label": "management approaches"}], ["management tools", {"concepts": "management tools", "type": "concept", "cluster": "Management Practices", "node_size": 10, "label": "management tools"}], ["management strategy", {"concepts": "management strategy", "type": "concept", "cluster": "Management Practices", "node_size": 10, "label": "management strategy"}], ["management trade-offs", {"concepts": "management trade-offs", "type": "concept", "cluster": "Management Practices", "node_size": 10, "label": "management trade-offs"}]], "Meeting Collaboration": [["individual meetings", {"concepts": "individual meetings", "type": "concept", "cluster": "Meeting Collaboration", "node_size": 10, "label": "individual meetings"}], ["collaborative discussion", {"concepts": "collaborative discussion", "type": "concept", "cluster": "Meeting Collaboration", "node_size": 10, "label": "collaborative discussion"}], ["collaborative tool", {"concepts": "collaborative tool", "type": "concept", "cluster": "Meeting Collaboration", "node_size": 10, "label": "collaborative tool"}]], "Community Collaboration": [["workshop setting", {"concepts": "workshop setting", "type": "concept", "cluster": "Community Collaboration", "node_size": 10, "label": "workshop setting"}], ["community members", {"concepts": "community members", "type": "concept", "cluster": "Community Collaboration", "node_size": 10, "label": "community members"}], ["tribal meetings", {"concepts": "tribal meetings", "type": "concept", "cluster": "Community Collaboration", "node_size": 10, "label": "tribal meetings"}], ["collaborative model", {"concepts": "collaborative model", "type": "concept", "cluster": "Community Collaboration", "node_size": 10, "label": "collaborative model"}]], "Concept Definition": [["operationalization", {"concepts": "operationalization", "type": "concept", "cluster": "Concept Definition", "node_size": 10, "label": "operationalization"}], ["operationalize", {"concepts": "operationalize", "type": "concept", "cluster": "Concept Definition", "node_size": 10, "label": "operationalize"}], ["conceptualize", {"concepts": "conceptualize", "type": "concept", "cluster": "Concept Definition", "node_size": 10, "label": "conceptualize"}], ["conceptualization", {"concepts": "conceptualization", "type": "concept", "cluster": "Concept Definition", "node_size": 10, "label": "conceptualization"}]], "Harvest Management": [["harvest control", {"concepts": "harvest control", "type": "concept", "cluster": "Harvest Management", "node_size": 10, "label": "harvest control"}], ["harvest", {"concepts": "harvest", "type": "concept", "cluster": "Harvest Management", "node_size": 10, "label": "harvest"}], ["harvest control rules", {"concepts": "harvest control rules", "type": "concept", "cluster": "Harvest Management", "node_size": 10, "label": "harvest control rules"}], ["weak stock management", {"concepts": "weak stock management", "type": "concept", "cluster": "Harvest Management", "node_size": 10, "label": "weak stock management"}]], "Policy Stakeholders": [["policy people", {"concepts": "policy people", "type": "concept", "cluster": "Policy Stakeholders", "node_size": 10, "label": "policy people"}], ["stakeholders affected", {"concepts": "stakeholders affected", "type": "concept", "cluster": "Policy Stakeholders", "node_size": 10, "label": "stakeholders affected"}], ["stakeholder groups", {"concepts": "stakeholder groups", "type": "concept", "cluster": "Policy Stakeholders", "node_size": 10, "label": "stakeholder groups"}]], "Conservation Portfolio": [["return timing", {"concepts": "return timing", "type": "concept", "cluster": "Conservation Portfolio", "node_size": 10, "label": "return timing"}], ["genetic diversity", {"concepts": "genetic diversity", "type": "concept", "cluster": "Conservation Portfolio", "node_size": 10, "label": "genetic diversity"}], ["mental model", {"concepts": "mental model", "type": "concept", "cluster": "Conservation Portfolio", "node_size": 10, "label": "mental model"}], ["portfolio effects", {"concepts": "portfolio effects", "type": "concept", "cluster": "Conservation Portfolio", "node_size": 10, "label": "portfolio effects"}], ["conservation", {"concepts": "conservation", "type": "concept", "cluster": "Conservation Portfolio", "node_size": 10, "label": "conservation"}], ["portfolio effect", {"concepts": "portfolio effect", "type": "concept", "cluster": "Conservation Portfolio", "node_size": 10, "label": "portfolio effect"}]], "Fisheries Locations": [["alaskan fisheries", {"concepts": "alaskan fisheries", "type": "concept", "cluster": "Fisheries Locations", "node_size": 10, "label": "alaskan fisheries"}], ["canadian fisheries", {"concepts": "canadian fisheries", "type": "concept", "cluster": "Fisheries Locations", "node_size": 10, "label": "canadian fisheries"}], ["fisheries", {"concepts": "fisheries", "type": "concept", "cluster": "Fisheries Locations", "node_size": 10, "label": "fisheries"}]], "Fisheries Management": [["fisheries selection", {"concepts": "fisheries selection", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "fisheries selection"}], ["fisheries management", {"concepts": "fisheries management", "type": "concept", "cluster": "Fisheries Management", "node_size": 10, "label": "fisheries management"}]]};
+        const clusterEdges = {"System Interactions": [], "Expert Roles": [], "Human Perspectives": [], "Salmon Biology": [], "Modeling & Measurement": [], "Hatchery Operations": [], "Marine Ecosystem Dynamics": [], "Stream Restoration Ecology": [], "Ecosystem Conservation": [], "Hatchery Practices": [], "Management Practices": [], "Meeting Collaboration": [], "Community Collaboration": [], "Concept Definition": [], "Harvest Management": [], "Policy Stakeholders": [], "Conservation Portfolio": [], "Fisheries Locations": [], "Fisheries Management": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>
