@@ -375,6 +375,13 @@ class ScoreCalculator:
 
 def load_fcm_data(gt_path, gen_path, metadata_path=None):
     gt_matrix = pd.read_csv(gt_path, index_col=0)
+    
+    # Convert empty strings to zeros in ground truth matrix
+    gt_matrix = gt_matrix.replace('', 0)
+    gt_matrix = gt_matrix.replace('""', 0)
+    
+    # Ensure all values are numeric
+    gt_matrix = gt_matrix.apply(pd.to_numeric, errors='coerce').fillna(0)
 
     with open(gen_path, "r") as f:
         gen_json = json.load(f)

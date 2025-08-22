@@ -10,10 +10,17 @@ edge inference, and post-processing steps.
 # MODEL CONFIGURATION
 # =============================================================================
 
-CONCEPT_EXTRACTION_MODEL = "gemini-1.5-flash" 
-META_PROMPTING_MODEL = "gemini-1.5-flash"
-EDGE_INFERENCE_MODEL = "gemini-1.5-flash"  
-LLM_CLUSTERING_MODEL = "gemini-1.5-flash"
+# model = "gemini-1.5-flash"
+# model = "gemini-2.0-flash"
+model = "gpt-4.1-2025-04-14"
+# model = "gpt-4.1-mini-2025-04-14"
+# model = "gpt-4o-2024-05-13"
+# model = "gpt-5-chat-latest"
+
+CONCEPT_EXTRACTION_MODEL = model
+META_PROMPTING_MODEL = model
+EDGE_INFERENCE_MODEL = model
+LLM_CLUSTERING_MODEL = model
 
 CONCEPT_EXTRACTION_TEMPERATURE = 0.0    # Lower = more deterministic extraction
 EDGE_INFERENCE_TEMPERATURE = 0.0        # Lower = more consistent edge inference

@@ -19,18 +19,21 @@ def main():
         print(f"Error: {interviews_dir} not found")
         return 1
     
-    # Get all .docx files
-    interview_files = list(interviews_dir.glob("*.docx"))
+    # Get all .docx and .txt files
+    docx_files = list(interviews_dir.glob("*.docx"))
+    txt_files = list(interviews_dir.glob("*.txt"))
+    interview_files = docx_files + txt_files
     
     if not interview_files:
-        print(f"No .docx files found in {interviews_dir}")
+        print(f"No .docx or .txt files found in {interviews_dir}")
         return 1
     
     print(f"Processing {len(interview_files)} interview files...")
     
     for interview_file in interview_files:
         filename = interview_file.name
-        base_name = filename.replace('.docx', '')
+        # Remove file extension (.docx or .txt) to get base name
+        base_name = interview_file.stem
         
         print(f"\n=== Processing {filename} ===")
         
