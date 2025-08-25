@@ -47,29 +47,9 @@ def main():
             print(f"   ✗ Extraction failed: {e}")
             continue
         
-        # Step 2: Run scoring if ground truth exists
-        gt_file = ground_truth_dir / f"{base_name}.csv"
-        fcm_files = list(fcm_outputs_dir.glob(f"**/{base_name}_fcm.json"))
+        print(f"   ✓ Extraction completed for {base_name}")
         
-        if gt_file.exists() and fcm_files:
-            fcm_file = fcm_files[0]  # Take first match
-            print(f"2. Running scoring...")
-            scoring_cmd = [
-                sys.executable, "utils/score_fcm.py",
-                "--gt-path", str(gt_file),
-                "--gen-path", str(fcm_file),
-                "--threshold", "0.6"
-            ]
-            try:
-                result = subprocess.run(scoring_cmd, check=True)
-                print(f"   ✓ Scoring completed")
-            except subprocess.CalledProcessError as e:
-                print(f"   ✗ Scoring failed: {e}")
-        else:
-            if not gt_file.exists():
-                print(f"2. Skipping scoring - no ground truth file: {gt_file}")
-            if not fcm_files:
-                print(f"2. Skipping scoring - no FCM output found for {base_name}")
+        # Note: Scoring can be run separately using run_evaluation_batch.py
     
     print("\n=== Pipeline completed ===")
     return 0
