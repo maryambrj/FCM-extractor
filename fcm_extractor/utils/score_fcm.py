@@ -6,6 +6,7 @@ import re
 import torch
 import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModel
+from scipy.optimize import linear_sum_assignment
 import os
 import argparse
 import sys
@@ -242,102 +243,98 @@ class ScoreCalculator:
         docsig = hashlib.md5(json.dumps(self.doc_texts, sort_keys=True).encode()).hexdigest() if self.doc_texts else "nometa"
         cache_key = f"{self.data}_{self.model_name}_{cache_hash}_{docsig}"
         
-        if cache_key not in self.cache:
-            ScoreCalculator.cache[cache_key] = {}
+        if cache_key not in type(self).cache:
+            type(self).cache[cache_key] = {}
             
-        if 'src' not in self.cache[cache_key]:
+        if 'src' not in type(self).cache[cache_key]:
             # embed_and_score(queries, documents) returns (queries × documents) 
             # Call as (gen, gt) to get (gen × gt) similarity matrix
             src_scores = self.embed_and_score(self.gen_nodes_src, self.gt_nodes_src, getattr(self, 'batch_size', 2))
-            ScoreCalculator.cache[cache_key]['src'] = src_scores.detach().cpu().numpy()
+            type(self).cache[cache_key]['src'] = src_scores.detach().cpu().numpy()
 
-        if 'tgt' not in self.cache[cache_key]:
+        if 'tgt' not in type(self).cache[cache_key]:
             # embed_and_score(queries, documents) returns (queries × documents)
             # Call as (gen, gt) to get (gen × gt) similarity matrix
             tgt_scores = self.embed_and_score(self.gen_nodes_tgt, self.gt_nodes_tgt, getattr(self, 'batch_size', 2))
-            ScoreCalculator.cache[cache_key]['tgt'] = tgt_scores.detach().cpu().numpy()
+            type(self).cache[cache_key]['tgt'] = tgt_scores.detach().cpu().numpy()
 
-        all_scores_src = np.array(ScoreCalculator.cache[cache_key]['src'])
-        all_scores_tgt = np.array(ScoreCalculator.cache[cache_key]['tgt'])
+        all_scores_src = np.array(type(self).cache[cache_key]['src'])
+        all_scores_tgt = np.array(type(self).cache[cache_key]['tgt'])
 
+        # Handle empty-edge cases explicitly
+        if len(self.gen_edge_dir) == 0 or len(self.gt_edge_dir) == 0:
+            self.TP = self.PP = 0
+            self.FP = len(self.gen_edge_dir)
+            self.FN = len(self.gt_edge_dir)
+            
+            print("TP, PP, FP, FN:", self.TP, self.PP, self.FP, self.FN)
 
-      
-        src_top = np.unravel_index(np.argsort(all_scores_src, axis=None)[-5:], all_scores_src.shape)
-        tgt_top = np.unravel_index(np.argsort(all_scores_tgt, axis=None)[-5:], all_scores_tgt.shape)
+            TP_scaled = self.TP * self.tp_scale
+            PP_scaled = self.PP * self.pp_scale
 
-        gen_has_tp = np.zeros(len(self.gen_edge_dir), dtype=bool)
-        gen_has_pp = np.zeros(len(self.gen_edge_dir), dtype=bool)
+            F1 = self.calculate_f1_score(TP_scaled, self.FP, self.FN, PP_scaled)
+            
+            model_score = pd.DataFrame({
+                'Model': [self.model_name],
+                'data': [self.data],
+                'F1': [F1],
+                'TP': [self.TP],
+                'PP': [self.PP],
+                'FP': [self.FP],
+                'FN': [self.FN],
+                'threshold': [self.threshold],
+                'tp_scale': [self.tp_scale],
+                'pp_scale': [self.pp_scale],
+                'gt_nodes': [len(set(self.gt_nodes_src + self.gt_nodes_tgt))],
+                'gt_edges': [len(self.gt_edge_dir)],
+                'gen_nodes': [len(set(self.gen_nodes_src + self.gen_nodes_tgt))],
+                'gen_edges': [len(self.gen_edge_dir)]
+            })
+            
+            self.scores_df = model_score
+            return model_score
+
+        # Build masks and scores for bipartite matching
+        mask = (all_scores_src >= self.threshold) & (all_scores_tgt >= self.threshold)
+        combined = (all_scores_src + all_scores_tgt) / 2.0  # gen × gt
+
+        # 1-to-1 assignment via Hungarian algorithm with TP tie-breaking bias
+        LARGE = 1e6
+        sign_mismatch = (np.sign(self.gen_edge_dir)[:, None] != np.sign(self.gt_edge_dir)[None, :])
+        cost = np.where(mask, -combined + 1e-6*sign_mismatch, LARGE)  # maximize combined, bias toward TP
+        row_ind, col_ind = linear_sum_assignment(cost)
+
+        # Keep only valid pairs (passed thresholds)
+        matched_pairs = [(int(i), int(j)) for i, j in zip(row_ind, col_ind) if mask[int(i), int(j)]]
+
+        # Classify matches
+        TP = 0
+        PP = 0
+        for i, j in matched_pairs:
+            gen_sign = np.sign(self.gen_edge_dir[i])
+            gt_sign  = np.sign(self.gt_edge_dir[j])
+            if gen_sign == gt_sign:
+                TP += 1
+            else:
+                PP += 1
+
+        matched_gen = {i for i, _ in matched_pairs}
+        matched_gt  = {j for _, j in matched_pairs}
+
+        FP = len(self.gen_edge_dir) - len(matched_gen)
+        FN = len(self.gt_edge_dir) - len(matched_gt)
+
+        self.TP, self.PP, self.FP, self.FN = TP, PP, FP, FN
         
-        for i in range(len(self.gen_edge_dir)):
-            if i >= all_scores_src.shape[0]:
-                print(f"Warning: Skipping generated edge {i}, out of bounds for scores matrix")
-                break
-                
-            best_match_score = -1
-            best_match_j = -1
-            best_is_tp = False
-            
-            # Find best matching GT edge for this generated edge
-            for j in range(len(self.gt_edge_dir)):
-                if j >= all_scores_src.shape[1]:
-                    print(f"Warning: Skipping GT edge {j}, out of bounds for scores matrix")
-                    break
-                    
-                src_score = all_scores_src[i, j]
-                tgt_score = all_scores_tgt[i, j]
-                
-                # Both source and target must be above threshold
-                if src_score >= self.threshold and tgt_score >= self.threshold:
-                    # Combined similarity score
-                    combined_score = (src_score + tgt_score) / 2
-                    
-                    if combined_score > best_match_score:
-                        best_match_score = combined_score
-                        best_match_j = j
-                        # Check if directions (polarities) match
-                        gen_sign = np.sign(self.gen_edge_dir[i])
-                        gt_sign = np.sign(self.gt_edge_dir[j])
-                        best_is_tp = (gen_sign == gt_sign)
-            
-            # Classify based on best match
-            if best_match_j >= 0:  # Found a valid match
-                if best_is_tp:
-                    gen_has_tp[i] = True
-                else:
-                    gen_has_pp[i] = True
-
-        self.TP = np.sum(gen_has_tp)
-        self.PP = np.sum(gen_has_pp)
-        self.FP = len(self.gen_edge_dir) - self.TP - self.PP
-
-        # For FN calculation: check which GT edges were not matched by any generated edge
-        gt_has_match = np.zeros(len(self.gt_edge_dir), dtype=bool)
+        # Sanity assertions to verify identity constraints
+        assert self.TP + self.PP + self.FP == len(self.gen_edge_dir), \
+            f"Gen edge identity violated: {self.TP + self.PP + self.FP} != {len(self.gen_edge_dir)}"
+        assert self.TP + self.PP + self.FN == len(self.gt_edge_dir), \
+            f"GT edge identity violated: {self.TP + self.PP + self.FN} != {len(self.gt_edge_dir)}"
         
-        for j in range(len(self.gt_edge_dir)):
-            if j >= all_scores_src.shape[1]:
-                print(f"Warning: Skipping GT edge {j} in FN calculation, out of bounds")
-                break
-                
-            best_match_score = -1
-            
-            # Find if any generated edge matches this GT edge well enough
-            for i in range(len(self.gen_edge_dir)):
-                if i >= all_scores_src.shape[0]:
-                    break
-                    
-                src_score = all_scores_src[i, j]
-                tgt_score = all_scores_tgt[i, j]
-                
-                if src_score >= self.threshold and tgt_score >= self.threshold:
-                    combined_score = (src_score + tgt_score) / 2
-                    if combined_score > best_match_score:
-                        best_match_score = combined_score
-            
-            # If we found any match above threshold, this GT edge is covered
-            if best_match_score >= self.threshold:
-                gt_has_match[j] = True
-        
-        self.FN = len(self.gt_edge_dir) - np.sum(gt_has_match)
+        # Identity constraints are now guaranteed by construction:
+        # TP + PP + FN = len(gt_edge_dir)
+        # TP + PP + FP = len(gen_edge_dir)
 
         # print("Kept predicted edges after filtering:", len(self.gen_edge_dir))
         # print("GT edges:", len(self.gt_edge_dir))
