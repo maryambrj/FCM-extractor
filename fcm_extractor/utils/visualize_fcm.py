@@ -73,8 +73,16 @@ def load_fcm_from_json(json_path: str) -> nx.DiGraph:
 def create_interactive_visualization(G: nx.DiGraph, output_file: str, min_confidence: float = 0.3):
     import json
     
-    cluster_nodes = {node: data for node, data in G.nodes(data=True) if data.get('type') == 'cluster'}
-    concept_nodes = {node: data for node, data in G.nodes(data=True) if data.get('type') == 'concept'}
+    # Filter out unconnected nodes for visualization only
+    connected_nodes = set()
+    for u, v, edge_data in G.edges(data=True):
+        connected_nodes.add(u)
+        connected_nodes.add(v)
+    
+    cluster_nodes = {node: data for node, data in G.nodes(data=True) 
+                    if data.get('type') == 'cluster' and node in connected_nodes}
+    concept_nodes = {node: data for node, data in G.nodes(data=True) 
+                    if data.get('type') == 'concept' and node in connected_nodes}
     
     inter_cluster_edges = []
     intra_cluster_edges = []
