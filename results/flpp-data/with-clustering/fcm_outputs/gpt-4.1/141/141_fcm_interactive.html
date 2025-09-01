@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"Food Program Logistics": {"concepts": "neighbors, transportation", "concept_list": ["neighbors", "transportation"], "type": "cluster", "node_size": 21, "label": "Food Program Logistics"}, "Food Access Services": {"concepts": "uhauls, outro, double up bucks, ceos, expiration dates, covid, deli, united way, flint, uhaul, tray, wic, styrofoam, zoom calls, bars, hunger, bedbugs, double up", "concept_list": ["uhauls", "outro", "double up bucks", "ceos", "expiration dates", "covid", "deli", "united way", "flint", "uhaul", "tray", "wic", "styrofoam", "zoom calls", "bars", "hunger", "bedbugs", "double up"], "type": "cluster", "node_size": 69, "label": "Food Access Services"}, "Social Networks": {"concepts": "food barriers, nutrition education, meal delivery, food waste, food education, food distribution system, fresh produce, emergency food system, food orders, food and housing, vegetables, food access, food delivery, food banks, farmer's market, fast food, restaurant, food assistance, farmers market, forklift truck, emergency food services, access to food, flint food system, grocery delivery, food outcomes, produce truck, meal packaging, meal provision, food insecurity, food truck, food skills, eastern food bank, hot meal, food bank, food empowerment, food resource, food dynamics, balanced meal, food outreach, food abundance, food cost, soup kitchen, subsidized meals, food options, food sector, food system, food purchasing, expired food, food provision, local restaurants, restaurants, lansing food bank, hot meals, food availability, soup kitchens, food assistance programs, milk distribution, nutritious foods, cooking, food surplus, chain restaurants, food pantry, food affordability, emergency food, junk food, food supply, food giveaway, food truck giveaway, canned goods, food stamps, healthy food, food impact, box lunches, potatoes, grocery stores, meat, convenience stores, food giveaways, nutritious food, food distribution, food donations, food actors, food support, food purchase, preservatives, grocery access", "concept_list": ["food barriers", "nutrition education", "meal delivery", "food waste", "food education", "food distribution system", "fresh produce", "emergency food system", "food orders", "food and housing", "vegetables", "food access", "food delivery", "food banks", "farmer's market", "fast food", "restaurant", "food assistance", "farmers market", "forklift truck", "emergency food services", "access to food", "flint food system", "grocery delivery", "food outcomes", "produce truck", "meal packaging", "meal provision", "food insecurity", "food truck", "food skills", "eastern food bank", "hot meal", "food bank", "food empowerment", "food resource", "food dynamics", "balanced meal", "food outreach", "food abundance", "food cost", "soup kitchen", "subsidized meals", "food options", "food sector", "food system", "food purchasing", "expired food", "food provision", "local restaurants", "restaurants", "lansing food bank", "hot meals", "food availability", "soup kitchens", "food assistance programs", "milk distribution", "nutritious foods", "cooking", "food surplus", "chain restaurants", "food pantry", "food affordability", "emergency food", "junk food", "food supply", "food giveaway", "food truck giveaway", "canned goods", "food stamps", "healthy food", "food impact", "box lunches", "potatoes", "grocery stores", "meat", "convenience stores", "food giveaways", "nutritious food", "food distribution", "food donations", "food actors", "food support", "food purchase", "preservatives", "grocery access"], "type": "cluster", "node_size": 273, "label": "Social Networks"}, "System Operations": {"concepts": "network reliance, social media groups, networks, social media, connection, centrality, social connections", "concept_list": ["network reliance", "social media groups", "networks", "social media", "connection", "centrality", "social connections"], "type": "cluster", "node_size": 36, "label": "System Operations"}, "Neighborhood Transport": {"concepts": "approval processes, system, availability, internal procedures, sector dynamics, region, city limits, leftovers, effective engagement, school lunches, proactivity, emergency situation, communication, social security, trust, emergency sector, school programs, underutilization, access issues, leadership, emergency sector funding, positive outcomes, distribution problem, utilization, emergency organizations, covid dollars, supplemental sector, snap, distribution system, snap program, proactive engagement, emergency response, transportation access, common good, portion size, mapping, access, sector, school districts, approval process, downtown, bus system, power outage, comfort", "concept_list": ["approval processes", "system", "availability", "internal procedures", "sector dynamics", "region", "city limits", "leftovers", "effective engagement", "school lunches", "proactivity", "emergency situation", "communication", "social security", "trust", "emergency sector", "school programs", "underutilization", "access issues", "leadership", "emergency sector funding", "positive outcomes", "distribution problem", "utilization", "emergency organizations", "covid dollars", "supplemental sector", "snap", "distribution system", "snap program", "proactive engagement", "emergency response", "transportation access", "common good", "portion size", "mapping", "access", "sector", "school districts", "approval process", "downtown", "bus system", "power outage", "comfort"], "type": "cluster", "node_size": 147, "label": "Neighborhood Transport"}, "Community Collaboration": {"concepts": "community planning, community resources, community engagement, community empowerment, working mothers, university collaboration, agency partnerships, collaboration, community closet, community impact, population outreach, community needs, program participation, community members, community scale, community building, mutual aid, church, churches, clientele, community foundation, community support, empowerment, vaccinations, partnerships, outreach, family support, community organizations, cultural values, community, mutual support", "concept_list": ["community planning", "community resources", "community engagement", "community empowerment", "working mothers", "university collaboration", "agency partnerships", "collaboration", "community closet", "community impact", "population outreach", "community needs", "program participation", "community members", "community scale", "community building", "mutual aid", "church", "churches", "clientele", "community foundation", "community support", "empowerment", "vaccinations", "partnerships", "outreach", "family support", "community organizations", "cultural values", "community", "mutual support"], "type": "cluster", "node_size": 108, "label": "Community Collaboration"}, "Poverty & Support": {"concepts": "poverty, choice, giveaways, utilities, children, low income, education, agency, fruit, safety, catholic charities, health, consumer support, age groups, dignity, personal needs, creativity, income, consumer assistance, mindset change, produce, quality of life, energy, consumer, health and safety, possessions, affordability, options, efficiency, retired individuals, eggplant", "concept_list": ["poverty", "choice", "giveaways", "utilities", "children", "low income", "education", "agency", "fruit", "safety", "catholic charities", "health", "consumer support", "age groups", "dignity", "personal needs", "creativity", "income", "consumer assistance", "mindset change", "produce", "quality of life", "energy", "consumer", "health and safety", "possessions", "affordability", "options", "efficiency", "retired individuals", "eggplant"], "type": "cluster", "node_size": 108, "label": "Poverty & Support"}, "Organizational Operations": {"concepts": "organizations, organization, business adaptation, organizational dynamics, organizational challenges, operational challenges, nonprofit, business operations, organizational flexibility, nonprofits, nonprofit organization, operational costs", "concept_list": ["organizations", "organization", "business adaptation", "organizational dynamics", "organizational challenges", "operational challenges", "nonprofit", "business operations", "organizational flexibility", "nonprofits", "nonprofit organization", "operational costs"], "type": "cluster", "node_size": 51, "label": "Organizational Operations"}, "Program Resources": {"concepts": "programs, resource, underutilized programs, system complexity, resource utilization, resource allocation, supplemental programs, donor, resources", "concept_list": ["programs", "resource", "underutilized programs", "system complexity", "resource utilization", "resource allocation", "supplemental programs", "donor", "resources"], "type": "cluster", "node_size": 42, "label": "Program Resources"}, "Problem Solving": {"concepts": "problem solving, eviction, research projects, pilot process, research project, outcomes, proactive approach, impact, project, research, problem understanding, covid-19, public opinion", "concept_list": ["problem solving", "eviction", "research projects", "pilot process", "research project", "outcomes", "proactive approach", "impact", "project", "research", "problem understanding", "covid-19", "public opinion"], "type": "cluster", "node_size": 54, "label": "Problem Solving"}, "Senior Services": {"concepts": "resident priorities, department of health and human services, essential workers, health centers, staff communication, senior population, staff, facility use, elderly population, essential services, senior facilities, motel residents", "concept_list": ["resident priorities", "department of health and human services", "essential workers", "health centers", "staff communication", "senior population", "staff", "facility use", "elderly population", "essential services", "senior facilities", "motel residents"], "type": "cluster", "node_size": 51, "label": "Senior Services"}, "Housing Instability": {"concepts": "winter storage, remote work, housing, gardening, homeless population, apartment complexes, warming center, homelessness, apartment closures, housing instability, garage storage, homeless, housing issue, freezing conditions, storage units, shelters, motel housing", "concept_list": ["winter storage", "remote work", "housing", "gardening", "homeless population", "apartment complexes", "warming center", "homelessness", "apartment closures", "housing instability", "garage storage", "homeless", "housing issue", "freezing conditions", "storage units", "shelters", "motel housing"], "type": "cluster", "node_size": 66, "label": "Housing Instability"}, "Local Barriers": {"concepts": "state agencies, regional differences, bureaucracy, barriers, local economic development, local organizations, state assistance, local economy, local impacts, communication barriers, shiawassee county, access barriers, local barriers, local producers", "concept_list": ["state agencies", "regional differences", "bureaucracy", "barriers", "local economic development", "local organizations", "state assistance", "local economy", "local impacts", "communication barriers", "shiawassee county", "access barriers", "local barriers", "local producers"], "type": "cluster", "node_size": 57, "label": "Local Barriers"}, "Market Dynamics": {"concepts": "leverage points, market, moving companies, pricing, advertising, trade", "concept_list": ["leverage points", "market", "moving companies", "pricing", "advertising", "trade"], "type": "cluster", "node_size": 33, "label": "Market Dynamics"}, "Funding Sources": {"concepts": "funding increases, school donations, donation costs, monetary funding, fundraiser, agency bill", "concept_list": ["funding increases", "school donations", "donation costs", "monetary funding", "fundraiser", "agency bill"], "type": "cluster", "node_size": 33, "label": "Funding Sources"}};
+        const conceptData = {};
+        const interClusterEdges = [["Food Program Logistics", "Social Networks", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Food Program Logistics", "Poverty & Support", {"weight": 0.5, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["Social Networks", "Poverty & Support", {"weight": 1.0, "confidence": 0.8000000000000002, "type": "inter_cluster", "style": "solid"}], ["Social Networks", "Organizational Operations", {"weight": 1.0, "confidence": 0.6875, "type": "inter_cluster", "style": "solid"}], ["Social Networks", "Local Barriers", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["System Operations", "Housing Instability", {"weight": 1.0, "confidence": 0.6833333333333332, "type": "inter_cluster", "style": "solid"}], ["System Operations", "Neighborhood Transport", {"weight": 0.75, "confidence": 0.5125, "type": "inter_cluster", "style": "solid"}], ["System Operations", "Funding Sources", {"weight": 1.0, "confidence": 0.5666666666666668, "type": "inter_cluster", "style": "solid"}], ["System Operations", "Food Access Services", {"weight": 1.0, "confidence": 0.525, "type": "inter_cluster", "style": "solid"}], ["System Operations", "Problem Solving", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["System Operations", "Organizational Operations", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["Neighborhood Transport", "Funding Sources", {"weight": 1.0, "confidence": 0.68, "type": "inter_cluster", "style": "solid"}], ["Neighborhood Transport", "Organizational Operations", {"weight": 1.0, "confidence": 0.6999999999999998, "type": "inter_cluster", "style": "solid"}], ["Neighborhood Transport", "System Operations", {"weight": 1.0, "confidence": 0.6625, "type": "inter_cluster", "style": "solid"}], ["Neighborhood Transport", "Housing Instability", {"weight": 0.6666666666666666, "confidence": 0.4333333333333333, "type": "inter_cluster", "style": "solid"}], ["Community Collaboration", "Social Networks", {"weight": 1.0, "confidence": 0.8666666666666667, "type": "inter_cluster", "style": "solid"}], ["Community Collaboration", "Food Program Logistics", {"weight": 1.0, "confidence": 0.6375, "type": "inter_cluster", "style": "solid"}], ["Community Collaboration", "Neighborhood Transport", {"weight": 1.0, "confidence": 0.7000000000000001, "type": "inter_cluster", "style": "solid"}], ["Community Collaboration", "Poverty & Support", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["Poverty & Support", "Local Barriers", {"weight": 0.4, "confidence": 0.49000000000000005, "type": "inter_cluster", "style": "solid"}], ["Poverty & Support", "Market Dynamics", {"weight": 0.8, "confidence": 0.47000000000000003, "type": "inter_cluster", "style": "solid"}], ["Organizational Operations", "Neighborhood Transport", {"weight": 1.0, "confidence": 0.7166666666666668, "type": "inter_cluster", "style": "solid"}], ["Organizational Operations", "Community Collaboration", {"weight": 1.0, "confidence": 0.7166666666666668, "type": "inter_cluster", "style": "solid"}], ["Organizational Operations", "Program Resources", {"weight": 1.0, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["Organizational Operations", "Food Access Services", {"weight": 0.6666666666666666, "confidence": 0.3666666666666667, "type": "inter_cluster", "style": "solid"}], ["Organizational Operations", "Problem Solving", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Program Resources", "System Operations", {"weight": 1.0, "confidence": 0.6749999999999999, "type": "inter_cluster", "style": "solid"}], ["Program Resources", "Senior Services", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["Program Resources", "Food Program Logistics", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["Program Resources", "Food Access Services", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["Problem Solving", "Community Collaboration", {"weight": 0.8, "confidence": 0.57, "type": "inter_cluster", "style": "solid"}], ["Problem Solving", "Senior Services", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Problem Solving", "Food Access Services", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["Senior Services", "Poverty & Support", {"weight": 0.75, "confidence": 0.48750000000000004, "type": "inter_cluster", "style": "solid"}], ["Senior Services", "Food Program Logistics", {"weight": 0.75, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["Senior Services", "Neighborhood Transport", {"weight": 0.75, "confidence": 0.48749999999999993, "type": "inter_cluster", "style": "solid"}], ["Senior Services", "Program Resources", {"weight": 0.6666666666666666, "confidence": 0.3666666666666667, "type": "inter_cluster", "style": "solid"}], ["Senior Services", "Food Access Services", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["Housing Instability", "Organizational Operations", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["Housing Instability", "Food Program Logistics", {"weight": 0.75, "confidence": 0.5375, "type": "inter_cluster", "style": "solid"}], ["Housing Instability", "Funding Sources", {"weight": 1.0, "confidence": 0.525, "type": "inter_cluster", "style": "solid"}], ["Housing Instability", "Social Networks", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Housing Instability", "Senior Services", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Housing Instability", "Poverty & Support", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Local Barriers", "Problem Solving", {"weight": -1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["Market Dynamics", "Program Resources", {"weight": 1.0, "confidence": 0.6333333333333333, "type": "inter_cluster", "style": "solid"}], ["Market Dynamics", "Funding Sources", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["Market Dynamics", "Local Barriers", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["Funding Sources", "Local Barriers", {"weight": 1.0, "confidence": 0.68, "type": "inter_cluster", "style": "solid"}], ["Funding Sources", "Social Networks", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["Funding Sources", "Neighborhood Transport", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["Funding Sources", "Poverty & Support", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["Funding Sources", "Market Dynamics", {"weight": 1.0, "confidence": 0.575, "type": "inter_cluster", "style": "solid"}], ["Funding Sources", "Food Program Logistics", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {"Food Program Logistics": [], "Food Access Services": [], "Social Networks": [], "System Operations": [], "Neighborhood Transport": [], "Community Collaboration": [], "Poverty & Support": [], "Organizational Operations": [], "Program Resources": [], "Problem Solving": [], "Senior Services": [], "Housing Instability": [], "Local Barriers": [], "Market Dynamics": [], "Funding Sources": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

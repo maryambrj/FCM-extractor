@@ -1,6 +1,6 @@
 # FCM Extractor
 
-A Python package for extracting Fuzzy Cognitive Maps (FCMs) from interview transcripts using advanced NLP, clustering techniques, and semantic similarity analysis. This tool automates the conversion of qualitative interview data into structured cognitive maps for research and analysis.
+A comprehensive Python toolkit for extracting Fuzzy Cognitive Maps (FCMs) from interview transcripts using advanced NLP, clustering techniques, and semantic similarity analysis. This research tool automates the conversion of qualitative interview data into structured cognitive maps, with extensive evaluation capabilities across multiple datasets and LLM models.
 
 ## 🚀 Quick Start
 
@@ -8,7 +8,7 @@ A Python package for extracting Fuzzy Cognitive Maps (FCMs) from interview trans
 
 1. **Clone the repository:**
 ```bash
-git clone https://github.com/maryambrj/FCM-extractor.git
+git clone https://github.com/berijani/fcm-extractor.git
 cd fcm-extractor
 ```
 
@@ -21,36 +21,54 @@ pip install -r fcm_extractor/requirements.txt
 ```bash
 export OPENAI_API_KEY="your-openai-api-key"
 export GOOGLE_API_KEY="your-google-gemini-api-key"
+export ANTHROPIC_API_KEY="your-anthropic-api-key"  # Optional
 ```
 
 ### Basic Usage
 
 **Process all interview documents:**
 ```bash
+cd fcm_extractor
 python run_extraction.py --all
 ```
 
 **Process a specific document:**
 ```bash
+cd fcm_extractor
 python run_extraction.py <file_name>
 ```
 
-**Get help:**
+**Run batch evaluation:**
 ```bash
-python run_extraction.py --help
+python run_evaluation_batch.py
+```
+
+**Analyze F1 scores and generate reports:**
+```bash
+python analyze_f1_scores.py --input results/your-dataset/fcm_outputs_analysis
+```
+
+**Tutorial and examples:**
+```bash
+# Open the tutorial notebook for step-by-step guidance
+jupyter notebook fcm_tutorial.ipynb
+
+# View structured output examples  
+python examples/structured_output_examples.py
 ```
 
 
 ## 🎯 Key Features
 
 - **🤖 Automated FCM Extraction**: Convert interview transcripts to structured cognitive maps
-- **🧠 Advanced Clustering**: Semantic clustering using embeddings and LLMs
-- **🔗 Causal Inference**: LLM-powered edge detection with confidence scoring
-- **📊 Interactive Visualization**: Web-based D3.js visualizations
-- **📈 FCM Evaluation**: Semantic similarity-based scoring against ground truth
-- **⚡ Post-Clustering Optimization**: Automatic merging of similar clusters
-- **🔧 Multi-Model Support**: OpenAI GPT, Google Gemini, Anthropic Claude, and embedding models
-- **📝 Comprehensive Logging**: Detailed processing logs for debugging
+- **🧠 Advanced Clustering**: Semantic clustering using embeddings and LLMs with optional clustering modes
+- **🔗 Causal Inference**: ACO-optimized LLM-powered edge detection with confidence scoring
+- **📊 Interactive Visualization**: Web-based D3.js visualizations with hierarchical cluster exploration
+- **📈 Comprehensive Evaluation**: Multi-dataset evaluation with F1 scoring, statistical analysis, and visualization
+- **⚡ Post-Clustering Optimization**: Automatic merging of similar clusters and unconnected node removal
+- **🔧 Multi-Model Support**: OpenAI GPT (4o, 4.1, 4.1-mini), Google Gemini (1.5-flash, 2.0-flash), Anthropic Claude
+- **📊 Research-Ready Analysis**: Statistical comparisons, bootstrap confidence intervals, correlation analysis
+- **📝 Comprehensive Logging**: Detailed processing logs with timestamps for debugging and reproducibility
 
 ## 🔧 Pipeline Components
 
@@ -80,24 +98,41 @@ Generates interactive HTML visualizations with:
 - Confidence filtering
 - Detailed edge and node information
 
-## 📊 Output Files
+## 📊 Output Structure
 
-### FCM Data Files
-- `*_fcm.json` - Complete FCM graph data (nodes, edges, weights)
-- `*_cluster_metadata.json` - Detailed cluster information and metadata
-- `*_fcm_params.json` - Processing parameters and configuration
+### Individual Document Outputs (fcm_outputs/)
+```
+fcm_outputs/
+├── model_name/                    # e.g., gpt-4o, gemini-1.5-flash
+│   └── document_id/               # e.g., BD006, IEA-Wind-CM-AR
+│       ├── *_fcm.json            # Complete FCM graph data
+│       ├── *_cluster_metadata.json # Cluster information and metadata
+│       ├── *_fcm_params.json     # Processing parameters
+│       ├── *_fcm_interactive.html # Interactive D3.js visualization
+│       ├── *_generated_matrix.csv # FCM adjacency matrix
+│       └── *_scoring_results.csv  # Evaluation metrics vs ground truth
+```
 
-### Visualizations
-- `*_fcm_interactive.html` - Interactive D3.js visualization
-- `*_fcm_static.png` - Static graph visualization
+### Research Results (results/)
+```
+results/
+├── dataset-name/                  # e.g., biodiversity-data, gulf-osw-data
+│   ├── interviews/               # Input interview documents
+│   ├── ground-truth/             # Reference FCM adjacency matrices
+│   ├── with-clustering/          # Results using clustering pipeline
+│   │   ├── fcm_outputs/          # Raw model outputs
+│   │   └── fcm_outputs_analysis/ # Statistical analysis and plots
+│   └── without-clustering/       # Results without clustering
+│       ├── fcm_outputs/
+│       └── fcm_outputs_analysis/
+```
 
-### Evaluation Files
-- `*_generated_matrix.csv` - FCM adjacency matrix
-- `*_scoring_results.csv` - Evaluation metrics against ground truth
-
-### Logs
-- `*_extraction_{timestamp}.log` - Complete processing log for each document
-- `logs/` - Directory containing all processing logs
+### Analysis Outputs
+- `all_f1_scores.csv` - Complete F1 scores across all models and datasets
+- `per_model_stats.csv` - Statistical summaries by model
+- `per_dataset_stats.csv` - Statistical summaries by dataset
+- `best_model_per_dataset.csv` - Top performing model for each dataset
+- Various visualization plots (bar charts, boxplots, heatmaps, correlation matrices)
 
 ## 🎨 Interactive Visualization
 
@@ -125,18 +160,28 @@ xdg-open fcm_outputs/path_to_fcm_interactive.html
 start fcm_outputs\path_to_fcm_interactive.html
 ```
 
-## 📈 FCM Evaluation
+## 📈 Research Evaluation & Analysis
 
-### Score Against Ground Truth
+### Batch Processing & Evaluation
 ```bash
-python utils/score_fcm.py --gt-path ../ground_truth/<file_name> --gen-path ../fcm_outputs/output_fcm.json
+# Run extraction for all models and datasets
+python run_evaluation_batch.py
 ```
 
-### Create Visualizations from Existing Data
+### Individual FCM Evaluation
 ```bash
-python utils/visualize_fcm.py --gen-path ../fcm_outputs/<file_name>_fcm.json --interactive
+# Score single FCM against ground truth
+python fcm_extractor/utils/score_fcm.py --gt-path ground_truth/BD006.csv --gen-path fcm_outputs/gpt-4o/BD006/BD006_fcm.json
 
-python utils/visualize_fcm.py --gen-path ../fcm_outputs/<file_name>_fcm.json --summary
+# Create visualizations from existing FCM data
+python fcm_extractor/utils/visualize_fcm.py --gen-path fcm_outputs/gpt-4o/BD006/BD006_fcm.json --interactive
+```
+
+### Post-Process Visualizations
+```bash
+# Remove unconnected nodes from HTML visualizations
+python edit_visualizations.py -i fcm_outputs
+python edit_visualizations.py -i results/biodiversity-data/with-clustering/fcm_outputs -b  # with backup
 ```
 
 <!-- ## 🔧 Advanced Usage
@@ -192,14 +237,30 @@ result = process_single_document("interview.docx")
 - **Memory**: 8GB RAM recommended (16GB for large documents)
 - **Storage**: 2GB free space for models and outputs -->
 
-### Dependencies
-- **Core ML**: numpy, pandas, scikit-learn
-- **Deep Learning**: torch, transformers, sentence-transformers
-- **Clustering**: umap-learn, hdbscan, numba
-- **Visualization**: matplotlib, plotly, networkx, pyvis
-- **LLM APIs**: google-generativeai, openai, langchain-*
-- **Document Processing**: python-docx
-- **Utilities**: python-dotenv, setuptools, protobuf
+
+## 📋 Supported Datasets
+
+The project includes evaluation on multiple research datasets:
+
+- **Biodiversity Data**: 50+ interview transcripts (BD001-BD089) with ground truth FCMs
+- **Caribbean Data**: Stakeholder interviews from Puerto Rico and US Virgin Islands  
+- **Gulf OSW Data**: Offshore wind development stakeholder interviews
+- **CTF Data**: Additional validation dataset
+
+Each dataset supports both clustering and non-clustering evaluation modes.
+
+## 🧪 Research Capabilities
+
+### Model Comparison
+- Systematic evaluation across 6+ LLM models
+- Statistical significance testing with bootstrap confidence intervals
+- Performance visualization with bar charts, boxplots, and heatmaps
+
+### Clustering Analysis  
+- Compare clustering vs non-clustering approaches
+- Evaluate semantic clustering effectiveness on FCM quality
+- Analyze clustering impact on different stakeholder groups
+
 
 
 <!-- ## 📝 Citation
@@ -209,51 +270,27 @@ If you use this tool in your research, please cite:
 ```bibtex
 @software{fcm_extractor,
   title={FCM Extractor: Automated Fuzzy Cognitive Map Extraction from Interview Data},
-  author={Berijani, Maryam},
+  author={Berijanian, Maryam},
   year={2024},
   url={https://github.com/berijani/fcm-extractor},
-  note={A Python package for extracting Fuzzy Cognitive Maps from interview transcripts using NLP and LLMs}
+  note={A comprehensive Python toolkit for extracting Fuzzy Cognitive Maps from interview transcripts using NLP and LLMs with extensive evaluation capabilities}
 }
 ``` -->
-
-<!-- ## 🤝 Contributing
-
-We welcome contributions! Please:
-
-1. **Fork** the repository
-2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
-3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
-4. **Push** to the branch (`git push origin feature/amazing-feature`)
-5. **Open** a Pull Request
-
-### Development Setup
-```bash -->
-<!-- # Install development dependencies
-# pip install -e ".[dev]"
-
-# # Run tests
-# pytest
-
-# # Format code
-# black fcm_extractor/
-
-# # Lint code
-# flake8 fcm_extractor/
-# ``` -->
 
 <!-- ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🆘 Support
+## 🆘 Support & Contact
 
 - **Issues**: [GitHub Issues](https://github.com/berijani/fcm-extractor/issues)
-- **Documentation**: [Wiki](https://github.com/berijani/fcm-extractor/wiki)
-- **Email**: berijani@msu.edu -->
+- **Email**: berijani@msu.edu
+- **Institution**: Michigan State University -->
 <!-- 
 ## 🙏 Acknowledgments
 
-- Built with [OpenAI GPT](https://openai.com/) and [Google Gemini](https://ai.google.dev/) APIs
-- Uses [Sentence Transformers](https://www.sbert.net/) for semantic embeddings
-- Visualization powered by [D3.js](https://d3js.org/) and [Pyvis](https://pyvis.readthedocs.io/)
-- Clustering algorithms from [scikit-learn](https://scikit-learn.org/) and [HDBSCAN](https://hdbscan.readthedocs.io/) -->
+- **LLM APIs**: [OpenAI GPT](https://openai.com/), [Google Gemini](https://ai.google.dev/), [Anthropic Claude](https://anthropic.com/)
+- **Embeddings**: [Sentence Transformers](https://www.sbert.net/) for semantic similarity
+- **Clustering**: [HDBSCAN](https://hdbscan.readthedocs.io/), [UMAP](https://umap-learn.readthedocs.io/)
+- **Visualization**: [D3.js](https://d3js.org/), [Pyvis](https://pyvis.readthedocs.io/), [Matplotlib](https://matplotlib.org/)
+- **Optimization**: Ant Colony Optimization for efficient edge sampling -->

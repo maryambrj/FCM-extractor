@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"stakeholders": {"concepts": "stakeholders", "concept_list": ["stakeholders"], "type": "cluster", "node_size": 18, "label": "stakeholders"}, "fishers": {"concepts": "fishers", "concept_list": ["fishers"], "type": "cluster", "node_size": 18, "label": "fishers"}, "inter-fisher relationships": {"concepts": "inter-fisher relationships", "concept_list": ["inter-fisher relationships"], "type": "cluster", "node_size": 18, "label": "inter-fisher relationships"}, "fishermen input": {"concepts": "fishermen input", "concept_list": ["fishermen input"], "type": "cluster", "node_size": 18, "label": "fishermen input"}, "fisheries conservation": {"concepts": "fisheries conservation", "concept_list": ["fisheries conservation"], "type": "cluster", "node_size": 18, "label": "fisheries conservation"}, "Community Engagement": {"concepts": "regulatory gaps, federal government, government agencies, regulatory fairness, government involvement, government regulation, government support, magnuson-stevens act, government failure, governance, federal regulations, local government, government, regulations, regulatory burden, government relations", "concept_list": ["regulatory gaps", "federal government", "government agencies", "regulatory fairness", "government involvement", "government regulation", "government support", "magnuson-stevens act", "government failure", "governance", "federal regulations", "local government", "government", "regulations", "regulatory burden", "government relations"], "type": "cluster", "node_size": 63, "label": "Community Engagement"}, "Ocean Health": {"concepts": "community engagement, fishing communities, community, community relations, council meetings, social events, community trust, education, generational change, coastal communities, social interactions, social gatherings, us virgin islands", "concept_list": ["community engagement", "fishing communities", "community", "community relations", "council meetings", "social events", "community trust", "education", "generational change", "coastal communities", "social interactions", "social gatherings", "us virgin islands"], "type": "cluster", "node_size": 54, "label": "Ocean Health"}, "Interagency Conflict": {"concepts": "ocean health, water pollution, overfishing, bycatch, disease outbreaks, resource depletion, environmental degradation, mangrove ecosystems, pollution, water quality, environmental impact, invasive species, environmental changes, habitat destruction, coral disease, sargassum seaweed, marine ecology, ecosystem damage, environmental change, runoff pollution, coral reef health, water temperature, climate change, coral reefs", "concept_list": ["ocean health", "water pollution", "overfishing", "bycatch", "disease outbreaks", "resource depletion", "environmental degradation", "mangrove ecosystems", "pollution", "water quality", "environmental impact", "invasive species", "environmental changes", "habitat destruction", "coral disease", "sargassum seaweed", "marine ecology", "ecosystem damage", "environmental change", "runoff pollution", "coral reef health", "water temperature", "climate change", "coral reefs"], "type": "cluster", "node_size": 87, "label": "Interagency Conflict"}, "Fishing Industry": {"concepts": "organizational dysfunction, liaison, cooperation, trust building, inter-island conflict, political influence, trust erosion, enforcement challenges, inter-group conflict, conflict resolution, competition, trust, communication breakdown, leadership conflict, enforcement, relationships, collaboration, interagency cooperation, conflict, mistrust, fairness", "concept_list": ["organizational dysfunction", "liaison", "cooperation", "trust building", "inter-island conflict", "political influence", "trust erosion", "enforcement challenges", "inter-group conflict", "conflict resolution", "competition", "trust", "communication breakdown", "leadership conflict", "enforcement", "relationships", "collaboration", "interagency cooperation", "conflict", "mistrust", "fairness"], "type": "cluster", "node_size": 78, "label": "Fishing Industry"}, "Government Regulation": {"concepts": "bait species, resource conservation, fishing methods, commercial fishing, coral reef, interagency coordination, community dependence, illegal fishing, fish populations, resources, recreational fishing, moratorium, management, fishing gear, price fixing, livelihoods, livelihood dependence, licensing, resource management, fishing industry, livelihood, economic dependence, fishing licenses, overdevelopment, tourism", "concept_list": ["bait species", "resource conservation", "fishing methods", "commercial fishing", "coral reef", "interagency coordination", "community dependence", "illegal fishing", "fish populations", "resources", "recreational fishing", "moratorium", "management", "fishing gear", "price fixing", "livelihoods", "livelihood dependence", "licensing", "resource management", "fishing industry", "livelihood", "economic dependence", "fishing licenses", "overdevelopment", "tourism"], "type": "cluster", "node_size": 90, "label": "Government Regulation"}, "Hurricane Recovery": {"concepts": "personnel, funding, hurricane impacts, director, tax compliance, generational transition, disaster aid, hurricane recovery, organizational change, hurricanes, hurricane impact, generational shift, data collection", "concept_list": ["personnel", "funding", "hurricane impacts", "director", "tax compliance", "generational transition", "disaster aid", "hurricane recovery", "organizational change", "hurricanes", "hurricane impact", "generational shift", "data collection"], "type": "cluster", "node_size": 54, "label": "Hurricane Recovery"}, "St. Croix Fisheries": {"concepts": "community involvement, fish decline, conflicts, decision-making, policy implementation, organizational structure, lionfish, data deficiency, scuba gear, st. croix, coastal development, environmental stewardship, communication, managers", "concept_list": ["community involvement", "fish decline", "conflicts", "decision-making", "policy implementation", "organizational structure", "lionfish", "data deficiency", "scuba gear", "st. croix", "coastal development", "environmental stewardship", "communication", "managers"], "type": "cluster", "node_size": 57, "label": "St. Croix Fisheries"}, "Stakeholder Engagement": {"concepts": "stakeholder collaboration, stakeholder relations", "concept_list": ["stakeholder collaboration", "stakeholder relations"], "type": "cluster", "node_size": 21, "label": "Stakeholder Engagement"}, "Stakeholder Dynamics": {"concepts": "stakeholder conflict, stakeholder relationships", "concept_list": ["stakeholder conflict", "stakeholder relationships"], "type": "cluster", "node_size": 21, "label": "Stakeholder Dynamics"}, "Hurricane Response": {"concepts": "fishermen, fishermen relationships, fishermen participation, commercial fishers, fishermen's association, fisheries dependence", "concept_list": ["fishermen", "fishermen relationships", "fishermen participation", "commercial fishers", "fishermen's association", "fisheries dependence"], "type": "cluster", "node_size": 33, "label": "Hurricane Response"}, "Fishery Management": {"concepts": "fishery management, fishery managers", "concept_list": ["fishery management", "fishery managers"], "type": "cluster", "node_size": 21, "label": "Fishery Management"}, "USVI Fisheries": {"concepts": "usvi fisheries, fisheries", "concept_list": ["usvi fisheries", "fisheries"], "type": "cluster", "node_size": 21, "label": "USVI Fisheries"}, "Fisheries Governance": {"concepts": "fisheries management, fisheries advisory committees, fishery regulations", "concept_list": ["fisheries management", "fisheries advisory committees", "fishery regulations"], "type": "cluster", "node_size": 24, "label": "Fisheries Governance"}};
+        const conceptData = {};
+        const interClusterEdges = [["stakeholders", "fishermen input", {"weight": 1.0, "confidence": 0.8400000000000001, "type": "inter_cluster", "style": "solid"}], ["stakeholders", "St. Croix Fisheries", {"weight": 1.0, "confidence": 0.6875, "type": "inter_cluster", "style": "solid"}], ["fishermen input", "Hurricane Response", {"weight": 1.0, "confidence": 0.9575, "type": "inter_cluster", "style": "solid"}], ["fishermen input", "Stakeholder Engagement", {"weight": 1.0, "confidence": 0.875, "type": "inter_cluster", "style": "solid"}], ["fishermen input", "Ocean Health", {"weight": 1.0, "confidence": 0.8625, "type": "inter_cluster", "style": "solid"}], ["fishermen input", "Government Regulation", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["fishermen input", "Fishing Industry", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["fisheries conservation", "Fishing Industry", {"weight": -0.5, "confidence": 0.7125, "type": "inter_cluster", "style": "solid"}], ["Community Engagement", "Ocean Health", {"weight": -1.0, "confidence": 0.744, "type": "inter_cluster", "style": "solid"}], ["Community Engagement", "fishermen input", {"weight": -1.0, "confidence": 0.7375, "type": "inter_cluster", "style": "solid"}], ["Community Engagement", "Interagency Conflict", {"weight": -1.0, "confidence": 0.7666666666666666, "type": "inter_cluster", "style": "solid"}], ["Community Engagement", "stakeholders", {"weight": -1.0, "confidence": 0.7666666666666666, "type": "inter_cluster", "style": "solid"}], ["Community Engagement", "inter-fisher relationships", {"weight": -1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["Ocean Health", "Fisheries Governance", {"weight": 1.0, "confidence": 0.8433333333333333, "type": "inter_cluster", "style": "solid"}], ["Ocean Health", "fisheries conservation", {"weight": 1.0, "confidence": 0.7833333333333332, "type": "inter_cluster", "style": "solid"}], ["Ocean Health", "Government Regulation", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Ocean Health", "fishers", {"weight": 1.0, "confidence": 0.8500000000000001, "type": "inter_cluster", "style": "solid"}], ["Interagency Conflict", "inter-fisher relationships", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Interagency Conflict", "Community Engagement", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Fishing Industry", "Stakeholder Dynamics", {"weight": 1.0, "confidence": 0.86, "type": "inter_cluster", "style": "solid"}], ["Fishing Industry", "USVI Fisheries", {"weight": -1.0, "confidence": 0.82, "type": "inter_cluster", "style": "solid"}], ["Fishing Industry", "Fishery Management", {"weight": -1.0, "confidence": 0.8625, "type": "inter_cluster", "style": "solid"}], ["Government Regulation", "fisheries conservation", {"weight": 1.0, "confidence": 0.8700000000000001, "type": "inter_cluster", "style": "solid"}], ["Government Regulation", "Interagency Conflict", {"weight": -1.0, "confidence": 0.796, "type": "inter_cluster", "style": "solid"}], ["Government Regulation", "Hurricane Response", {"weight": 0.5, "confidence": 0.875, "type": "inter_cluster", "style": "solid"}], ["Government Regulation", "fishers", {"weight": 0.4, "confidence": 0.72, "type": "inter_cluster", "style": "solid"}], ["Government Regulation", "Fishing Industry", {"weight": -0.5, "confidence": 0.745, "type": "inter_cluster", "style": "solid"}], ["Government Regulation", "St. Croix Fisheries", {"weight": 1.0, "confidence": 0.7999999999999999, "type": "inter_cluster", "style": "solid"}], ["Government Regulation", "fishermen input", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Hurricane Recovery", "inter-fisher relationships", {"weight": 0.6, "confidence": 0.6599999999999999, "type": "inter_cluster", "style": "solid"}], ["Hurricane Recovery", "stakeholders", {"weight": 0.5, "confidence": 0.7625000000000001, "type": "inter_cluster", "style": "solid"}], ["Hurricane Recovery", "fisheries conservation", {"weight": 0.3333333333333333, "confidence": 0.7933333333333333, "type": "inter_cluster", "style": "solid"}], ["Hurricane Recovery", "Government Regulation", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["St. Croix Fisheries", "stakeholders", {"weight": 0.5, "confidence": 0.8124999999999999, "type": "inter_cluster", "style": "solid"}], ["St. Croix Fisheries", "Stakeholder Dynamics", {"weight": 0.5, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["St. Croix Fisheries", "fishers", {"weight": 0.3333333333333333, "confidence": 0.7166666666666668, "type": "inter_cluster", "style": "solid"}], ["St. Croix Fisheries", "inter-fisher relationships", {"weight": 0.3333333333333333, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Stakeholder Engagement", "Stakeholder Dynamics", {"weight": -0.8, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Stakeholder Engagement", "Ocean Health", {"weight": 1.0, "confidence": 0.8875, "type": "inter_cluster", "style": "solid"}], ["Stakeholder Engagement", "stakeholders", {"weight": 1.0, "confidence": 0.9833333333333334, "type": "inter_cluster", "style": "solid"}], ["Stakeholder Engagement", "Fisheries Governance", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["Stakeholder Engagement", "fishers", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Stakeholder Dynamics", "Government Regulation", {"weight": -0.6, "confidence": 0.7300000000000001, "type": "inter_cluster", "style": "solid"}], ["Stakeholder Dynamics", "USVI Fisheries", {"weight": -1.0, "confidence": 0.8125, "type": "inter_cluster", "style": "solid"}], ["Stakeholder Dynamics", "stakeholders", {"weight": -1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["Stakeholder Dynamics", "Fisheries Governance", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Hurricane Response", "Ocean Health", {"weight": 1.0, "confidence": 0.8600000000000001, "type": "inter_cluster", "style": "solid"}], ["Hurricane Response", "fisheries conservation", {"weight": 1.0, "confidence": 0.7833333333333333, "type": "inter_cluster", "style": "solid"}], ["Fishery Management", "St. Croix Fisheries", {"weight": 1.0, "confidence": 0.724, "type": "inter_cluster", "style": "solid"}], ["Fishery Management", "USVI Fisheries", {"weight": 1.0, "confidence": 0.94, "type": "inter_cluster", "style": "solid"}], ["Fishery Management", "fishers", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Fisheries Governance", "Hurricane Recovery", {"weight": 0.6, "confidence": 0.7300000000000001, "type": "inter_cluster", "style": "solid"}], ["Fisheries Governance", "fishers", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {"Community Engagement": [], "Ocean Health": [], "Interagency Conflict": [], "Fishing Industry": [], "Government Regulation": [], "Hurricane Recovery": [], "St. Croix Fisheries": [], "Stakeholder Engagement": [], "Stakeholder Dynamics": [], "Hurricane Response": [], "Fishery Management": [], "USVI Fisheries": [], "Fisheries Governance": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

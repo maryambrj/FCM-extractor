@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"bytecode": {"concepts": "bytecode", "concept_list": ["bytecode"], "type": "cluster", "node_size": 18, "label": "bytecode"}, "function labeling": {"concepts": "function labeling", "concept_list": ["function labeling"], "type": "cluster", "node_size": 18, "label": "function labeling"}, "instruction frequency": {"concepts": "instruction frequency", "concept_list": ["instruction frequency"], "type": "cluster", "node_size": 18, "label": "instruction frequency"}, "software stack": {"concepts": "software stack", "concept_list": ["software stack"], "type": "cluster", "node_size": 18, "label": "software stack"}, "challenge difficulty": {"concepts": "challenge difficulty", "concept_list": ["challenge difficulty"], "type": "cluster", "node_size": 18, "label": "challenge difficulty"}, "ghidra": {"concepts": "ghidra", "concept_list": ["ghidra"], "type": "cluster", "node_size": 18, "label": "ghidra"}, "decompiling": {"concepts": "decompiling", "concept_list": ["decompiling"], "type": "cluster", "node_size": 18, "label": "decompiling"}, "gnu exploitation framework": {"concepts": "gnu exploitation framework", "concept_list": ["gnu exploitation framework"], "type": "cluster", "node_size": 18, "label": "gnu exploitation framework"}, "user friendliness": {"concepts": "user friendliness", "concept_list": ["user friendliness"], "type": "cluster", "node_size": 18, "label": "user friendliness"}, "undetermined influence": {"concepts": "undetermined influence", "concept_list": ["undetermined influence"], "type": "cluster", "node_size": 18, "label": "undetermined influence"}, "os": {"concepts": "os", "concept_list": ["os"], "type": "cluster", "node_size": 18, "label": "os"}, "task analysis": {"concepts": "task analysis", "concept_list": ["task analysis"], "type": "cluster", "node_size": 18, "label": "task analysis"}, "research input": {"concepts": "research input", "concept_list": ["research input"], "type": "cluster", "node_size": 18, "label": "research input"}, "binary": {"concepts": "binary", "concept_list": ["binary"], "type": "cluster", "node_size": 18, "label": "binary"}, "compiler stamping": {"concepts": "compiler stamping", "concept_list": ["compiler stamping"], "type": "cluster", "node_size": 18, "label": "compiler stamping"}, "binary analysis": {"concepts": "binary analysis", "concept_list": ["binary analysis"], "type": "cluster", "node_size": 18, "label": "binary analysis"}, "templating": {"concepts": "templating", "concept_list": ["templating"], "type": "cluster", "node_size": 18, "label": "templating"}, "outcome determination": {"concepts": "outcome determination", "concept_list": ["outcome determination"], "type": "cluster", "node_size": 18, "label": "outcome determination"}, "technical difficulty": {"concepts": "technical difficulty", "concept_list": ["technical difficulty"], "type": "cluster", "node_size": 18, "label": "technical difficulty"}, "analysis tools": {"concepts": "analysis tools", "concept_list": ["analysis tools"], "type": "cluster", "node_size": 18, "label": "analysis tools"}, "details": {"concepts": "details", "concept_list": ["details"], "type": "cluster", "node_size": 18, "label": "details"}, "hex editor": {"concepts": "hex editor", "concept_list": ["hex editor"], "type": "cluster", "node_size": 18, "label": "hex editor"}, "programming language": {"concepts": "programming language", "concept_list": ["programming language"], "type": "cluster", "node_size": 18, "label": "programming language"}, "library version": {"concepts": "library version", "concept_list": ["library version"], "type": "cluster", "node_size": 18, "label": "library version"}, "decompilation": {"concepts": "decompilation", "concept_list": ["decompilation"], "type": "cluster", "node_size": 18, "label": "decompilation"}, "input method": {"concepts": "input method", "concept_list": ["input method"], "type": "cluster", "node_size": 18, "label": "input method"}, "templated code": {"concepts": "templated code", "concept_list": ["templated code"], "type": "cluster", "node_size": 18, "label": "templated code"}, "enablement": {"concepts": "enablement", "concept_list": ["enablement"], "type": "cluster", "node_size": 18, "label": "enablement"}, "computer visualization": {"concepts": "computer visualization", "concept_list": ["computer visualization"], "type": "cluster", "node_size": 18, "label": "computer visualization"}, "architecture determination": {"concepts": "architecture determination", "concept_list": ["architecture determination"], "type": "cluster", "node_size": 18, "label": "architecture determination"}, "competition success": {"concepts": "competition success", "concept_list": ["competition success"], "type": "cluster", "node_size": 18, "label": "competition success"}, "package availability": {"concepts": "package availability", "concept_list": ["package availability"], "type": "cluster", "node_size": 18, "label": "package availability"}, "static analysis": {"concepts": "static analysis", "concept_list": ["static analysis"], "type": "cluster", "node_size": 18, "label": "static analysis"}, "technical success": {"concepts": "technical success", "concept_list": ["technical success"], "type": "cluster", "node_size": 18, "label": "technical success"}, "rsa": {"concepts": "rsa", "concept_list": ["rsa"], "type": "cluster", "node_size": 18, "label": "rsa"}, "unstructured data": {"concepts": "unstructured data", "concept_list": ["unstructured data"], "type": "cluster", "node_size": 18, "label": "unstructured data"}, "statically compiled": {"concepts": "statically compiled", "concept_list": ["statically compiled"], "type": "cluster", "node_size": 18, "label": "statically compiled"}, "breakpoint": {"concepts": "breakpoint", "concept_list": ["breakpoint"], "type": "cluster", "node_size": 18, "label": "breakpoint"}, "binwalk": {"concepts": "binwalk", "concept_list": ["binwalk"], "type": "cluster", "node_size": 18, "label": "binwalk"}, "hosting location": {"concepts": "hosting location", "concept_list": ["hosting location"], "type": "cluster", "node_size": 18, "label": "hosting location"}, "research process": {"concepts": "research process", "concept_list": ["research process"], "type": "cluster", "node_size": 18, "label": "research process"}, "outcome": {"concepts": "outcome", "concept_list": ["outcome"], "type": "cluster", "node_size": 18, "label": "outcome"}, "dynamic modifications": {"concepts": "dynamic modifications", "concept_list": ["dynamic modifications"], "type": "cluster", "node_size": 18, "label": "dynamic modifications"}, "problem solving": {"concepts": "problem solving", "concept_list": ["problem solving"], "type": "cluster", "node_size": 18, "label": "problem solving"}, "surprise": {"concepts": "surprise", "concept_list": ["surprise"], "type": "cluster", "node_size": 18, "label": "surprise"}, "geography": {"concepts": "geography", "concept_list": ["geography"], "type": "cluster", "node_size": 18, "label": "geography"}, "disruption": {"concepts": "disruption", "concept_list": ["disruption"], "type": "cluster", "node_size": 18, "label": "disruption"}, "compiler identification": {"concepts": "compiler identification", "concept_list": ["compiler identification"], "type": "cluster", "node_size": 18, "label": "compiler identification"}, "prior knowledge": {"concepts": "prior knowledge", "concept_list": ["prior knowledge"], "type": "cluster", "node_size": 18, "label": "prior knowledge"}, "decision process": {"concepts": "decision process", "concept_list": ["decision process"], "type": "cluster", "node_size": 18, "label": "decision process"}, "frequency analysis": {"concepts": "frequency analysis", "concept_list": ["frequency analysis"], "type": "cluster", "node_size": 18, "label": "frequency analysis"}, "decision": {"concepts": "decision", "concept_list": ["decision"], "type": "cluster", "node_size": 18, "label": "decision"}, "file format recognition": {"concepts": "file format recognition", "concept_list": ["file format recognition"], "type": "cluster", "node_size": 18, "label": "file format recognition"}, "setup": {"concepts": "setup", "concept_list": ["setup"], "type": "cluster", "node_size": 18, "label": "setup"}, "file identification": {"concepts": "file identification", "concept_list": ["file identification"], "type": "cluster", "node_size": 18, "label": "file identification"}, "major os": {"concepts": "major os", "concept_list": ["major os"], "type": "cluster", "node_size": 18, "label": "major os"}, "control flow": {"concepts": "control flow", "concept_list": ["control flow"], "type": "cluster", "node_size": 18, "label": "control flow"}, "gef": {"concepts": "gef", "concept_list": ["gef"], "type": "cluster", "node_size": 18, "label": "gef"}, "architecture": {"concepts": "architecture", "concept_list": ["architecture"], "type": "cluster", "node_size": 18, "label": "architecture"}, "python packages": {"concepts": "python packages", "concept_list": ["python packages"], "type": "cluster", "node_size": 18, "label": "python packages"}, "runtime decompression": {"concepts": "runtime decompression", "concept_list": ["runtime decompression"], "type": "cluster", "node_size": 18, "label": "runtime decompression"}, "static linking": {"concepts": "static linking", "concept_list": ["static linking"], "type": "cluster", "node_size": 18, "label": "static linking"}, "tls": {"concepts": "tls", "concept_list": ["tls"], "type": "cluster", "node_size": 18, "label": "tls"}, "goal-oriented task": {"concepts": "goal-oriented task", "concept_list": ["goal-oriented task"], "type": "cluster", "node_size": 18, "label": "goal-oriented task"}, "issues": {"concepts": "issues", "concept_list": ["issues"], "type": "cluster", "node_size": 18, "label": "issues"}, "research": {"concepts": "research", "concept_list": ["research"], "type": "cluster", "node_size": 18, "label": "research"}, "script development": {"concepts": "script development", "concept_list": ["script development"], "type": "cluster", "node_size": 18, "label": "script development"}, "ping time": {"concepts": "ping time", "concept_list": ["ping time"], "type": "cluster", "node_size": 18, "label": "ping time"}, "mitigation strategy": {"concepts": "mitigation strategy", "concept_list": ["mitigation strategy"], "type": "cluster", "node_size": 18, "label": "mitigation strategy"}, "linux": {"concepts": "linux", "concept_list": ["linux"], "type": "cluster", "node_size": 18, "label": "linux"}, "reverse engineering": {"concepts": "reverse engineering", "concept_list": ["reverse engineering"], "type": "cluster", "node_size": 18, "label": "reverse engineering"}, "causal mapping": {"concepts": "causal mapping", "concept_list": ["causal mapping"], "type": "cluster", "node_size": 18, "label": "causal mapping"}, "debugger user friendliness": {"concepts": "debugger user friendliness", "concept_list": ["debugger user friendliness"], "type": "cluster", "node_size": 18, "label": "debugger user friendliness"}, "program running": {"concepts": "program running", "concept_list": ["program running"], "type": "cluster", "node_size": 18, "label": "program running"}, "go": {"concepts": "go", "concept_list": ["go"], "type": "cluster", "node_size": 18, "label": "go"}, "file signature": {"concepts": "file signature", "concept_list": ["file signature"], "type": "cluster", "node_size": 18, "label": "file signature"}, "data structures": {"concepts": "data structures", "concept_list": ["data structures"], "type": "cluster", "node_size": 18, "label": "data structures"}, "visualization software": {"concepts": "visualization software", "concept_list": ["visualization software"], "type": "cluster", "node_size": 18, "label": "visualization software"}, "causal factors": {"concepts": "causal factors", "concept_list": ["causal factors"], "type": "cluster", "node_size": 18, "label": "causal factors"}, "multiple languages": {"concepts": "multiple languages", "concept_list": ["multiple languages"], "type": "cluster", "node_size": 18, "label": "multiple languages"}, "code automation": {"concepts": "code automation", "concept_list": ["code automation"], "type": "cluster", "node_size": 18, "label": "code automation"}, "distraction": {"concepts": "distraction", "concept_list": ["distraction"], "type": "cluster", "node_size": 18, "label": "distraction"}, "openssl": {"concepts": "openssl", "concept_list": ["openssl"], "type": "cluster", "node_size": 18, "label": "openssl"}, "causal chain": {"concepts": "causal chain", "concept_list": ["causal chain"], "type": "cluster", "node_size": 18, "label": "causal chain"}, "protocol identification": {"concepts": "protocol identification", "concept_list": ["protocol identification"], "type": "cluster", "node_size": 18, "label": "protocol identification"}, "function identification": {"concepts": "function identification", "concept_list": ["function identification"], "type": "cluster", "node_size": 18, "label": "function identification"}, "san francisco": {"concepts": "san francisco", "concept_list": ["san francisco"], "type": "cluster", "node_size": 18, "label": "san francisco"}, "system architecture": {"concepts": "system architecture", "concept_list": ["system architecture"], "type": "cluster", "node_size": 18, "label": "system architecture"}, "inhibition": {"concepts": "inhibition", "concept_list": ["inhibition"], "type": "cluster", "node_size": 18, "label": "inhibition"}, "negative edge": {"concepts": "negative edge", "concept_list": ["negative edge"], "type": "cluster", "node_size": 18, "label": "negative edge"}, "knowledge": {"concepts": "knowledge", "concept_list": ["knowledge"], "type": "cluster", "node_size": 18, "label": "knowledge"}, "application loading": {"concepts": "application loading", "concept_list": ["application loading"], "type": "cluster", "node_size": 18, "label": "application loading"}, "functions": {"concepts": "functions", "concept_list": ["functions"], "type": "cluster", "node_size": 18, "label": "functions"}, "success factors": {"concepts": "success factors", "concept_list": ["success factors"], "type": "cluster", "node_size": 18, "label": "success factors"}, "heap": {"concepts": "heap", "concept_list": ["heap"], "type": "cluster", "node_size": 18, "label": "heap"}, "compiler strings": {"concepts": "compiler strings", "concept_list": ["compiler strings"], "type": "cluster", "node_size": 18, "label": "compiler strings"}, "custom protocol": {"concepts": "custom protocol", "concept_list": ["custom protocol"], "type": "cluster", "node_size": 18, "label": "custom protocol"}, "run time": {"concepts": "run time", "concept_list": ["run time"], "type": "cluster", "node_size": 18, "label": "run time"}, "causal relationship": {"concepts": "causal relationship", "concept_list": ["causal relationship"], "type": "cluster", "node_size": 18, "label": "causal relationship"}};
+        const conceptData = {};
+        const interClusterEdges = [["bytecode", "challenge difficulty", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["bytecode", "surprise", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["function labeling", "problem solving", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["software stack", "causal mapping", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["ghidra", "binary", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["ghidra", "details", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["decompiling", "reverse engineering", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["task analysis", "frequency analysis", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["research input", "script development", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["binary analysis", "runtime decompression", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["templating", "issues", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["analysis tools", "visualization software", {"weight": 1.0, "confidence": 0.8500000000000001, "type": "inter_cluster", "style": "solid"}], ["analysis tools", "causal chain", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["analysis tools", "data structures", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["hex editor", "bytecode", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["programming language", "instruction frequency", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["library version", "compiler stamping", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["input method", "breakpoint", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["templated code", "causal factors", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["enablement", "statically compiled", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["architecture determination", "debugger user friendliness", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["architecture determination", "architecture", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["competition success", "templated code", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["competition success", "challenge difficulty", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["package availability", "user friendliness", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["technical success", "disruption", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["unstructured data", "technical difficulty", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["binwalk", "knowledge", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["hosting location", "prior knowledge", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["research process", "function identification", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["outcome", "ping time", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["problem solving", "mitigation strategy", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["problem solving", "file signature", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["surprise", "outcome determination", {"weight": -1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["compiler identification", "surprise", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["decision process", "undetermined influence", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["frequency analysis", "multiple languages", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["decision", "functions", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["file format recognition", "os", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["setup", "system architecture", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["major os", "protocol identification", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["major os", "decompiling", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["major os", "causal relationship", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["gef", "challenge difficulty", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["architecture", "static analysis", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["runtime decompression", "decompilation", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["static linking", "application loading", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["goal-oriented task", "computer visualization", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["issues", "statically compiled", {"weight": 0.5, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["research", "control flow", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["ping time", "inhibition", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["linux", "reverse engineering", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["causal mapping", "static analysis", {"weight": 0.3333333333333333, "confidence": 0.19999999999999998, "type": "inter_cluster", "style": "solid"}], ["debugger user friendliness", "gnu exploitation framework", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["debugger user friendliness", "programming language", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["go", "compiler stamping", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["go", "success factors", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["file signature", "problem solving", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["code automation", "binary analysis", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["distraction", "python packages", {"weight": -0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["openssl", "rsa", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["protocol identification", "program running", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["function identification", "functions", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["function identification", "decision process", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["san francisco", "tls", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["heap", "dynamic modifications", {"weight": 0.3333333333333333, "confidence": 0.19999999999999998, "type": "inter_cluster", "style": "solid"}], ["compiler strings", "causal relationship", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["custom protocol", "negative edge", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["run time", "geography", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["causal relationship", "file identification", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"family visits": {"concepts": "family visits", "concept_list": ["family visits"], "type": "cluster", "node_size": 18, "label": "family visits"}, "drug addiction": {"concepts": "drug addiction", "concept_list": ["drug addiction"], "type": "cluster", "node_size": 18, "label": "drug addiction"}, "capitalism": {"concepts": "capitalism", "concept_list": ["capitalism"], "type": "cluster", "node_size": 18, "label": "capitalism"}, "community": {"concepts": "community", "concept_list": ["community"], "type": "cluster", "node_size": 18, "label": "community"}, "covid-19": {"concepts": "covid-19", "concept_list": ["covid-19"], "type": "cluster", "node_size": 18, "label": "covid-19"}, "nutrition programs": {"concepts": "nutrition programs", "concept_list": ["nutrition programs"], "type": "cluster", "node_size": 18, "label": "nutrition programs"}, "healthy eating": {"concepts": "healthy eating", "concept_list": ["healthy eating"], "type": "cluster", "node_size": 18, "label": "healthy eating"}, "local restaurants": {"concepts": "local restaurants", "concept_list": ["local restaurants"], "type": "cluster", "node_size": 18, "label": "local restaurants"}, "sodexo": {"concepts": "sodexo", "concept_list": ["sodexo"], "type": "cluster", "node_size": 18, "label": "sodexo"}, "supplemental nutrition": {"concepts": "supplemental nutrition", "concept_list": ["supplemental nutrition"], "type": "cluster", "node_size": 18, "label": "supplemental nutrition"}, "covid impact": {"concepts": "covid impact", "concept_list": ["covid impact"], "type": "cluster", "node_size": 18, "label": "covid impact"}, "affordability": {"concepts": "affordability", "concept_list": ["affordability"], "type": "cluster", "node_size": 18, "label": "affordability"}, "feeding": {"concepts": "feeding", "concept_list": ["feeding"], "type": "cluster", "node_size": 18, "label": "feeding"}, "residents": {"concepts": "residents", "concept_list": ["residents"], "type": "cluster", "node_size": 18, "label": "residents"}, "pandemic effects": {"concepts": "pandemic effects", "concept_list": ["pandemic effects"], "type": "cluster", "node_size": 18, "label": "pandemic effects"}, "community empowerment": {"concepts": "community empowerment", "concept_list": ["community empowerment"], "type": "cluster", "node_size": 18, "label": "community empowerment"}, "retail use": {"concepts": "retail use", "concept_list": ["retail use"], "type": "cluster", "node_size": 18, "label": "retail use"}, "volunteers": {"concepts": "volunteers", "concept_list": ["volunteers"], "type": "cluster", "node_size": 18, "label": "volunteers"}, "volunteer labor": {"concepts": "volunteer labor", "concept_list": ["volunteer labor"], "type": "cluster", "node_size": 18, "label": "volunteer labor"}, "nutrition": {"concepts": "nutrition", "concept_list": ["nutrition"], "type": "cluster", "node_size": 18, "label": "nutrition"}, "sanitation practices": {"concepts": "sanitation practices", "concept_list": ["sanitation practices"], "type": "cluster", "node_size": 18, "label": "sanitation practices"}, "rat poison": {"concepts": "rat poison", "concept_list": ["rat poison"], "type": "cluster", "node_size": 18, "label": "rat poison"}, "child caregivers": {"concepts": "child caregivers", "concept_list": ["child caregivers"], "type": "cluster", "node_size": 18, "label": "child caregivers"}, "workers unions": {"concepts": "workers unions", "concept_list": ["workers unions"], "type": "cluster", "node_size": 18, "label": "workers unions"}, "social connection": {"concepts": "social connection", "concept_list": ["social connection"], "type": "cluster", "node_size": 18, "label": "social connection"}, "children": {"concepts": "children", "concept_list": ["children"], "type": "cluster", "node_size": 18, "label": "children"}, "school infrastructure": {"concepts": "school infrastructure", "concept_list": ["school infrastructure"], "type": "cluster", "node_size": 18, "label": "school infrastructure"}, "school facilities": {"concepts": "school facilities", "concept_list": ["school facilities"], "type": "cluster", "node_size": 18, "label": "school facilities"}, "student nutrition": {"concepts": "student nutrition", "concept_list": ["student nutrition"], "type": "cluster", "node_size": 18, "label": "student nutrition"}, "food quality": {"concepts": "food quality", "concept_list": ["food quality"], "type": "cluster", "node_size": 18, "label": "food quality"}, "systems of oppression": {"concepts": "systems of oppression", "concept_list": ["systems of oppression"], "type": "cluster", "node_size": 18, "label": "systems of oppression"}, "food desert": {"concepts": "food desert", "concept_list": ["food desert"], "type": "cluster", "node_size": 18, "label": "food desert"}, "car dependency": {"concepts": "car dependency", "concept_list": ["car dependency"], "type": "cluster", "node_size": 18, "label": "car dependency"}, "michigan": {"concepts": "michigan", "concept_list": ["michigan"], "type": "cluster", "node_size": 18, "label": "michigan"}, "crim fitness foundation": {"concepts": "crim fitness foundation", "concept_list": ["crim fitness foundation"], "type": "cluster", "node_size": 18, "label": "crim fitness foundation"}, "outsourcing companies": {"concepts": "outsourcing companies", "concept_list": ["outsourcing companies"], "type": "cluster", "node_size": 18, "label": "outsourcing companies"}, "criminal charges": {"concepts": "criminal charges", "concept_list": ["criminal charges"], "type": "cluster", "node_size": 18, "label": "criminal charges"}, "home delivery": {"concepts": "home delivery", "concept_list": ["home delivery"], "type": "cluster", "node_size": 18, "label": "home delivery"}, "convenience stores": {"concepts": "convenience stores", "concept_list": ["convenience stores"], "type": "cluster", "node_size": 18, "label": "convenience stores"}, "american cities": {"concepts": "american cities", "concept_list": ["american cities"], "type": "cluster", "node_size": 18, "label": "american cities"}, "community resilience": {"concepts": "community resilience", "concept_list": ["community resilience"], "type": "cluster", "node_size": 18, "label": "community resilience"}, "communal outlook": {"concepts": "communal outlook", "concept_list": ["communal outlook"], "type": "cluster", "node_size": 18, "label": "communal outlook"}, "food availability": {"concepts": "food availability", "concept_list": ["food availability"], "type": "cluster", "node_size": 18, "label": "food availability"}, "wage cuts": {"concepts": "wage cuts", "concept_list": ["wage cuts"], "type": "cluster", "node_size": 18, "label": "wage cuts"}, "personal gain": {"concepts": "personal gain", "concept_list": ["personal gain"], "type": "cluster", "node_size": 18, "label": "personal gain"}, "food distribution": {"concepts": "food distribution", "concept_list": ["food distribution"], "type": "cluster", "node_size": 18, "label": "food distribution"}, "drive-through events": {"concepts": "drive-through events", "concept_list": ["drive-through events"], "type": "cluster", "node_size": 18, "label": "drive-through events"}, "media outreach": {"concepts": "media outreach", "concept_list": ["media outreach"], "type": "cluster", "node_size": 18, "label": "media outreach"}, "education sector": {"concepts": "education sector", "concept_list": ["education sector"], "type": "cluster", "node_size": 18, "label": "education sector"}, "churches": {"concepts": "churches", "concept_list": ["churches"], "type": "cluster", "node_size": 18, "label": "churches"}, "flik schools": {"concepts": "flik schools", "concept_list": ["flik schools"], "type": "cluster", "node_size": 18, "label": "flik schools"}, "students": {"concepts": "students", "concept_list": ["students"], "type": "cluster", "node_size": 18, "label": "students"}, "corruption": {"concepts": "corruption", "concept_list": ["corruption"], "type": "cluster", "node_size": 18, "label": "corruption"}, "community events": {"concepts": "community events", "concept_list": ["community events"], "type": "cluster", "node_size": 18, "label": "community events"}, "academia": {"concepts": "academia", "concept_list": ["academia"], "type": "cluster", "node_size": 18, "label": "academia"}, "support events": {"concepts": "support events", "concept_list": ["support events"], "type": "cluster", "node_size": 18, "label": "support events"}, "backpack program": {"concepts": "backpack program", "concept_list": ["backpack program"], "type": "cluster", "node_size": 18, "label": "backpack program"}, "mental health": {"concepts": "mental health", "concept_list": ["mental health"], "type": "cluster", "node_size": 18, "label": "mental health"}, "wic": {"concepts": "wic", "concept_list": ["wic"], "type": "cluster", "node_size": 18, "label": "wic"}, "homelessness": {"concepts": "homelessness", "concept_list": ["homelessness"], "type": "cluster", "node_size": 18, "label": "homelessness"}, "americorps": {"concepts": "americorps", "concept_list": ["americorps"], "type": "cluster", "node_size": 18, "label": "americorps"}, "gentrification": {"concepts": "gentrification", "concept_list": ["gentrification"], "type": "cluster", "node_size": 18, "label": "gentrification"}, "poverty effects": {"concepts": "poverty effects", "concept_list": ["poverty effects"], "type": "cluster", "node_size": 18, "label": "poverty effects"}, "education": {"concepts": "education", "concept_list": ["education"], "type": "cluster", "node_size": 18, "label": "education"}, "resident experiences": {"concepts": "resident experiences", "concept_list": ["resident experiences"], "type": "cluster", "node_size": 18, "label": "resident experiences"}, "police spending": {"concepts": "police spending", "concept_list": ["police spending"], "type": "cluster", "node_size": 18, "label": "police spending"}, "hygiene supplies": {"concepts": "hygiene supplies", "concept_list": ["hygiene supplies"], "type": "cluster", "node_size": 18, "label": "hygiene supplies"}, "advocacy": {"concepts": "advocacy", "concept_list": ["advocacy"], "type": "cluster", "node_size": 18, "label": "advocacy"}, "transportation": {"concepts": "transportation", "concept_list": ["transportation"], "type": "cluster", "node_size": 18, "label": "transportation"}, "schools": {"concepts": "schools", "concept_list": ["schools"], "type": "cluster", "node_size": 18, "label": "schools"}, "lead exposure": {"concepts": "lead exposure", "concept_list": ["lead exposure"], "type": "cluster", "node_size": 18, "label": "lead exposure"}, "hospital food": {"concepts": "hospital food", "concept_list": ["hospital food"], "type": "cluster", "node_size": 18, "label": "hospital food"}, "bar scene": {"concepts": "bar scene", "concept_list": ["bar scene"], "type": "cluster", "node_size": 18, "label": "bar scene"}, "holistic wellness": {"concepts": "holistic wellness", "concept_list": ["holistic wellness"], "type": "cluster", "node_size": 18, "label": "holistic wellness"}, "covid-19 impact": {"concepts": "covid-19 impact", "concept_list": ["covid-19 impact"], "type": "cluster", "node_size": 18, "label": "covid-19 impact"}, "fresh produce": {"concepts": "fresh produce", "concept_list": ["fresh produce"], "type": "cluster", "node_size": 18, "label": "fresh produce"}, "nut allergies": {"concepts": "nut allergies", "concept_list": ["nut allergies"], "type": "cluster", "node_size": 18, "label": "nut allergies"}, "household needs": {"concepts": "household needs", "concept_list": ["household needs"], "type": "cluster", "node_size": 18, "label": "household needs"}, "educational environment": {"concepts": "educational environment", "concept_list": ["educational environment"], "type": "cluster", "node_size": 18, "label": "educational environment"}, "generational issue": {"concepts": "generational issue", "concept_list": ["generational issue"], "type": "cluster", "node_size": 18, "label": "generational issue"}, "prison food": {"concepts": "prison food", "concept_list": ["prison food"], "type": "cluster", "node_size": 18, "label": "prison food"}, "family support": {"concepts": "family support", "concept_list": ["family support"], "type": "cluster", "node_size": 18, "label": "family support"}, "religious dietary needs": {"concepts": "religious dietary needs", "concept_list": ["religious dietary needs"], "type": "cluster", "node_size": 18, "label": "religious dietary needs"}, "rent": {"concepts": "rent", "concept_list": ["rent"], "type": "cluster", "node_size": 18, "label": "rent"}, "support staff": {"concepts": "support staff", "concept_list": ["support staff"], "type": "cluster", "node_size": 18, "label": "support staff"}, "care": {"concepts": "care", "concept_list": ["care"], "type": "cluster", "node_size": 18, "label": "care"}, "sugary drinks": {"concepts": "sugary drinks", "concept_list": ["sugary drinks"], "type": "cluster", "node_size": 18, "label": "sugary drinks"}, "teachers": {"concepts": "teachers", "concept_list": ["teachers"], "type": "cluster", "node_size": 18, "label": "teachers"}, "islamic children": {"concepts": "islamic children", "concept_list": ["islamic children"], "type": "cluster", "node_size": 18, "label": "islamic children"}, "food insecurity": {"concepts": "food insecurity", "concept_list": ["food insecurity"], "type": "cluster", "node_size": 18, "label": "food insecurity"}, "community engagement": {"concepts": "community engagement", "concept_list": ["community engagement"], "type": "cluster", "node_size": 18, "label": "community engagement"}, "surgery recovery": {"concepts": "surgery recovery", "concept_list": ["surgery recovery"], "type": "cluster", "node_size": 18, "label": "surgery recovery"}, "outreach": {"concepts": "outreach", "concept_list": ["outreach"], "type": "cluster", "node_size": 18, "label": "outreach"}, "food stamps": {"concepts": "food stamps", "concept_list": ["food stamps"], "type": "cluster", "node_size": 18, "label": "food stamps"}, "government responsibility": {"concepts": "government responsibility", "concept_list": ["government responsibility"], "type": "cluster", "node_size": 18, "label": "government responsibility"}, "canned goods": {"concepts": "canned goods", "concept_list": ["canned goods"], "type": "cluster", "node_size": 18, "label": "canned goods"}, "meetings": {"concepts": "meetings", "concept_list": ["meetings"], "type": "cluster", "node_size": 18, "label": "meetings"}, "emergency sector": {"concepts": "emergency sector", "concept_list": ["emergency sector"], "type": "cluster", "node_size": 18, "label": "emergency sector"}, "public health": {"concepts": "public health", "concept_list": ["public health"], "type": "cluster", "node_size": 18, "label": "public health"}, "unhealthy food": {"concepts": "unhealthy food", "concept_list": ["unhealthy food"], "type": "cluster", "node_size": 18, "label": "unhealthy food"}, "community response": {"concepts": "community response", "concept_list": ["community response"], "type": "cluster", "node_size": 18, "label": "community response"}, "shelters": {"concepts": "shelters", "concept_list": ["shelters"], "type": "cluster", "node_size": 18, "label": "shelters"}, "social equity": {"concepts": "social equity", "concept_list": ["social equity"], "type": "cluster", "node_size": 18, "label": "social equity"}, "social media": {"concepts": "social media", "concept_list": ["social media"], "type": "cluster", "node_size": 18, "label": "social media"}, "leverage points": {"concepts": "leverage points", "concept_list": ["leverage points"], "type": "cluster", "node_size": 18, "label": "leverage points"}, "childhood disabilities": {"concepts": "childhood disabilities", "concept_list": ["childhood disabilities"], "type": "cluster", "node_size": 18, "label": "childhood disabilities"}, "food preparation": {"concepts": "food preparation", "concept_list": ["food preparation"], "type": "cluster", "node_size": 18, "label": "food preparation"}, "lunch staff": {"concepts": "lunch staff", "concept_list": ["lunch staff"], "type": "cluster", "node_size": 18, "label": "lunch staff"}, "high rent": {"concepts": "high rent", "concept_list": ["high rent"], "type": "cluster", "node_size": 18, "label": "high rent"}, "school food": {"concepts": "school food", "concept_list": ["school food"], "type": "cluster", "node_size": 18, "label": "school food"}, "janitorial work": {"concepts": "janitorial work", "concept_list": ["janitorial work"], "type": "cluster", "node_size": 18, "label": "janitorial work"}, "food system": {"concepts": "food system", "concept_list": ["food system"], "type": "cluster", "node_size": 18, "label": "food system"}, "child health": {"concepts": "child health", "concept_list": ["child health"], "type": "cluster", "node_size": 18, "label": "child health"}, "weather impact": {"concepts": "weather impact", "concept_list": ["weather impact"], "type": "cluster", "node_size": 18, "label": "weather impact"}, "education system": {"concepts": "education system", "concept_list": ["education system"], "type": "cluster", "node_size": 18, "label": "education system"}, "fast food": {"concepts": "fast food", "concept_list": ["fast food"], "type": "cluster", "node_size": 18, "label": "fast food"}, "starvation": {"concepts": "starvation", "concept_list": ["starvation"], "type": "cluster", "node_size": 18, "label": "starvation"}, "community support": {"concepts": "community support", "concept_list": ["community support"], "type": "cluster", "node_size": 18, "label": "community support"}, "flint schools": {"concepts": "flint schools", "concept_list": ["flint schools"], "type": "cluster", "node_size": 18, "label": "flint schools"}, "kroger": {"concepts": "kroger", "concept_list": ["kroger"], "type": "cluster", "node_size": 18, "label": "kroger"}, "labor conditions": {"concepts": "labor conditions", "concept_list": ["labor conditions"], "type": "cluster", "node_size": 18, "label": "labor conditions"}, "dumpster diving": {"concepts": "dumpster diving", "concept_list": ["dumpster diving"], "type": "cluster", "node_size": 18, "label": "dumpster diving"}, "community building": {"concepts": "community building", "concept_list": ["community building"], "type": "cluster", "node_size": 18, "label": "community building"}, "seasonal challenges": {"concepts": "seasonal challenges", "concept_list": ["seasonal challenges"], "type": "cluster", "node_size": 18, "label": "seasonal challenges"}, "unemployment benefits": {"concepts": "unemployment benefits", "concept_list": ["unemployment benefits"], "type": "cluster", "node_size": 18, "label": "unemployment benefits"}, "food security": {"concepts": "food security", "concept_list": ["food security"], "type": "cluster", "node_size": 18, "label": "food security"}, "food outsourcing": {"concepts": "food outsourcing", "concept_list": ["food outsourcing"], "type": "cluster", "node_size": 18, "label": "food outsourcing"}, "halal food": {"concepts": "halal food", "concept_list": ["halal food"], "type": "cluster", "node_size": 18, "label": "halal food"}, "personal visits": {"concepts": "personal visits", "concept_list": ["personal visits"], "type": "cluster", "node_size": 18, "label": "personal visits"}, "flint": {"concepts": "flint", "concept_list": ["flint"], "type": "cluster", "node_size": 18, "label": "flint"}, "american problem": {"concepts": "american problem", "concept_list": ["american problem"], "type": "cluster", "node_size": 18, "label": "american problem"}, "school coaches": {"concepts": "school coaches", "concept_list": ["school coaches"], "type": "cluster", "node_size": 18, "label": "school coaches"}, "diapers": {"concepts": "diapers", "concept_list": ["diapers"], "type": "cluster", "node_size": 18, "label": "diapers"}};
+        const conceptData = {};
+        const interClusterEdges = [["family visits", "schools", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["drug addiction", "public health", {"weight": -1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["drug addiction", "school facilities", {"weight": -0.5, "confidence": 0.275, "type": "inter_cluster", "style": "solid"}], ["capitalism", "food insecurity", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["community", "diapers", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["covid-19", "covid impact", {"weight": 1.0, "confidence": 1.0, "type": "inter_cluster", "style": "solid"}], ["covid-19", "shelters", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["covid-19", "janitorial work", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["covid-19", "personal gain", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["local restaurants", "fast food", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["sodexo", "sanitation practices", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["sodexo", "wage cuts", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["residents", "meetings", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["community empowerment", "community support", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["community empowerment", "fresh produce", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["community empowerment", "community events", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["retail use", "nutrition", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["retail use", "food preparation", {"weight": 0.5, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["volunteer labor", "community engagement", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["volunteer labor", "academia", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["rat poison", "starvation", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["child caregivers", "american problem", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["workers unions", "food system", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["children", "education", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["children", "media outreach", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["school infrastructure", "food outsourcing", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["school infrastructure", "nut allergies", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["school facilities", "support events", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["student nutrition", "nut allergies", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food quality", "affordability", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["systems of oppression", "diapers", {"weight": -1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["food desert", "canned goods", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["michigan", "halal food", {"weight": 1.0, "confidence": 0.6000000000000001, "type": "inter_cluster", "style": "solid"}], ["crim fitness foundation", "fresh produce", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["outsourcing companies", "starvation", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["home delivery", "nutrition programs", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["american cities", "education", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["community resilience", "food preparation", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["communal outlook", "food outsourcing", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["communal outlook", "police spending", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food availability", "lead exposure", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["personal gain", "holistic wellness", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food distribution", "food quality", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["drive-through events", "communal outlook", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["churches", "food security", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["flik schools", "poverty effects", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["students", "education sector", {"weight": 1.0, "confidence": 0.7749999999999999, "type": "inter_cluster", "style": "solid"}], ["corruption", "police spending", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["community events", "student nutrition", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["backpack program", "support events", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["homelessness", "advocacy", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["americorps", "supplemental nutrition", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["americorps", "labor conditions", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["americorps", "household needs", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["gentrification", "car dependency", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["resident experiences", "communal outlook", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["transportation", "starvation", {"weight": -1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["schools", "prison food", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["lead exposure", "emergency sector", {"weight": 1.0, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["lead exposure", "outreach", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["hospital food", "education sector", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["bar scene", "food availability", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["bar scene", "nutrition", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["covid-19 impact", "community response", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["fresh produce", "school food", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["fresh produce", "advocacy", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["household needs", "feeding", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["prison food", "criminal charges", {"weight": 0.5, "confidence": 0.275, "type": "inter_cluster", "style": "solid"}], ["family support", "volunteers", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["family support", "educational environment", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["rent", "community building", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["rent", "bar scene", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["support staff", "care", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["care", "social connection", {"weight": 1.0, "confidence": 0.875, "type": "inter_cluster", "style": "solid"}], ["care", "healthy eating", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["sugary drinks", "surgery recovery", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["sugary drinks", "american problem", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["teachers", "flint schools", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["islamic children", "support events", {"weight": 1.0, "confidence": 0.575, "type": "inter_cluster", "style": "solid"}], ["food insecurity", "mental health", {"weight": -1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["food stamps", "healthy eating", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["government responsibility", "personal visits", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["emergency sector", "social connection", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["public health", "supplemental nutrition", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["unhealthy food", "schools", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["social equity", "affordability", {"weight": 1.0, "confidence": 0.7333333333333334, "type": "inter_cluster", "style": "solid"}], ["social equity", "generational issue", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["social equity", "islamic children", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["social media", "community resilience", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["leverage points", "care", {"weight": 1.0, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["childhood disabilities", "household needs", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food preparation", "islamic children", {"weight": -1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["food preparation", "churches", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["lunch staff", "teachers", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["high rent", "healthy eating", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["high rent", "children", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["janitorial work", "teachers", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["food system", "education system", {"weight": 1.0, "confidence": 0.7666666666666666, "type": "inter_cluster", "style": "solid"}], ["food system", "convenience stores", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food system", "volunteers", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food system", "support events", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["weather impact", "food availability", {"weight": -1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["weather impact", "household needs", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["education system", "food desert", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["community support", "hygiene supplies", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["kroger", "wic", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["dumpster diving", "child health", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["seasonal challenges", "american problem", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["unemployment benefits", "dumpster diving", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food outsourcing", "religious dietary needs", {"weight": -1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["personal visits", "pandemic effects", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["personal visits", "covid-19 impact", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["flint", "high rent", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["flint", "children", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["american problem", "systems of oppression", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["school coaches", "education sector", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"software tools": {"concepts": "software tools", "concept_list": ["software tools"], "type": "cluster", "node_size": 18, "label": "software tools"}, "exploit primitives": {"concepts": "exploit primitives", "concept_list": ["exploit primitives"], "type": "cluster", "node_size": 18, "label": "exploit primitives"}, "code obfuscation": {"concepts": "code obfuscation", "concept_list": ["code obfuscation"], "type": "cluster", "node_size": 18, "label": "code obfuscation"}, "file headers": {"concepts": "file headers", "concept_list": ["file headers"], "type": "cluster", "node_size": 18, "label": "file headers"}, "knowledge": {"concepts": "knowledge", "concept_list": ["knowledge"], "type": "cluster", "node_size": 18, "label": "knowledge"}, "emulation": {"concepts": "emulation", "concept_list": ["emulation"], "type": "cluster", "node_size": 18, "label": "emulation"}, "user input": {"concepts": "user input", "concept_list": ["user input"], "type": "cluster", "node_size": 18, "label": "user input"}, "debugger": {"concepts": "debugger", "concept_list": ["debugger"], "type": "cluster", "node_size": 18, "label": "debugger"}, "decompilation": {"concepts": "decompilation", "concept_list": ["decompilation"], "type": "cluster", "node_size": 18, "label": "decompilation"}, "challenge understanding": {"concepts": "challenge understanding", "concept_list": ["challenge understanding"], "type": "cluster", "node_size": 18, "label": "challenge understanding"}, "beliefs": {"concepts": "beliefs", "concept_list": ["beliefs"], "type": "cluster", "node_size": 18, "label": "beliefs"}, "mitigations": {"concepts": "mitigations", "concept_list": ["mitigations"], "type": "cluster", "node_size": 18, "label": "mitigations"}, "tools": {"concepts": "tools", "concept_list": ["tools"], "type": "cluster", "node_size": 18, "label": "tools"}, "decisions": {"concepts": "decisions", "concept_list": ["decisions"], "type": "cluster", "node_size": 18, "label": "decisions"}, "readability": {"concepts": "readability", "concept_list": ["readability"], "type": "cluster", "node_size": 18, "label": "readability"}, "operating system": {"concepts": "operating system", "concept_list": ["operating system"], "type": "cluster", "node_size": 18, "label": "operating system"}, "exploit development": {"concepts": "exploit development", "concept_list": ["exploit development"], "type": "cluster", "node_size": 18, "label": "exploit development"}, "os": {"concepts": "os", "concept_list": ["os"], "type": "cluster", "node_size": 18, "label": "os"}, "local exploit": {"concepts": "local exploit", "concept_list": ["local exploit"], "type": "cluster", "node_size": 18, "label": "local exploit"}, "malware techniques": {"concepts": "malware techniques", "concept_list": ["malware techniques"], "type": "cluster", "node_size": 18, "label": "malware techniques"}, "software architecture": {"concepts": "software architecture", "concept_list": ["software architecture"], "type": "cluster", "node_size": 18, "label": "software architecture"}, "time constraints": {"concepts": "time constraints", "concept_list": ["time constraints"], "type": "cluster", "node_size": 18, "label": "time constraints"}, "bug classes": {"concepts": "bug classes", "concept_list": ["bug classes"], "type": "cluster", "node_size": 18, "label": "bug classes"}, "file access": {"concepts": "file access", "concept_list": ["file access"], "type": "cluster", "node_size": 18, "label": "file access"}, "architecture": {"concepts": "architecture", "concept_list": ["architecture"], "type": "cluster", "node_size": 18, "label": "architecture"}, "primitive discovery tools": {"concepts": "primitive discovery tools", "concept_list": ["primitive discovery tools"], "type": "cluster", "node_size": 18, "label": "primitive discovery tools"}, "decompilation readability": {"concepts": "decompilation readability", "concept_list": ["decompilation readability"], "type": "cluster", "node_size": 18, "label": "decompilation readability"}, "program execution": {"concepts": "program execution", "concept_list": ["program execution"], "type": "cluster", "node_size": 18, "label": "program execution"}, "red herrings": {"concepts": "red herrings", "concept_list": ["red herrings"], "type": "cluster", "node_size": 18, "label": "red herrings"}, "primitive discovery": {"concepts": "primitive discovery", "concept_list": ["primitive discovery"], "type": "cluster", "node_size": 18, "label": "primitive discovery"}, "distractions": {"concepts": "distractions", "concept_list": ["distractions"], "type": "cluster", "node_size": 18, "label": "distractions"}, "mitigation": {"concepts": "mitigation", "concept_list": ["mitigation"], "type": "cluster", "node_size": 18, "label": "mitigation"}, "debugging": {"concepts": "debugging", "concept_list": ["debugging"], "type": "cluster", "node_size": 18, "label": "debugging"}, "cyber attacks": {"concepts": "cyber attacks", "concept_list": ["cyber attacks"], "type": "cluster", "node_size": 18, "label": "cyber attacks"}, "debugging ability": {"concepts": "debugging ability", "concept_list": ["debugging ability"], "type": "cluster", "node_size": 18, "label": "debugging ability"}, "vulnerability": {"concepts": "vulnerability", "concept_list": ["vulnerability"], "type": "cluster", "node_size": 18, "label": "vulnerability"}, "remote exploit": {"concepts": "remote exploit", "concept_list": ["remote exploit"], "type": "cluster", "node_size": 18, "label": "remote exploit"}, "fuzzy cognitive map": {"concepts": "fuzzy cognitive map", "concept_list": ["fuzzy cognitive map"], "type": "cluster", "node_size": 18, "label": "fuzzy cognitive map"}, "success factors": {"concepts": "success factors", "concept_list": ["success factors"], "type": "cluster", "node_size": 18, "label": "success factors"}};
+        const conceptData = {};
+        const interClusterEdges = [["software tools", "debugging", {"weight": 1.0, "confidence": 0.8400000000000001, "type": "inter_cluster", "style": "solid"}], ["software tools", "code obfuscation", {"weight": 0.5, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["code obfuscation", "fuzzy cognitive map", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["file headers", "local exploit", {"weight": -1.0, "confidence": 0.6375, "type": "inter_cluster", "style": "solid"}], ["file headers", "primitive discovery", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["file headers", "bug classes", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["knowledge", "exploit primitives", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["emulation", "knowledge", {"weight": 1.0, "confidence": 0.72, "type": "inter_cluster", "style": "solid"}], ["emulation", "cyber attacks", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["emulation", "distractions", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["user input", "decompilation", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["debugger", "decompilation", {"weight": 1.0, "confidence": 0.8699999999999999, "type": "inter_cluster", "style": "solid"}], ["debugger", "software tools", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["debugger", "debugging ability", {"weight": 1.0, "confidence": 0.96, "type": "inter_cluster", "style": "solid"}], ["debugger", "vulnerability", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["debugger", "operating system", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["debugger", "distractions", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["challenge understanding", "user input", {"weight": 1.0, "confidence": 0.8125, "type": "inter_cluster", "style": "solid"}], ["challenge understanding", "debugging ability", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["challenge understanding", "decompilation", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["challenge understanding", "distractions", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["mitigations", "challenge understanding", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["tools", "decompilation", {"weight": 1.0, "confidence": 0.82, "type": "inter_cluster", "style": "solid"}], ["tools", "file access", {"weight": 0.8, "confidence": 0.6300000000000001, "type": "inter_cluster", "style": "solid"}], ["tools", "exploit primitives", {"weight": 1.0, "confidence": 0.7833333333333333, "type": "inter_cluster", "style": "solid"}], ["tools", "local exploit", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["decisions", "mitigations", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["readability", "knowledge", {"weight": 1.0, "confidence": 0.8666666666666667, "type": "inter_cluster", "style": "solid"}], ["operating system", "mitigation", {"weight": 1.0, "confidence": 0.6875000000000001, "type": "inter_cluster", "style": "solid"}], ["exploit development", "mitigation", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["exploit development", "primitive discovery", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["os", "exploit development", {"weight": -1.0, "confidence": 0.6666666666666666, "type": "inter_cluster", "style": "solid"}], ["os", "time constraints", {"weight": -0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["local exploit", "decompilation readability", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["malware techniques", "success factors", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["software architecture", "red herrings", {"weight": 0.3333333333333333, "confidence": 0.16666666666666666, "type": "inter_cluster", "style": "solid"}], ["time constraints", "decisions", {"weight": -1.0, "confidence": 0.7333333333333334, "type": "inter_cluster", "style": "solid"}], ["bug classes", "program execution", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["bug classes", "decisions", {"weight": 1.0, "confidence": 0.7625, "type": "inter_cluster", "style": "solid"}], ["bug classes", "success factors", {"weight": 1.0, "confidence": 0.8166666666666668, "type": "inter_cluster", "style": "solid"}], ["file access", "primitive discovery tools", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["architecture", "local exploit", {"weight": -1.0, "confidence": 0.71, "type": "inter_cluster", "style": "solid"}], ["architecture", "primitive discovery tools", {"weight": -1.0, "confidence": 0.6749999999999999, "type": "inter_cluster", "style": "solid"}], ["architecture", "primitive discovery", {"weight": -1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["primitive discovery tools", "decompilation", {"weight": 1.0, "confidence": 0.74, "type": "inter_cluster", "style": "solid"}], ["primitive discovery tools", "distractions", {"weight": -0.3333333333333333, "confidence": 0.5833333333333334, "type": "inter_cluster", "style": "solid"}], ["primitive discovery tools", "debugging", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["decompilation readability", "debugger", {"weight": 1.0, "confidence": 0.8200000000000001, "type": "inter_cluster", "style": "solid"}], ["decompilation readability", "architecture", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["program execution", "file access", {"weight": 1.0, "confidence": 0.9359999999999999, "type": "inter_cluster", "style": "solid"}], ["program execution", "readability", {"weight": 1.0, "confidence": 0.8300000000000001, "type": "inter_cluster", "style": "solid"}], ["program execution", "time constraints", {"weight": -1.0, "confidence": 0.6833333333333332, "type": "inter_cluster", "style": "solid"}], ["red herrings", "readability", {"weight": -1.0, "confidence": 0.7399999999999999, "type": "inter_cluster", "style": "solid"}], ["primitive discovery", "debugging", {"weight": 1.0, "confidence": 0.8125000000000001, "type": "inter_cluster", "style": "solid"}], ["primitive discovery", "os", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["primitive discovery", "file access", {"weight": 0.5, "confidence": 0.325, "type": "inter_cluster", "style": "solid"}], ["distractions", "primitive discovery tools", {"weight": -1.0, "confidence": 0.6666666666666666, "type": "inter_cluster", "style": "solid"}], ["mitigation", "user input", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["debugging", "operating system", {"weight": 0.2, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["debugging", "os", {"weight": 0.2, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["debugging", "exploit primitives", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["debugging", "decompilation", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["debugging ability", "readability", {"weight": 1.0, "confidence": 0.8700000000000001, "type": "inter_cluster", "style": "solid"}], ["debugging ability", "decisions", {"weight": 1.0, "confidence": 0.79, "type": "inter_cluster", "style": "solid"}], ["debugging ability", "fuzzy cognitive map", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["vulnerability", "mitigations", {"weight": -0.3333333333333333, "confidence": 0.7999999999999999, "type": "inter_cluster", "style": "solid"}], ["vulnerability", "debugging ability", {"weight": 1.0, "confidence": 0.8333333333333334, "type": "inter_cluster", "style": "solid"}], ["vulnerability", "beliefs", {"weight": 0.6666666666666666, "confidence": 0.45, "type": "inter_cluster", "style": "solid"}], ["vulnerability", "os", {"weight": 0.5, "confidence": 0.3375, "type": "inter_cluster", "style": "solid"}], ["vulnerability", "file headers", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["remote exploit", "exploit primitives", {"weight": 1.0, "confidence": 0.9499999999999998, "type": "inter_cluster", "style": "solid"}], ["remote exploit", "vulnerability", {"weight": 1.0, "confidence": 0.925, "type": "inter_cluster", "style": "solid"}], ["fuzzy cognitive map", "knowledge", {"weight": 1.0, "confidence": 0.9260000000000002, "type": "inter_cluster", "style": "solid"}], ["fuzzy cognitive map", "bug classes", {"weight": 0.5, "confidence": 0.375, "type": "inter_cluster", "style": "solid"}], ["success factors", "challenge understanding", {"weight": 1.0, "confidence": 0.8500000000000001, "type": "inter_cluster", "style": "solid"}], ["success factors", "primitive discovery", {"weight": 1.0, "confidence": 0.7166666666666667, "type": "inter_cluster", "style": "solid"}], ["success factors", "user input", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

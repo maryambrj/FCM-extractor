@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"Hurricane Impact": {"concepts": "grass beds, mangroves, sandy bay", "concept_list": ["grass beds", "mangroves", "sandy bay"], "type": "cluster", "node_size": 24, "label": "Hurricane Impact"}, "Beach Types": {"concepts": "hurricane marilyn, shoreline damage, hurricane hugo, hurricane maria, hurricane irma, hurricanes", "concept_list": ["hurricane marilyn", "shoreline damage", "hurricane hugo", "hurricane maria", "hurricane irma", "hurricanes"], "type": "cluster", "node_size": 33, "label": "Beach Types"}, "Environmental Management": {"concepts": "rocky beaches, mud, sandy beaches", "concept_list": ["rocky beaches", "mud", "sandy beaches"], "type": "cluster", "node_size": 24, "label": "Environmental Management"}, "Agriculture & Botany": {"concepts": "runoff, federal waters, environmentalists, pollution, island specific management plan", "concept_list": ["runoff", "federal waters", "environmentalists", "pollution", "island specific management plan"], "type": "cluster", "node_size": 30, "label": "Agriculture & Botany"}, "Coastal Habitats": {"concepts": "weed, botany bay, farmer's market, turtlegrass, farming, agriculture", "concept_list": ["weed", "botany bay", "farmer's market", "turtlegrass", "farming", "agriculture"], "type": "cluster", "node_size": 33, "label": "Coastal Habitats"}, "Pond Sediments": {"concepts": "mandahl pond, mud particles", "concept_list": ["mandahl pond", "mud particles"], "type": "cluster", "node_size": 21, "label": "Pond Sediments"}, "Government Affairs": {"concepts": "local government, bill clinton, federal government, politics, administration, past administration, dpnr, decision makers, council, council member, commissioner, committee, governor, senator, vice chair council, meetings, town hall meeting, council meetings, dap, president of administration, public hearings, federal compliance, representative", "concept_list": ["local government", "bill clinton", "federal government", "politics", "administration", "past administration", "dpnr", "decision makers", "council", "council member", "commissioner", "committee", "governor", "senator", "vice chair council", "meetings", "town hall meeting", "council meetings", "dap", "president of administration", "public hearings", "federal compliance", "representative"], "type": "cluster", "node_size": 84, "label": "Government Affairs"}, "Community Dynamics": {"concepts": "community, tensions, member, conflicts, isolated communities, livelihoods, younger generation, hostility, middle class, sense of community, organizations, friendly community, ssc, user groups, tourists, community relationships, tourism, permits", "concept_list": ["community", "tensions", "member", "conflicts", "isolated communities", "livelihoods", "younger generation", "hostility", "middle class", "sense of community", "organizations", "friendly community", "ssc", "user groups", "tourists", "community relationships", "tourism", "permits"], "type": "cluster", "node_size": 69, "label": "Community Dynamics"}, "Economic Challenges": {"concepts": "high end bank, sfa, economic downturn, refinery closure, restaurants, income, economic problem, dock prices, marina, fairness, demand, maintenance, hein bank, american yacht harbor, barren area, affordable, mechanic shops, insurance, inflation, money, economic effect", "concept_list": ["high end bank", "sfa", "economic downturn", "refinery closure", "restaurants", "income", "economic problem", "dock prices", "marina", "fairness", "demand", "maintenance", "hein bank", "american yacht harbor", "barren area", "affordable", "mechanic shops", "insurance", "inflation", "money", "economic effect"], "type": "cluster", "node_size": 78, "label": "Economic Challenges"}, "Environmental Issues": {"concepts": "toxins, national park, refinery, scientist, ground swells, nutrients, shelf system, issues, enforcement, beaches, ruth gomez, puerto rico, buoys, u.s. virgin islands, lobster, lobster nursery, boaters, docks, baby lobsters, st. croix, environment, outreach and education, sctlds, snorkeling, dpr, boats, higher up, uvi, biologist, currents, high tide, sunscreen law, swells, swell, outreach, brown swells, skin dive, education, trap reduction plan, mesh size, sargassum, current, nurseries", "concept_list": ["toxins", "national park", "refinery", "scientist", "ground swells", "nutrients", "shelf system", "issues", "enforcement", "beaches", "ruth gomez", "puerto rico", "buoys", "u.s. virgin islands", "lobster", "lobster nursery", "boaters", "docks", "baby lobsters", "st. croix", "environment", "outreach and education", "sctlds", "snorkeling", "dpr", "boats", "higher up", "uvi", "biologist", "currents", "high tide", "sunscreen law", "swells", "swell", "outreach", "brown swells", "skin dive", "education", "trap reduction plan", "mesh size", "sargassum", "current", "nurseries"], "type": "cluster", "node_size": 144, "label": "Environmental Issues"}, "Fisheries Management": {"concepts": "fisheries, fishery management, fisheries manager, usvi fisheries, registered fishermen, line fishermen, fishery crash, commercial fishers, fishery managers, fishery advisory committee, fisherman's association, st. thomas fishermen's association, us virgin island fishers, recreational fishers, fishers, fishery advisor council, fishermen relationships, lobster fishery, fishery advisory committee., fishermen, fishery, fishers community", "concept_list": ["fisheries", "fishery management", "fisheries manager", "usvi fisheries", "registered fishermen", "line fishermen", "fishery crash", "commercial fishers", "fishery managers", "fishery advisory committee", "fisherman's association", "st. thomas fishermen's association", "us virgin island fishers", "recreational fishers", "fishers", "fishery advisor council", "fishermen relationships", "lobster fishery", "fishery advisory committee.", "fishermen", "fishery", "fishers community"], "type": "cluster", "node_size": 81, "label": "Fisheries Management"}, "USVI Marine Activities": {"concepts": "us virgin islands, poni, usvi, permitting process, upper management, wrecks, mahogany run, fads, dock issue, studies, dolphin, snorkelers, lobster catch, divers, trap boats, fad program, eggs, st. johns, tide changes, bonitos, washington, blue runners, boat, yellowtail, acls, low tide", "concept_list": ["us virgin islands", "poni", "usvi", "permitting process", "upper management", "wrecks", "mahogany run", "fads", "dock issue", "studies", "dolphin", "snorkelers", "lobster catch", "divers", "trap boats", "fad program", "eggs", "st. johns", "tide changes", "bonitos", "washington", "blue runners", "boat", "yellowtail", "acls", "low tide"], "type": "cluster", "node_size": 93, "label": "USVI Marine Activities"}, "Coral Diseases": {"concepts": "dead coral, coral bleaching, stone and coral disease, coral disease", "concept_list": ["dead coral", "coral bleaching", "stone and coral disease", "coral disease"], "type": "cluster", "node_size": 27, "label": "Coral Diseases"}, "Coral Reef Health": {"concepts": "corals, healthy coral reef, coral reef, coral reef fish, reefs, inshore reefs, reef health, coral reefs", "concept_list": ["corals", "healthy coral reef", "coral reef", "coral reef fish", "reefs", "inshore reefs", "reef health", "coral reefs"], "type": "cluster", "node_size": 39, "label": "Coral Reef Health"}, "Fishing Methods": {"concepts": "line fisherman, sport fishing, trap fishing, trap lobster fishing, line fishing, net fishing, recreational fishing", "concept_list": ["line fisherman", "sport fishing", "trap fishing", "trap lobster fishing", "line fishing", "net fishing", "recreational fishing"], "type": "cluster", "node_size": 36, "label": "Fishing Methods"}, "Commercial Fishing": {"concepts": "commercial fishing, fishing spots, commercial trap fisherman, fishing communities, annual catch limits, fishing tags, fishing pressure, illegal fishing", "concept_list": ["commercial fishing", "fishing spots", "commercial trap fisherman", "fishing communities", "annual catch limits", "fishing tags", "fishing pressure", "illegal fishing"], "type": "cluster", "node_size": 39, "label": "Commercial Fishing"}, "Coastal Communities": {"concepts": "coastal communities, coastal communities., usvi coastal communities, inshore marine reserve, marine reserves, east end marine park, local waters", "concept_list": ["coastal communities", "coastal communities.", "usvi coastal communities", "inshore marine reserve", "marine reserves", "east end marine park", "local waters"], "type": "cluster", "node_size": 36, "label": "Coastal Communities"}, "Coastal Pollution": {"concepts": "sewage, lagoons, oil dumping, sewage dumping, coastal runoff, muddy bottoms", "concept_list": ["sewage", "lagoons", "oil dumping", "sewage dumping", "coastal runoff", "muddy bottoms"], "type": "cluster", "node_size": 33, "label": "Coastal Pollution"}, "Fish and Wildlife": {"concepts": "juvenile habitats, hatcheries, fish licenses, fish and wildlife, long spine sea urchins, fish and wildlife director, fresh fish, dpnr fish and wildlife, goat fish, division of wildlife, trout reduction, flying fish, juvenile fish, fish, silk fish, air fish", "concept_list": ["juvenile habitats", "hatcheries", "fish licenses", "fish and wildlife", "long spine sea urchins", "fish and wildlife director", "fresh fish", "dpnr fish and wildlife", "goat fish", "division of wildlife", "trout reduction", "flying fish", "juvenile fish", "fish", "silk fish", "air fish"], "type": "cluster", "node_size": 63, "label": "Fish and Wildlife"}, "Ocean Conditions": {"concepts": "water temperatures, sea bed., easterly currents, warm water, climate change, cold water, climate, warmer waters, deep water, ocean floor, ocean breaks, southeasterly currents, gravel, ocean, watering hole, water", "concept_list": ["water temperatures", "sea bed.", "easterly currents", "warm water", "climate change", "cold water", "climate", "warmer waters", "deep water", "ocean floor", "ocean breaks", "southeasterly currents", "gravel", "ocean", "watering hole", "water"], "type": "cluster", "node_size": 63, "label": "Ocean Conditions"}, "Maritime Disasters": {"concepts": "radio show, storm, cruise ships, disaster money, windward passage, cargo ships, waves, rain", "concept_list": ["radio show", "storm", "cruise ships", "disaster money", "windward passage", "cargo ships", "waves", "rain"], "type": "cluster", "node_size": 39, "label": "Maritime Disasters"}};
+        const conceptData = {};
+        const interClusterEdges = [["Hurricane Impact", "Coastal Communities", {"weight": 0.5, "confidence": 0.7749999999999999, "type": "inter_cluster", "style": "solid"}], ["Hurricane Impact", "Beach Types", {"weight": -0.4, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Hurricane Impact", "Fisheries Management", {"weight": 0.75, "confidence": 0.5625, "type": "inter_cluster", "style": "solid"}], ["Hurricane Impact", "Environmental Issues", {"weight": 0.3333333333333333, "confidence": 0.7833333333333333, "type": "inter_cluster", "style": "solid"}], ["Beach Types", "Coastal Communities", {"weight": -0.2, "confidence": 0.8099999999999999, "type": "inter_cluster", "style": "solid"}], ["Beach Types", "Fishing Methods", {"weight": -0.75, "confidence": 0.5875, "type": "inter_cluster", "style": "solid"}], ["Beach Types", "USVI Marine Activities", {"weight": -0.6666666666666666, "confidence": 0.5166666666666667, "type": "inter_cluster", "style": "solid"}], ["Beach Types", "Coastal Habitats", {"weight": -1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["Beach Types", "Economic Challenges", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Environmental Management", "Community Dynamics", {"weight": 0.5, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["Agriculture & Botany", "Hurricane Impact", {"weight": -0.75, "confidence": 0.6125, "type": "inter_cluster", "style": "solid"}], ["Agriculture & Botany", "Pond Sediments", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Coastal Habitats", "Hurricane Impact", {"weight": 1.0, "confidence": 0.7333333333333334, "type": "inter_cluster", "style": "solid"}], ["Coastal Habitats", "Ocean Conditions", {"weight": -0.2, "confidence": 0.41999999999999993, "type": "inter_cluster", "style": "solid"}], ["Pond Sediments", "Environmental Issues", {"weight": -0.6666666666666666, "confidence": 0.4833333333333334, "type": "inter_cluster", "style": "solid"}], ["Pond Sediments", "Commercial Fishing", {"weight": -0.5, "confidence": 0.325, "type": "inter_cluster", "style": "solid"}], ["Government Affairs", "Economic Challenges", {"weight": -0.25, "confidence": 0.5625, "type": "inter_cluster", "style": "solid"}], ["Government Affairs", "Coral Diseases", {"weight": -1.0, "confidence": 0.7749999999999999, "type": "inter_cluster", "style": "solid"}], ["Government Affairs", "Community Dynamics", {"weight": -0.5, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["Community Dynamics", "Coastal Communities", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Community Dynamics", "Government Affairs", {"weight": 0.4, "confidence": 0.5800000000000001, "type": "inter_cluster", "style": "solid"}], ["Community Dynamics", "Environmental Issues", {"weight": 0.75, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["Community Dynamics", "Ocean Conditions", {"weight": -1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["Community Dynamics", "Agriculture & Botany", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Economic Challenges", "Environmental Issues", {"weight": -0.75, "confidence": 0.575, "type": "inter_cluster", "style": "solid"}], ["Economic Challenges", "Beach Types", {"weight": -0.75, "confidence": 0.5125, "type": "inter_cluster", "style": "solid"}], ["Economic Challenges", "Commercial Fishing", {"weight": -1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["Environmental Issues", "Beach Types", {"weight": -0.2, "confidence": 0.41, "type": "inter_cluster", "style": "solid"}], ["Fisheries Management", "Coastal Habitats", {"weight": -0.4, "confidence": 0.57, "type": "inter_cluster", "style": "solid"}], ["Fisheries Management", "Environmental Issues", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Fisheries Management", "Coral Diseases", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Fisheries Management", "Government Affairs", {"weight": 1.0, "confidence": 0.7333333333333334, "type": "inter_cluster", "style": "solid"}], ["Fisheries Management", "Community Dynamics", {"weight": 0.6666666666666666, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["Coral Diseases", "Fisheries Management", {"weight": -0.8, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Coral Diseases", "Commercial Fishing", {"weight": -0.5, "confidence": 0.7625, "type": "inter_cluster", "style": "solid"}], ["Coral Diseases", "Beach Types", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Coral Diseases", "Coastal Habitats", {"weight": -0.5, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["Coral Reef Health", "Commercial Fishing", {"weight": 0.6, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Coral Reef Health", "Ocean Conditions", {"weight": -0.75, "confidence": 0.5875, "type": "inter_cluster", "style": "solid"}], ["Coral Reef Health", "Beach Types", {"weight": -0.6666666666666666, "confidence": 0.5666666666666667, "type": "inter_cluster", "style": "solid"}], ["Commercial Fishing", "Agriculture & Botany", {"weight": -0.5, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Coastal Communities", "Beach Types", {"weight": -1.0, "confidence": 0.8166666666666668, "type": "inter_cluster", "style": "solid"}], ["Coastal Communities", "Hurricane Impact", {"weight": 0.3333333333333333, "confidence": 0.7666666666666666, "type": "inter_cluster", "style": "solid"}], ["Coastal Communities", "Economic Challenges", {"weight": -0.3333333333333333, "confidence": 0.7333333333333334, "type": "inter_cluster", "style": "solid"}], ["Coastal Communities", "Fisheries Management", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Coastal Communities", "Government Affairs", {"weight": 0.5, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["Coastal Pollution", "Beach Types", {"weight": -0.6, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Fish and Wildlife", "Environmental Management", {"weight": -0.5, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["Ocean Conditions", "Fish and Wildlife", {"weight": -0.25, "confidence": 0.5375, "type": "inter_cluster", "style": "solid"}], ["Maritime Disasters", "Community Dynamics", {"weight": -0.3333333333333333, "confidence": 0.7333333333333334, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {"Hurricane Impact": [], "Beach Types": [], "Environmental Management": [], "Agriculture & Botany": [], "Coastal Habitats": [], "Pond Sediments": [], "Government Affairs": [], "Community Dynamics": [], "Economic Challenges": [], "Environmental Issues": [], "Fisheries Management": [], "USVI Marine Activities": [], "Coral Diseases": [], "Coral Reef Health": [], "Fishing Methods": [], "Commercial Fishing": [], "Coastal Communities": [], "Coastal Pollution": [], "Fish and Wildlife": [], "Ocean Conditions": [], "Maritime Disasters": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

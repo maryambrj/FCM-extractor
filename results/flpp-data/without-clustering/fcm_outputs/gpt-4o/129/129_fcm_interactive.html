@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"fresh sandwiches": {"concepts": "fresh sandwiches", "concept_list": ["fresh sandwiches"], "type": "cluster", "node_size": 18, "label": "fresh sandwiches"}, "building community": {"concepts": "building community", "concept_list": ["building community"], "type": "cluster", "node_size": 18, "label": "building community"}, "personal experience": {"concepts": "personal experience", "concept_list": ["personal experience"], "type": "cluster", "node_size": 18, "label": "personal experience"}, "community environment": {"concepts": "community environment", "concept_list": ["community environment"], "type": "cluster", "node_size": 18, "label": "community environment"}, "local restaurants": {"concepts": "local restaurants", "concept_list": ["local restaurants"], "type": "cluster", "node_size": 18, "label": "local restaurants"}, "grubhub": {"concepts": "grubhub", "concept_list": ["grubhub"], "type": "cluster", "node_size": 18, "label": "grubhub"}, "um flint": {"concepts": "um flint", "concept_list": ["um flint"], "type": "cluster", "node_size": 18, "label": "um flint"}, "young professionals": {"concepts": "young professionals", "concept_list": ["young professionals"], "type": "cluster", "node_size": 18, "label": "young professionals"}, "loyal customers": {"concepts": "loyal customers", "concept_list": ["loyal customers"], "type": "cluster", "node_size": 18, "label": "loyal customers"}, "farmers": {"concepts": "farmers", "concept_list": ["farmers"], "type": "cluster", "node_size": 18, "label": "farmers"}, "food in flint": {"concepts": "food in flint", "concept_list": ["food in flint"], "type": "cluster", "node_size": 18, "label": "food in flint"}, "fast food": {"concepts": "fast food", "concept_list": ["fast food"], "type": "cluster", "node_size": 18, "label": "fast food"}, "ubereats": {"concepts": "ubereats", "concept_list": ["ubereats"], "type": "cluster", "node_size": 18, "label": "ubereats"}, "flint food system": {"concepts": "flint food system", "concept_list": ["flint food system"], "type": "cluster", "node_size": 18, "label": "flint food system"}, "consumer base": {"concepts": "consumer base", "concept_list": ["consumer base"], "type": "cluster", "node_size": 18, "label": "consumer base"}, "flint": {"concepts": "flint", "concept_list": ["flint"], "type": "cluster", "node_size": 18, "label": "flint"}, "reinvestment": {"concepts": "reinvestment", "concept_list": ["reinvestment"], "type": "cluster", "node_size": 18, "label": "reinvestment"}, "returning customers": {"concepts": "returning customers", "concept_list": ["returning customers"], "type": "cluster", "node_size": 18, "label": "returning customers"}, "food court": {"concepts": "food court", "concept_list": ["food court"], "type": "cluster", "node_size": 18, "label": "food court"}, "leverage points": {"concepts": "leverage points", "concept_list": ["leverage points"], "type": "cluster", "node_size": 18, "label": "leverage points"}, "profitable business": {"concepts": "profitable business", "concept_list": ["profitable business"], "type": "cluster", "node_size": 18, "label": "profitable business"}, "owner presence": {"concepts": "owner presence", "concept_list": ["owner presence"], "type": "cluster", "node_size": 18, "label": "owner presence"}, "quality of service": {"concepts": "quality of service", "concept_list": ["quality of service"], "type": "cluster", "node_size": 18, "label": "quality of service"}, "service quality": {"concepts": "service quality", "concept_list": ["service quality"], "type": "cluster", "node_size": 18, "label": "service quality"}, "downtown flint": {"concepts": "downtown flint", "concept_list": ["downtown flint"], "type": "cluster", "node_size": 18, "label": "downtown flint"}, "positive outcomes": {"concepts": "positive outcomes", "concept_list": ["positive outcomes"], "type": "cluster", "node_size": 18, "label": "positive outcomes"}, "legacy": {"concepts": "legacy", "concept_list": ["legacy"], "type": "cluster", "node_size": 18, "label": "legacy"}, "family owned business": {"concepts": "family owned business", "concept_list": ["family owned business"], "type": "cluster", "node_size": 18, "label": "family owned business"}, "college town": {"concepts": "college town", "concept_list": ["college town"], "type": "cluster", "node_size": 18, "label": "college town"}, "retail sector": {"concepts": "retail sector", "concept_list": ["retail sector"], "type": "cluster", "node_size": 18, "label": "retail sector"}, "homely environment": {"concepts": "homely environment", "concept_list": ["homely environment"], "type": "cluster", "node_size": 18, "label": "homely environment"}, "small business": {"concepts": "small business", "concept_list": ["small business"], "type": "cluster", "node_size": 18, "label": "small business"}, "health conscious choices": {"concepts": "health conscious choices", "concept_list": ["health conscious choices"], "type": "cluster", "node_size": 18, "label": "health conscious choices"}, "delivery services": {"concepts": "delivery services", "concept_list": ["delivery services"], "type": "cluster", "node_size": 18, "label": "delivery services"}, "healthy choices": {"concepts": "healthy choices", "concept_list": ["healthy choices"], "type": "cluster", "node_size": 18, "label": "healthy choices"}, "community investment": {"concepts": "community investment", "concept_list": ["community investment"], "type": "cluster", "node_size": 18, "label": "community investment"}, "local businesses": {"concepts": "local businesses", "concept_list": ["local businesses"], "type": "cluster", "node_size": 18, "label": "local businesses"}, "covid": {"concepts": "covid", "concept_list": ["covid"], "type": "cluster", "node_size": 18, "label": "covid"}, "high quality meats": {"concepts": "high quality meats", "concept_list": ["high quality meats"], "type": "cluster", "node_size": 18, "label": "high quality meats"}, "grocery stores": {"concepts": "grocery stores", "concept_list": ["grocery stores"], "type": "cluster", "node_size": 18, "label": "grocery stores"}, "word of mouth": {"concepts": "word of mouth", "concept_list": ["word of mouth"], "type": "cluster", "node_size": 18, "label": "word of mouth"}, "affordability": {"concepts": "affordability", "concept_list": ["affordability"], "type": "cluster", "node_size": 18, "label": "affordability"}, "evolving community": {"concepts": "evolving community", "concept_list": ["evolving community"], "type": "cluster", "node_size": 18, "label": "evolving community"}, "fresh pizzas": {"concepts": "fresh pizzas", "concept_list": ["fresh pizzas"], "type": "cluster", "node_size": 18, "label": "fresh pizzas"}, "food system": {"concepts": "food system", "concept_list": ["food system"], "type": "cluster", "node_size": 18, "label": "food system"}, "affordable price": {"concepts": "affordable price", "concept_list": ["affordable price"], "type": "cluster", "node_size": 18, "label": "affordable price"}, "businesses": {"concepts": "businesses", "concept_list": ["businesses"], "type": "cluster", "node_size": 18, "label": "businesses"}, "meat": {"concepts": "meat", "concept_list": ["meat"], "type": "cluster", "node_size": 18, "label": "meat"}, "affordable quality": {"concepts": "affordable quality", "concept_list": ["affordable quality"], "type": "cluster", "node_size": 18, "label": "affordable quality"}, "ready to go meals": {"concepts": "ready to go meals", "concept_list": ["ready to go meals"], "type": "cluster", "node_size": 18, "label": "ready to go meals"}, "zingerman's": {"concepts": "zingerman's", "concept_list": ["zingerman's"], "type": "cluster", "node_size": 18, "label": "zingerman's"}, "fresh salads": {"concepts": "fresh salads", "concept_list": ["fresh salads"], "type": "cluster", "node_size": 18, "label": "fresh salads"}, "health conscious": {"concepts": "health conscious", "concept_list": ["health conscious"], "type": "cluster", "node_size": 18, "label": "health conscious"}, "seasonal availability": {"concepts": "seasonal availability", "concept_list": ["seasonal availability"], "type": "cluster", "node_size": 18, "label": "seasonal availability"}, "quality of food": {"concepts": "quality of food", "concept_list": ["quality of food"], "type": "cluster", "node_size": 18, "label": "quality of food"}, "doordash": {"concepts": "doordash", "concept_list": ["doordash"], "type": "cluster", "node_size": 18, "label": "doordash"}, "food": {"concepts": "food", "concept_list": ["food"], "type": "cluster", "node_size": 18, "label": "food"}, "delivery apps": {"concepts": "delivery apps", "concept_list": ["delivery apps"], "type": "cluster", "node_size": 18, "label": "delivery apps"}, "local action": {"concepts": "local action", "concept_list": ["local action"], "type": "cluster", "node_size": 18, "label": "local action"}, "healthy lunch.": {"concepts": "healthy lunch.", "concept_list": ["healthy lunch."], "type": "cluster", "node_size": 18, "label": "healthy lunch."}, "local restaurant": {"concepts": "local restaurant", "concept_list": ["local restaurant"], "type": "cluster", "node_size": 18, "label": "local restaurant"}, "dining experiences": {"concepts": "dining experiences", "concept_list": ["dining experiences"], "type": "cluster", "node_size": 18, "label": "dining experiences"}, "ann arbor": {"concepts": "ann arbor", "concept_list": ["ann arbor"], "type": "cluster", "node_size": 18, "label": "ann arbor"}, "time factor": {"concepts": "time factor", "concept_list": ["time factor"], "type": "cluster", "node_size": 18, "label": "time factor"}, "community support": {"concepts": "community support", "concept_list": ["community support"], "type": "cluster", "node_size": 18, "label": "community support"}, "healthy options": {"concepts": "healthy options", "concept_list": ["healthy options"], "type": "cluster", "node_size": 18, "label": "healthy options"}, "farmers markets": {"concepts": "farmers markets", "concept_list": ["farmers markets"], "type": "cluster", "node_size": 18, "label": "farmers markets"}, "nutritious food": {"concepts": "nutritious food", "concept_list": ["nutritious food"], "type": "cluster", "node_size": 18, "label": "nutritious food"}, "convenience factor": {"concepts": "convenience factor", "concept_list": ["convenience factor"], "type": "cluster", "node_size": 18, "label": "convenience factor"}, "customers": {"concepts": "customers", "concept_list": ["customers"], "type": "cluster", "node_size": 18, "label": "customers"}, "delivery service": {"concepts": "delivery service", "concept_list": ["delivery service"], "type": "cluster", "node_size": 18, "label": "delivery service"}, "community empowerment": {"concepts": "community empowerment", "concept_list": ["community empowerment"], "type": "cluster", "node_size": 18, "label": "community empowerment"}, "nutritious foods": {"concepts": "nutritious foods", "concept_list": ["nutritious foods"], "type": "cluster", "node_size": 18, "label": "nutritious foods"}, "consumer type": {"concepts": "consumer type", "concept_list": ["consumer type"], "type": "cluster", "node_size": 18, "label": "consumer type"}, "customer base": {"concepts": "customer base", "concept_list": ["customer base"], "type": "cluster", "node_size": 18, "label": "customer base"}, "big john's": {"concepts": "big john's", "concept_list": ["big john's"], "type": "cluster", "node_size": 18, "label": "big john's"}, "quality of life": {"concepts": "quality of life", "concept_list": ["quality of life"], "type": "cluster", "node_size": 18, "label": "quality of life"}, "restaurants": {"concepts": "restaurants", "concept_list": ["restaurants"], "type": "cluster", "node_size": 18, "label": "restaurants"}, "vending machines": {"concepts": "vending machines", "concept_list": ["vending machines"], "type": "cluster", "node_size": 18, "label": "vending machines"}, "consumers": {"concepts": "consumers", "concept_list": ["consumers"], "type": "cluster", "node_size": 18, "label": "consumers"}, "chain restaurants": {"concepts": "chain restaurants", "concept_list": ["chain restaurants"], "type": "cluster", "node_size": 18, "label": "chain restaurants"}, "business investment": {"concepts": "business investment", "concept_list": ["business investment"], "type": "cluster", "node_size": 18, "label": "business investment"}};
+        const conceptData = {};
+        const interClusterEdges = [["fresh sandwiches", "local restaurants", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["fresh sandwiches", "legacy", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["fresh sandwiches", "affordable quality", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["fresh sandwiches", "business investment", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["building community", "quality of life", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["building community", "food court", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["personal experience", "retail sector", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["personal experience", "business investment", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["community environment", "community support", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["community environment", "small business", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["community environment", "meat", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["community environment", "time factor", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["local restaurants", "consumers", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["local restaurants", "local businesses", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["local restaurants", "evolving community", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["local restaurants", "retail sector", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["local restaurants", "um flint", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["local restaurants", "ann arbor", {"weight": 0.5, "confidence": 0.275, "type": "inter_cluster", "style": "solid"}], ["local restaurants", "local action", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["grubhub", "building community", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["grubhub", "healthy lunch.", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["young professionals", "consumer base", {"weight": 1.0, "confidence": 0.72, "type": "inter_cluster", "style": "solid"}], ["loyal customers", "evolving community", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["farmers", "healthy lunch.", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food in flint", "ready to go meals", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food in flint", "health conscious choices", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["fast food", "customers", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["ubereats", "profitable business", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["flint food system", "local restaurants", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["flint food system", "local restaurant", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["consumer base", "flint", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["consumer base", "downtown flint", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["consumer base", "dining experiences", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["flint", "flint food system", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["reinvestment", "family owned business", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["reinvestment", "affordable quality", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["returning customers", "consumers", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food court", "downtown flint", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["leverage points", "healthy choices", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["leverage points", "returning customers", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["leverage points", "restaurants", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["leverage points", "healthy lunch.", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["profitable business", "young professionals", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["owner presence", "affordability", {"weight": 0.75, "confidence": 0.5125, "type": "inter_cluster", "style": "solid"}], ["owner presence", "food system", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["owner presence", "homely environment", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["owner presence", "flint", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["quality of service", "community support", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["quality of service", "time factor", {"weight": 0.5, "confidence": 0.275, "type": "inter_cluster", "style": "solid"}], ["service quality", "businesses", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["positive outcomes", "returning customers", {"weight": 1.0, "confidence": 0.8500000000000001, "type": "inter_cluster", "style": "solid"}], ["legacy", "food", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["legacy", "healthy options", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["family owned business", "returning customers", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["family owned business", "evolving community", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["family owned business", "ready to go meals", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["college town", "reinvestment", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["retail sector", "legacy", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["small business", "affordable price", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["health conscious choices", "local restaurants", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["delivery services", "word of mouth", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["community investment", "positive outcomes", {"weight": 1.0, "confidence": 0.8333333333333334, "type": "inter_cluster", "style": "solid"}], ["community investment", "healthy lunch.", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["local businesses", "food", {"weight": 1.0, "confidence": 0.7625000000000001, "type": "inter_cluster", "style": "solid"}], ["local businesses", "affordable price", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["covid", "consumer base", {"weight": -1.0, "confidence": 0.925, "type": "inter_cluster", "style": "solid"}], ["high quality meats", "customers", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["high quality meats", "local action", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["grocery stores", "personal experience", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["word of mouth", "community support", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["word of mouth", "quality of service", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["affordability", "local action", {"weight": 1.0, "confidence": 0.7166666666666667, "type": "inter_cluster", "style": "solid"}], ["affordability", "personal experience", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["affordability", "delivery apps", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["affordability", "healthy choices", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["evolving community", "convenience factor", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["evolving community", "nutritious foods", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food system", "loyal customers", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["food system", "local action", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food system", "zingerman's", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["businesses", "seasonal availability", {"weight": 0.3333333333333333, "confidence": 0.2333333333333333, "type": "inter_cluster", "style": "solid"}], ["businesses", "doordash", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["meat", "farmers", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["affordable quality", "returning customers", {"weight": 1.0, "confidence": 0.8166666666666668, "type": "inter_cluster", "style": "solid"}], ["affordable quality", "loyal customers", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["ready to go meals", "fresh salads", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["zingerman's", "local restaurants", {"weight": 1.0, "confidence": 0.6833333333333332, "type": "inter_cluster", "style": "solid"}], ["zingerman's", "health conscious", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["zingerman's", "small business", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["zingerman's", "businesses", {"weight": 0.5, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["fresh salads", "healthy choices", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["health conscious", "health conscious choices", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["health conscious", "word of mouth", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["seasonal availability", "retail sector", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["quality of food", "reinvestment", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["doordash", "flint", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food", "healthy options", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food", "ready to go meals", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["delivery apps", "profitable business", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["delivery apps", "legacy", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["local action", "delivery service", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["healthy lunch.", "nutritious food", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["healthy lunch.", "positive outcomes", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["local restaurant", "legacy", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["time factor", "fresh sandwiches", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["community support", "evolving community", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["community support", "business investment", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["healthy options", "fresh pizzas", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["farmers markets", "covid", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["nutritious food", "food in flint", {"weight": 1.0, "confidence": 0.8099999999999999, "type": "inter_cluster", "style": "solid"}], ["nutritious food", "meat", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["nutritious food", "local restaurant", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["convenience factor", "healthy options", {"weight": -0.5, "confidence": 0.7124999999999999, "type": "inter_cluster", "style": "solid"}], ["convenience factor", "retail sector", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["customers", "food", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["customers", "seasonal availability", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["community empowerment", "zingerman's", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["nutritious foods", "grocery stores", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["nutritious foods", "high quality meats", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["consumer type", "restaurants", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["consumer type", "reinvestment", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["consumer type", "dining experiences", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["customer base", "affordability", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["big john's", "quality of food", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["restaurants", "fresh pizzas", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["restaurants", "leverage points", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["vending machines", "ready to go meals", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["chain restaurants", "local action", {"weight": -0.6666666666666666, "confidence": 0.4166666666666667, "type": "inter_cluster", "style": "solid"}], ["business investment", "time factor", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

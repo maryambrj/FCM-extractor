@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"Exploit Techniques": {"concepts": "download, powerpc, permissions", "concept_list": ["download", "powerpc", "permissions"], "type": "cluster", "node_size": 24, "label": "Exploit Techniques"}, "Connection Errors": {"concepts": "aslr, fcm exercise, ropper", "concept_list": ["aslr", "fcm exercise", "ropper"], "type": "cluster", "node_size": 24, "label": "Connection Errors"}, "Tool Usability": {"concepts": "connection issues, fail to connect, buffer overflow, server connection", "concept_list": ["connection issues", "fail to connect", "buffer overflow", "server connection"], "type": "cluster", "node_size": 27, "label": "Tool Usability"}, "Exploit Development": {"concepts": "usability, software tools, approach selection, language support, tool limitations, alternative tools, tool selection, tool approach, system support, common tools, tool availability, system compatibility, tool support, tool usability, visualization software, tool usage, tool effectiveness, computer visualization", "concept_list": ["usability", "software tools", "approach selection", "language support", "tool limitations", "alternative tools", "tool selection", "tool approach", "system support", "common tools", "tool availability", "system compatibility", "tool support", "tool usability", "visualization software", "tool usage", "tool effectiveness", "computer visualization"], "type": "cluster", "node_size": 69, "label": "Exploit Development"}, "Download Permissions": {"concepts": "building exploit, defense system, cyber attackers, attacker, exercising, local exploit, exploit success, exploit process, exploit failure, remote exploit, offensive context, exploit primitives, exploit building, cyber attacks, defensive mitigations, exploit development", "concept_list": ["building exploit", "defense system", "cyber attackers", "attacker", "exercising", "local exploit", "exploit success", "exploit process", "exploit failure", "remote exploit", "offensive context", "exploit primitives", "exploit building", "cyber attacks", "defensive mitigations", "exploit development"], "type": "cluster", "node_size": 63, "label": "Download Permissions"}, "Discovery Challenges": {"concepts": "understanding, challenge process, discovery process, unexpected surprise, acquisition, discovery tools, discovery, challenge success, challenge, challenge understanding, examples, challenge confirmation", "concept_list": ["understanding", "challenge process", "discovery process", "unexpected surprise", "acquisition", "discovery tools", "discovery", "challenge success", "challenge", "challenge understanding", "examples", "challenge confirmation"], "type": "cluster", "node_size": 51, "label": "Discovery Challenges"}, "Process Steps": {"concepts": "technical process, process flow, process iteration, process step, steps, process documentation, process mediation, process factor, process walkthrough, development steps, cyclical process, process steps, iteration, process, stepwise process", "concept_list": ["technical process", "process flow", "process iteration", "process step", "steps", "process documentation", "process mediation", "process factor", "process walkthrough", "development steps", "cyclical process", "process steps", "iteration", "process", "stepwise process"], "type": "cluster", "node_size": 60, "label": "Process Steps"}, "Input Analysis": {"concepts": "understanding input, feedback loop, input, user input, control flow, breakpoint, input analysis", "concept_list": ["understanding input", "feedback loop", "input", "user input", "control flow", "breakpoint", "input analysis"], "type": "cluster", "node_size": 36, "label": "Input Analysis"}, "Context Indicators": {"concepts": "positive context, register context, positivity, symbol presence, context, local context, negativity, context difference, remote context, negative context, negative indicators", "concept_list": ["positive context", "register context", "positivity", "symbol presence", "context", "local context", "negativity", "context difference", "remote context", "negative context", "negative indicators"], "type": "cluster", "node_size": 48, "label": "Context Indicators"}, "Technical Tools": {"concepts": "text, local development, connection, cts, connect to server, challenge ideas, static variables, compilation symbols, log analysis, primitive discovery tools, social domain, function layers, positive indicators, flag, program support, setup process, diagram, disassembler, obfuscation impact, thumb mode, local setup, system architecture, distractions, experimenter, confirmation, open-ended questions, remote development, primitive discovery, flow, disassembly, static analysis, primitives discovery, issue connecting, operating system, semi-structured process, accessibility, challenge failure, local execution, ctfs, code obfuscation, romper, dynamic variables, gdb, binary obfuscation, function analysis, instances, readability factors, kidra, progress factors, proof validation, participant, running locally, experience, server, readability, number of primitives, code obfuscation techniques, psychological domain, red herrings, text analysis, course of action, proof of concept, instruction, self-unpacking binary, original language, ctf, flag indicators, failure, categories, compilation, confirmation process, permissions issues, knowledge, code layers, analysis step", "concept_list": ["text", "local development", "connection", "cts", "connect to server", "challenge ideas", "static variables", "compilation symbols", "log analysis", "primitive discovery tools", "social domain", "function layers", "positive indicators", "flag", "program support", "setup process", "diagram", "disassembler", "obfuscation impact", "thumb mode", "local setup", "system architecture", "distractions", "experimenter", "confirmation", "open-ended questions", "remote development", "primitive discovery", "flow", "disassembly", "static analysis", "primitives discovery", "issue connecting", "operating system", "semi-structured process", "accessibility", "challenge failure", "local execution", "ctfs", "code obfuscation", "romper", "dynamic variables", "gdb", "binary obfuscation", "function analysis", "instances", "readability factors", "kidra", "progress factors", "proof validation", "participant", "running locally", "experience", "server", "readability", "number of primitives", "code obfuscation techniques", "psychological domain", "red herrings", "text analysis", "course of action", "proof of concept", "instruction", "self-unpacking binary", "original language", "ctf", "flag indicators", "failure", "categories", "compilation", "confirmation process", "permissions issues", "knowledge", "code layers", "analysis step"], "type": "cluster", "node_size": 240, "label": "Technical Tools"}, "Primitive Availability": {"concepts": "available primitives, arm, primitives, organizers, primitives availability, primitives support, chaining primitives", "concept_list": ["available primitives", "arm", "primitives", "organizers", "primitives availability", "primitives support", "chaining primitives"], "type": "cluster", "node_size": 36, "label": "Primitive Availability"}, "Social Influence": {"concepts": "social dynamics, decisions, positive influence, negative influence, influence, ability, peer support, group interaction, behavior, collaboration, factors, beliefs, roles, technical variable, friend assistance, support, role interaction, fuzzy cognitive map, reinforcement, problem solving, judgment, external factors, collaborative problem solving, action", "concept_list": ["social dynamics", "decisions", "positive influence", "negative influence", "influence", "ability", "peer support", "group interaction", "behavior", "collaboration", "factors", "beliefs", "roles", "technical variable", "friend assistance", "support", "role interaction", "fuzzy cognitive map", "reinforcement", "problem solving", "judgment", "external factors", "collaborative problem solving", "action"], "type": "cluster", "node_size": 87, "label": "Social Influence"}, "Error Management": {"concepts": "error handling, misleading information, error mitigation, complaint, incorrect assumptions, internal misunderstanding, error messages", "concept_list": ["error handling", "misleading information", "error mitigation", "complaint", "incorrect assumptions", "internal misunderstanding", "error messages"], "type": "cluster", "node_size": 36, "label": "Error Management"}, "Binary Analysis": {"concepts": "binary type, binary versions, polyglot binaries, binary unpacking, signed graph, polyglot, matrix, binary, binary analysis, binaries", "concept_list": ["binary type", "binary versions", "polyglot binaries", "binary unpacking", "signed graph", "polyglot", "matrix", "binary", "binary analysis", "binaries"], "type": "cluster", "node_size": 45, "label": "Binary Analysis"}, "Technical Challenges": {"concepts": "give up, setup, technical challenges, technical challenge, character leak, technical term, technical terminology, technical entity, technical detail, time constraints, technical support, fuzzing, logs, grep, technical issue, check sec", "concept_list": ["give up", "setup", "technical challenges", "technical challenge", "character leak", "technical term", "technical terminology", "technical entity", "technical detail", "time constraints", "technical support", "fuzzing", "logs", "grep", "technical issue", "check sec"], "type": "cluster", "node_size": 63, "label": "Technical Challenges"}, "Relationship Types": {"concepts": "relationship effect, neutral relationship, positive relationship, negative relationship, relationship type, relationship, relationships", "concept_list": ["relationship effect", "neutral relationship", "positive relationship", "negative relationship", "relationship type", "relationship", "relationships"], "type": "cluster", "node_size": 36, "label": "Relationship Types"}, "Program Execution": {"concepts": "code execution, execution instructions, instruction set, program architecture, program analysis, program mode, program run, execution mode, program execution, data execution prevention", "concept_list": ["code execution", "execution instructions", "instruction set", "program architecture", "program analysis", "program mode", "program run", "execution mode", "program execution", "data execution prevention"], "type": "cluster", "node_size": 45, "label": "Program Execution"}, "Code Decompilation": {"concepts": "decompiler, decompilation, code readability, code decompilation, decompilation readability, code analysis, code unpacking", "concept_list": ["decompiler", "decompilation", "code readability", "code decompilation", "decompilation readability", "code analysis", "code unpacking"], "type": "cluster", "node_size": 36, "label": "Code Decompilation"}, "File Handling": {"concepts": "file download, files, downloading files, file headers, program upload, missing files, download process, uploading, file", "concept_list": ["file download", "files", "downloading files", "file headers", "program upload", "missing files", "download process", "uploading", "file"], "type": "cluster", "node_size": 42, "label": "File Handling"}, "Debugging Techniques": {"concepts": "debug symbols, bug classes, bug detection, malware techniques, debug strings, debugging, debugger ability, debugger, emulation support, virtual machines, anti-debugger, debugger usage, anti-debugger techniques, virtual machine, emulation, emulation failure", "concept_list": ["debug symbols", "bug classes", "bug detection", "malware techniques", "debug strings", "debugging", "debugger ability", "debugger", "emulation support", "virtual machines", "anti-debugger", "debugger usage", "anti-debugger techniques", "virtual machine", "emulation", "emulation failure"], "type": "cluster", "node_size": 63, "label": "Debugging Techniques"}, "Success Factors": {"concepts": "success factors, success influence, success variable, success, success variables, internal success", "concept_list": ["success factors", "success influence", "success variable", "success", "success variables", "internal success"], "type": "cluster", "node_size": 33, "label": "Success Factors"}, "Mitigation Strategies": {"concepts": "progress mitigation, mitigation steps, mitigation strategies, mitigation bypass, mitigation discovery, mitigation effect, bypass mitigation", "concept_list": ["progress mitigation", "mitigation steps", "mitigation strategies", "mitigation bypass", "mitigation discovery", "mitigation effect", "bypass mitigation"], "type": "cluster", "node_size": 36, "label": "Mitigation Strategies"}, "Vulnerability Indicators": {"concepts": "program vulnerability, vulnerability, indicators, disruptions, indicator identification", "concept_list": ["program vulnerability", "vulnerability", "indicators", "disruptions", "indicator identification"], "type": "cluster", "node_size": 30, "label": "Vulnerability Indicators"}, "System Architecture": {"concepts": "architecture switching, architecture, architecture differences, architectures, structure, organization", "concept_list": ["architecture switching", "architecture", "architecture differences", "architectures", "structure", "organization"], "type": "cluster", "node_size": 33, "label": "System Architecture"}, "Stack Protection": {"concepts": "stack canaries, memory map", "concept_list": ["stack canaries", "memory map"], "type": "cluster", "node_size": 21, "label": "Stack Protection"}};
+        const conceptData = {};
+        const interClusterEdges = [["Connection Errors", "Program Execution", {"weight": -0.5, "confidence": 0.7625000000000001, "type": "inter_cluster", "style": "solid"}], ["Tool Usability", "Technical Tools", {"weight": -1.0, "confidence": 0.8375, "type": "inter_cluster", "style": "solid"}], ["Tool Usability", "Technical Challenges", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Tool Usability", "Relationship Types", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Download Permissions", "Stack Protection", {"weight": 0.6, "confidence": 0.8099999999999999, "type": "inter_cluster", "style": "solid"}], ["Download Permissions", "Context Indicators", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Download Permissions", "File Handling", {"weight": 1.0, "confidence": 0.7125, "type": "inter_cluster", "style": "solid"}], ["Download Permissions", "Exploit Development", {"weight": 1.0, "confidence": 0.8333333333333334, "type": "inter_cluster", "style": "solid"}], ["Download Permissions", "Connection Errors", {"weight": 0.6666666666666666, "confidence": 0.5333333333333333, "type": "inter_cluster", "style": "solid"}], ["Download Permissions", "Primitive Availability", {"weight": 0.5, "confidence": 0.475, "type": "inter_cluster", "style": "solid"}], ["Discovery Challenges", "System Architecture", {"weight": 1.0, "confidence": 0.7333333333333334, "type": "inter_cluster", "style": "solid"}], ["Discovery Challenges", "Program Execution", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Discovery Challenges", "Mitigation Strategies", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Process Steps", "Primitive Availability", {"weight": 0.75, "confidence": 0.5874999999999999, "type": "inter_cluster", "style": "solid"}], ["Process Steps", "Debugging Techniques", {"weight": 0.75, "confidence": 0.5875, "type": "inter_cluster", "style": "solid"}], ["Process Steps", "Binary Analysis", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["Input Analysis", "Stack Protection", {"weight": 1.0, "confidence": 0.7000000000000001, "type": "inter_cluster", "style": "solid"}], ["Context Indicators", "Tool Usability", {"weight": -0.6666666666666666, "confidence": 0.5166666666666666, "type": "inter_cluster", "style": "solid"}], ["Context Indicators", "Technical Challenges", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Technical Tools", "Vulnerability Indicators", {"weight": 1.0, "confidence": 0.8250000000000001, "type": "inter_cluster", "style": "solid"}], ["Technical Tools", "Process Steps", {"weight": 1.0, "confidence": 0.7999999999999999, "type": "inter_cluster", "style": "solid"}], ["Technical Tools", "File Handling", {"weight": 1.0, "confidence": 0.7666666666666666, "type": "inter_cluster", "style": "solid"}], ["Technical Tools", "Download Permissions", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["Technical Tools", "Connection Errors", {"weight": 0.5, "confidence": 0.425, "type": "inter_cluster", "style": "solid"}], ["Technical Tools", "Relationship Types", {"weight": 0.5, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["Social Influence", "Exploit Techniques", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Social Influence", "Mitigation Strategies", {"weight": 0.75, "confidence": 0.44999999999999996, "type": "inter_cluster", "style": "solid"}], ["Social Influence", "Program Execution", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Binary Analysis", "Vulnerability Indicators", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["Technical Challenges", "Debugging Techniques", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["Technical Challenges", "Connection Errors", {"weight": 0.6666666666666666, "confidence": 0.4166666666666667, "type": "inter_cluster", "style": "solid"}], ["Program Execution", "Mitigation Strategies", {"weight": -0.6666666666666666, "confidence": 0.5833333333333334, "type": "inter_cluster", "style": "solid"}], ["Program Execution", "Technical Challenges", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Code Decompilation", "Debugging Techniques", {"weight": 0.8, "confidence": 0.71, "type": "inter_cluster", "style": "solid"}], ["Code Decompilation", "System Architecture", {"weight": -0.4, "confidence": 0.64, "type": "inter_cluster", "style": "solid"}], ["File Handling", "System Architecture", {"weight": 0.3333333333333333, "confidence": 0.7166666666666667, "type": "inter_cluster", "style": "solid"}], ["Debugging Techniques", "Exploit Development", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["Success Factors", "System Architecture", {"weight": -0.5, "confidence": 0.7125, "type": "inter_cluster", "style": "solid"}], ["Success Factors", "Stack Protection", {"weight": -1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["Mitigation Strategies", "Program Execution", {"weight": -0.5, "confidence": 0.7875, "type": "inter_cluster", "style": "solid"}], ["Vulnerability Indicators", "Code Decompilation", {"weight": 1.0, "confidence": 0.7875000000000001, "type": "inter_cluster", "style": "solid"}], ["Vulnerability Indicators", "Discovery Challenges", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["System Architecture", "Process Steps", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["System Architecture", "Exploit Development", {"weight": -1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["Stack Protection", "Process Steps", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Stack Protection", "Debugging Techniques", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Stack Protection", "Error Management", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {"Exploit Techniques": [], "Connection Errors": [], "Tool Usability": [], "Exploit Development": [], "Download Permissions": [], "Discovery Challenges": [], "Process Steps": [], "Input Analysis": [], "Context Indicators": [], "Technical Tools": [], "Primitive Availability": [], "Social Influence": [], "Error Management": [], "Binary Analysis": [], "Technical Challenges": [], "Relationship Types": [], "Program Execution": [], "Code Decompilation": [], "File Handling": [], "Debugging Techniques": [], "Success Factors": [], "Mitigation Strategies": [], "Vulnerability Indicators": [], "System Architecture": [], "Stack Protection": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"environment alteration": {"concepts": "environment alteration", "concept_list": ["environment alteration"], "type": "cluster", "node_size": 18, "label": "environment alteration"}, "environment": {"concepts": "environment", "concept_list": ["environment"], "type": "cluster", "node_size": 18, "label": "environment"}, "environmental errors": {"concepts": "environmental errors", "concept_list": ["environmental errors"], "type": "cluster", "node_size": 18, "label": "environmental errors"}, "trial and error": {"concepts": "trial and error", "concept_list": ["trial and error"], "type": "cluster", "node_size": 18, "label": "trial and error"}, "technical proficiency": {"concepts": "technical proficiency", "concept_list": ["technical proficiency"], "type": "cluster", "node_size": 18, "label": "technical proficiency"}, "beliefs": {"concepts": "beliefs", "concept_list": ["beliefs"], "type": "cluster", "node_size": 18, "label": "beliefs"}, "expectation": {"concepts": "expectation", "concept_list": ["expectation"], "type": "cluster", "node_size": 18, "label": "expectation"}, "behavior": {"concepts": "behavior", "concept_list": ["behavior"], "type": "cluster", "node_size": 18, "label": "behavior"}, "behavior verification": {"concepts": "behavior verification", "concept_list": ["behavior verification"], "type": "cluster", "node_size": 18, "label": "behavior verification"}, "file formats": {"concepts": "file formats", "concept_list": ["file formats"], "type": "cluster", "node_size": 18, "label": "file formats"}, "fuzzer": {"concepts": "fuzzer", "concept_list": ["fuzzer"], "type": "cluster", "node_size": 18, "label": "fuzzer"}, "Knowledge Assessment": {"concepts": "failure, pass fail, first impressions, inexperience", "concept_list": ["failure", "pass fail", "first impressions", "inexperience"], "type": "cluster", "node_size": 27, "label": "Knowledge Assessment"}, "Code Complexity": {"concepts": "prior knowledge, knowledge verification, knowledge, expertise", "concept_list": ["prior knowledge", "knowledge verification", "knowledge", "expertise"], "type": "cluster", "node_size": 27, "label": "Code Complexity"}, "Binary Testing": {"concepts": "complexity, code complexity", "concept_list": ["complexity", "code complexity"], "type": "cluster", "node_size": 21, "label": "Binary Testing"}, "Process Evaluation": {"concepts": "process review, process behavior, process interaction, process understanding", "concept_list": ["process review", "process behavior", "process interaction", "process understanding"], "type": "cluster", "node_size": 27, "label": "Process Evaluation"}, "Pass/Fail Experience": {"concepts": "intricacy, researcher ability, open-ended questions, dependencies, process interrogation, emulate behavior, negative causal effect, knowledge separation, process capability, fcm, code base, problem solving, emulating behavior, judgment call, critical qualifier, weaknesses, robustness, inaccessible dependencies, causal mechanisms, success, process effects, accurate understanding, possibilities, semi-structured interview, process functionality, intentionality, emulation, unexpected issues, mitigations, information gain, emulate, causal reasoning, negative outcomes, quality of development, code review, target obscurity, assertions, information seeking, inspection, control, code analysis, knowledge application, design patterns, inaccurate understanding, decision-making, solution crafting, testing weaknesses, implementation dependencies, surprise factors, interrogation, critical fault, source code, outside resources, decisions, fuzzy cognitive map, inherent variables, positive outcomes, causal relationship, development quality, process inspection, success factors, internal processes, causal assertions, implementation skills, stability", "concept_list": ["intricacy", "researcher ability", "open-ended questions", "dependencies", "process interrogation", "emulate behavior", "negative causal effect", "knowledge separation", "process capability", "fcm", "code base", "problem solving", "emulating behavior", "judgment call", "critical qualifier", "weaknesses", "robustness", "inaccessible dependencies", "causal mechanisms", "success", "process effects", "accurate understanding", "possibilities", "semi-structured interview", "process functionality", "intentionality", "emulation", "unexpected issues", "mitigations", "information gain", "emulate", "causal reasoning", "negative outcomes", "quality of development", "code review", "target obscurity", "assertions", "information seeking", "inspection", "control", "code analysis", "knowledge application", "design patterns", "inaccurate understanding", "decision-making", "solution crafting", "testing weaknesses", "implementation dependencies", "surprise factors", "interrogation", "critical fault", "source code", "outside resources", "decisions", "fuzzy cognitive map", "inherent variables", "positive outcomes", "causal relationship", "development quality", "process inspection", "success factors", "internal processes", "causal assertions", "implementation skills", "stability"], "type": "cluster", "node_size": 210, "label": "Pass/Fail Experience"}, "Vulnerability Assessment": {"concepts": "vulnerability ranking, cyber attackers, attack surfaces, vulnerable behavior, vulnerabilities, vulnerable patterns, vulnerability, attack surface, exploitation, exploitable, exploration, ranking vulnerabilities, cyber attacks", "concept_list": ["vulnerability ranking", "cyber attackers", "attack surfaces", "vulnerable behavior", "vulnerabilities", "vulnerable patterns", "vulnerability", "attack surface", "exploitation", "exploitable", "exploration", "ranking vulnerabilities", "cyber attacks"], "type": "cluster", "node_size": 54, "label": "Vulnerability Assessment"}, "Target Analysis": {"concepts": "identification, progress disruption, flag, maintained, full picture, structure, protocol familiarity, familiarity, understanding, modifying target, analysis, pattern matching, visualization, disruption, standard, modify target, target characteristic, code smell, target, rabbit holes, solutions, strategy, local versus remote, alternate paths, modify, convention, quick solutions, first principles, learning, reversing, target binary, strace, misunderstood check, solve, decompiling, proprietary, review, progress, granularity, reverse engineering, protocols, computer visualization, abstraction, decompiler, fake flag", "concept_list": ["identification", "progress disruption", "flag", "maintained", "full picture", "structure", "protocol familiarity", "familiarity", "understanding", "modifying target", "analysis", "pattern matching", "visualization", "disruption", "standard", "modify target", "target characteristic", "code smell", "target", "rabbit holes", "solutions", "strategy", "local versus remote", "alternate paths", "modify", "convention", "quick solutions", "first principles", "learning", "reversing", "target binary", "strace", "misunderstood check", "solve", "decompiling", "proprietary", "review", "progress", "granularity", "reverse engineering", "protocols", "computer visualization", "abstraction", "decompiler", "fake flag"], "type": "cluster", "node_size": 150, "label": "Target Analysis"}, "Program State Analysis": {"concepts": "workable state, execution, memory management, pure state, static state, execution state, dynamic analysis, at execution, representative state, static analysis, at rest, dynamic analysis tools", "concept_list": ["workable state", "execution", "memory management", "pure state", "static state", "execution state", "dynamic analysis", "at execution", "representative state", "static analysis", "at rest", "dynamic analysis tools"], "type": "cluster", "node_size": 51, "label": "Program State Analysis"}, "Input-Output Feedback": {"concepts": "feedback loops, output, outputs, inputs, network connections, output evaluation, feedback loop, valid inputs", "concept_list": ["feedback loops", "output", "outputs", "inputs", "network connections", "output evaluation", "feedback loop", "valid inputs"], "type": "cluster", "node_size": 39, "label": "Input-Output Feedback"}, "Environment Variables": {"concepts": "environmental condition, environmental variables", "concept_list": ["environmental condition", "environmental variables"], "type": "cluster", "node_size": 21, "label": "Environment Variables"}, "Environment Setup": {"concepts": "environment setup, environmental setup", "concept_list": ["environment setup", "environmental setup"], "type": "cluster", "node_size": 21, "label": "Environment Setup"}, "Process Structure": {"concepts": "process granularity, sub process, process steps, process execution, iterative process", "concept_list": ["process granularity", "sub process", "process steps", "process execution", "iterative process"], "type": "cluster", "node_size": 30, "label": "Process Structure"}, "Process Flow": {"concepts": "process input, process output", "concept_list": ["process input", "process output"], "type": "cluster", "node_size": 21, "label": "Process Flow"}, "Feedback Efficiency": {"concepts": "process feedback, time management", "concept_list": ["process feedback", "time management"], "type": "cluster", "node_size": 21, "label": "Feedback Efficiency"}, "Feature Capabilities": {"concepts": "capabilities, functionality, additional functionality, functionalities", "concept_list": ["capabilities", "functionality", "additional functionality", "functionalities"], "type": "cluster", "node_size": 27, "label": "Feature Capabilities"}, "Functionality Assessment": {"concepts": "functionality testing, functionality understanding", "concept_list": ["functionality testing", "functionality understanding"], "type": "cluster", "node_size": 21, "label": "Functionality Assessment"}, "Design Implementation": {"concepts": "design facets, implementation", "concept_list": ["design facets", "implementation"], "type": "cluster", "node_size": 21, "label": "Design Implementation"}, "Process Analysis": {"concepts": "process analysis tools, process discovery, process understanding tools, process analysis, process evaluation, process exploration, process evaluation tools", "concept_list": ["process analysis tools", "process discovery", "process understanding tools", "process analysis", "process evaluation", "process exploration", "process evaluation tools"], "type": "cluster", "node_size": 36, "label": "Process Analysis"}, "Process Visualization": {"concepts": "task diagram, process visualization", "concept_list": ["task diagram", "process visualization"], "type": "cluster", "node_size": 21, "label": "Process Visualization"}, "Error Types": {"concepts": "errors, error occurrence, memory mismanagement, environmental mistake", "concept_list": ["errors", "error occurrence", "memory mismanagement", "environmental mistake"], "type": "cluster", "node_size": 27, "label": "Error Types"}, "Error Handling": {"concepts": "error recovery, error detection, error prevention", "concept_list": ["error recovery", "error detection", "error prevention"], "type": "cluster", "node_size": 24, "label": "Error Handling"}, "Interaction Skills": {"concepts": "interaction strategies, interaction skills", "concept_list": ["interaction strategies", "interaction skills"], "type": "cluster", "node_size": 21, "label": "Interaction Skills"}, "User Experience": {"concepts": "interaction, user experience", "concept_list": ["interaction", "user experience"], "type": "cluster", "node_size": 21, "label": "User Experience"}, "Interaction Outcomes": {"concepts": "unsuccessful interaction, interaction success", "concept_list": ["unsuccessful interaction", "interaction success"], "type": "cluster", "node_size": 21, "label": "Interaction Outcomes"}, "Testing Strategies": {"concepts": "hypothesis testing, guess and check", "concept_list": ["hypothesis testing", "guess and check"], "type": "cluster", "node_size": 21, "label": "Testing Strategies"}, "Making Assumptions": {"concepts": "assumptions, assumption making", "concept_list": ["assumptions", "assumption making"], "type": "cluster", "node_size": 21, "label": "Making Assumptions"}, "Model Components": {"concepts": "kernel, likelihood", "concept_list": ["kernel", "likelihood"], "type": "cluster", "node_size": 21, "label": "Model Components"}, "Ordering Methods": {"concepts": "ranking, enumeration", "concept_list": ["ranking", "enumeration"], "type": "cluster", "node_size": 21, "label": "Ordering Methods"}, "Risk Penalization": {"concepts": "penalization, risk", "concept_list": ["penalization", "risk"], "type": "cluster", "node_size": 21, "label": "Risk Penalization"}, "Abnormal Detection": {"concepts": "abnormal results, abnormal behavior", "concept_list": ["abnormal results", "abnormal behavior"], "type": "cluster", "node_size": 21, "label": "Abnormal Detection"}, "Unsafe Practices": {"concepts": "unsafe code, unsafe behavior", "concept_list": ["unsafe code", "unsafe behavior"], "type": "cluster", "node_size": 21, "label": "Unsafe Practices"}, "Behavior Simulation": {"concepts": "mock behavior, behavior matching", "concept_list": ["mock behavior", "behavior matching"], "type": "cluster", "node_size": 21, "label": "Behavior Simulation"}, "Behavior Verification": {"concepts": "behavioral check, verification process, verifying behaviors", "concept_list": ["behavioral check", "verification process", "verifying behaviors"], "type": "cluster", "node_size": 24, "label": "Behavior Verification"}, "Implementation Knowledge": {"concepts": "implementation knowledge, implementation change", "concept_list": ["implementation knowledge", "implementation change"], "type": "cluster", "node_size": 21, "label": "Implementation Knowledge"}, "Target Behaviors": {"concepts": "target behavior, target behaviors, desired behavior", "concept_list": ["target behavior", "target behaviors", "desired behavior"], "type": "cluster", "node_size": 24, "label": "Target Behaviors"}, "Behavior Patterns": {"concepts": "exploring behaviors, behavior pattern", "concept_list": ["exploring behaviors", "behavior pattern"], "type": "cluster", "node_size": 21, "label": "Behavior Patterns"}, "Disruptive Behaviors": {"concepts": "disruptive behaviors, behavioral disruption, disruptive behavior", "concept_list": ["disruptive behaviors", "behavioral disruption", "disruptive behavior"], "type": "cluster", "node_size": 24, "label": "Disruptive Behaviors"}, "Behavior Change": {"concepts": "behavior change, behavioral change, behavior alteration", "concept_list": ["behavior change", "behavioral change", "behavior alteration"], "type": "cluster", "node_size": 24, "label": "Behavior Change"}, "Tool Set": {"concepts": "tool set, toolset", "concept_list": ["tool set", "toolset"], "type": "cluster", "node_size": 21, "label": "Tool Set"}, "Tool Usage": {"concepts": "tool utilization, tool selection", "concept_list": ["tool utilization", "tool selection"], "type": "cluster", "node_size": 21, "label": "Tool Usage"}, "Access Barriers": {"concepts": "access, access barriers, restricted access, tool access", "concept_list": ["access", "access barriers", "restricted access", "tool access"], "type": "cluster", "node_size": 27, "label": "Access Barriers"}, "CTF Challenges": {"concepts": "ctf challenge, ctf player, jeopardy challenges", "concept_list": ["ctf challenge", "ctf player", "jeopardy challenges"], "type": "cluster", "node_size": 24, "label": "CTF Challenges"}, "Challenge Setup": {"concepts": "challenge presentation, challenge environment, challenge identification, challenge", "concept_list": ["challenge presentation", "challenge environment", "challenge identification", "challenge"], "type": "cluster", "node_size": 27, "label": "Challenge Setup"}};
+        const conceptData = {};
+        const interClusterEdges = [["environment alteration", "Target Behaviors", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["environment", "Tool Usage", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["environmental errors", "Error Types", {"weight": 1.0, "confidence": 0.8699999999999999, "type": "inter_cluster", "style": "solid"}], ["environmental errors", "User Experience", {"weight": -1.0, "confidence": 0.8666666666666667, "type": "inter_cluster", "style": "solid"}], ["environmental errors", "Behavior Change", {"weight": 1.0, "confidence": 0.7166666666666667, "type": "inter_cluster", "style": "solid"}], ["environmental errors", "Error Handling", {"weight": 1.0, "confidence": 0.8000000000000002, "type": "inter_cluster", "style": "solid"}], ["trial and error", "Error Types", {"weight": 1.0, "confidence": 0.7299999999999999, "type": "inter_cluster", "style": "solid"}], ["trial and error", "expectation", {"weight": 1.0, "confidence": 0.6333333333333333, "type": "inter_cluster", "style": "solid"}], ["trial and error", "Program State Analysis", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["trial and error", "Disruptive Behaviors", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["trial and error", "environmental errors", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["technical proficiency", "Disruptive Behaviors", {"weight": -1.0, "confidence": 0.7125, "type": "inter_cluster", "style": "solid"}], ["technical proficiency", "Design Implementation", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["beliefs", "Ordering Methods", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["beliefs", "Behavior Patterns", {"weight": 1.0, "confidence": 0.575, "type": "inter_cluster", "style": "solid"}], ["beliefs", "Interaction Skills", {"weight": 1.0, "confidence": 0.575, "type": "inter_cluster", "style": "solid"}], ["beliefs", "Behavior Verification", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["behavior", "Challenge Setup", {"weight": 1.0, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["behavior verification", "Tool Set", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["behavior verification", "Risk Penalization", {"weight": -1.0, "confidence": 0.5666666666666667, "type": "inter_cluster", "style": "solid"}], ["behavior verification", "Process Visualization", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["file formats", "Error Types", {"weight": 1.0, "confidence": 0.63, "type": "inter_cluster", "style": "solid"}], ["file formats", "User Experience", {"weight": 1.0, "confidence": 0.62, "type": "inter_cluster", "style": "solid"}], ["Knowledge Assessment", "trial and error", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Binary Testing", "Process Evaluation", {"weight": -1.0, "confidence": 0.875, "type": "inter_cluster", "style": "solid"}], ["Process Evaluation", "Risk Penalization", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Process Evaluation", "environmental errors", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Pass/Fail Experience", "fuzzer", {"weight": 1.0, "confidence": 0.61, "type": "inter_cluster", "style": "solid"}], ["Pass/Fail Experience", "User Experience", {"weight": 1.0, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["Pass/Fail Experience", "Implementation Knowledge", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Vulnerability Assessment", "CTF Challenges", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Vulnerability Assessment", "Ordering Methods", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Vulnerability Assessment", "Error Handling", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Program State Analysis", "Model Components", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Input-Output Feedback", "Disruptive Behaviors", {"weight": 1.0, "confidence": 0.6166666666666667, "type": "inter_cluster", "style": "solid"}], ["Input-Output Feedback", "Process Analysis", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Input-Output Feedback", "CTF Challenges", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Input-Output Feedback", "Implementation Knowledge", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Environment Variables", "Vulnerability Assessment", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Environment Variables", "CTF Challenges", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["Environment Variables", "fuzzer", {"weight": 0.6666666666666666, "confidence": 0.39999999999999997, "type": "inter_cluster", "style": "solid"}], ["Environment Variables", "Error Handling", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Environment Variables", "Binary Testing", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["Environment Variables", "Interaction Skills", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Environment Setup", "Vulnerability Assessment", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Environment Setup", "Functionality Assessment", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Process Structure", "Process Evaluation", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Process Flow", "Feature Capabilities", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Feature Capabilities", "Process Structure", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Feature Capabilities", "CTF Challenges", {"weight": 1.0, "confidence": 0.6166666666666667, "type": "inter_cluster", "style": "solid"}], ["Feature Capabilities", "Testing Strategies", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Functionality Assessment", "Challenge Setup", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Design Implementation", "Error Handling", {"weight": 1.0, "confidence": 0.7000000000000001, "type": "inter_cluster", "style": "solid"}], ["Design Implementation", "User Experience", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["Design Implementation", "Ordering Methods", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Process Analysis", "Risk Penalization", {"weight": -1.0, "confidence": 0.575, "type": "inter_cluster", "style": "solid"}], ["Error Handling", "Risk Penalization", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Error Handling", "Error Types", {"weight": -1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Error Handling", "Target Behaviors", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Interaction Skills", "Environment Variables", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Interaction Skills", "environment alteration", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["Interaction Outcomes", "Input-Output Feedback", {"weight": -0.5, "confidence": 0.7000000000000001, "type": "inter_cluster", "style": "solid"}], ["Interaction Outcomes", "technical proficiency", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Testing Strategies", "Tool Usage", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Making Assumptions", "Behavior Simulation", {"weight": 1.0, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["Ordering Methods", "Code Complexity", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Risk Penalization", "Tool Usage", {"weight": -1.0, "confidence": 0.6333333333333333, "type": "inter_cluster", "style": "solid"}], ["Risk Penalization", "Target Analysis", {"weight": -1.0, "confidence": 0.5833333333333334, "type": "inter_cluster", "style": "solid"}], ["Risk Penalization", "Input-Output Feedback", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Abnormal Detection", "Process Evaluation", {"weight": 1.0, "confidence": 0.6666666666666666, "type": "inter_cluster", "style": "solid"}], ["Abnormal Detection", "Input-Output Feedback", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Abnormal Detection", "environmental errors", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Abnormal Detection", "Program State Analysis", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Unsafe Practices", "Interaction Skills", {"weight": -0.3333333333333333, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Unsafe Practices", "Behavior Simulation", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["Unsafe Practices", "Disruptive Behaviors", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["Unsafe Practices", "Pass/Fail Experience", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Behavior Simulation", "Making Assumptions", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Behavior Simulation", "Target Behaviors", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Behavior Verification", "Implementation Knowledge", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Behavior Verification", "Feedback Efficiency", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Behavior Verification", "Design Implementation", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Implementation Knowledge", "trial and error", {"weight": 1.0, "confidence": 0.6375000000000001, "type": "inter_cluster", "style": "solid"}], ["Implementation Knowledge", "Challenge Setup", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Target Behaviors", "Testing Strategies", {"weight": 1.0, "confidence": 0.7875000000000001, "type": "inter_cluster", "style": "solid"}], ["Behavior Patterns", "Process Flow", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Behavior Patterns", "Unsafe Practices", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Behavior Change", "fuzzer", {"weight": 0.8, "confidence": 0.5399999999999999, "type": "inter_cluster", "style": "solid"}], ["Behavior Change", "expectation", {"weight": 1.0, "confidence": 0.6333333333333333, "type": "inter_cluster", "style": "solid"}], ["Behavior Change", "behavior", {"weight": 1.0, "confidence": 0.8500000000000001, "type": "inter_cluster", "style": "solid"}], ["Behavior Change", "Ordering Methods", {"weight": 1.0, "confidence": 0.575, "type": "inter_cluster", "style": "solid"}], ["Behavior Change", "Process Evaluation", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Behavior Change", "Process Structure", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Tool Set", "Target Behaviors", {"weight": 1.0, "confidence": 0.8100000000000002, "type": "inter_cluster", "style": "solid"}], ["Tool Set", "Behavior Change", {"weight": 1.0, "confidence": 0.76, "type": "inter_cluster", "style": "solid"}], ["Tool Usage", "Implementation Knowledge", {"weight": 1.0, "confidence": 0.6699999999999999, "type": "inter_cluster", "style": "solid"}], ["Access Barriers", "Behavior Change", {"weight": 0.5, "confidence": 0.7375, "type": "inter_cluster", "style": "solid"}], ["CTF Challenges", "behavior verification", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["CTF Challenges", "Behavior Patterns", {"weight": 1.0, "confidence": 0.6666666666666666, "type": "inter_cluster", "style": "solid"}], ["CTF Challenges", "beliefs", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["CTF Challenges", "Binary Testing", {"weight": 1.0, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["Challenge Setup", "Environment Setup", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {"Knowledge Assessment": [], "Code Complexity": [], "Binary Testing": [], "Process Evaluation": [], "Pass/Fail Experience": [], "Vulnerability Assessment": [], "Target Analysis": [], "Program State Analysis": [], "Input-Output Feedback": [], "Environment Variables": [], "Environment Setup": [], "Process Structure": [], "Process Flow": [], "Feedback Efficiency": [], "Feature Capabilities": [], "Functionality Assessment": [], "Design Implementation": [], "Process Analysis": [], "Process Visualization": [], "Error Types": [], "Error Handling": [], "Interaction Skills": [], "User Experience": [], "Interaction Outcomes": [], "Testing Strategies": [], "Making Assumptions": [], "Model Components": [], "Ordering Methods": [], "Risk Penalization": [], "Abnormal Detection": [], "Unsafe Practices": [], "Behavior Simulation": [], "Behavior Verification": [], "Implementation Knowledge": [], "Target Behaviors": [], "Behavior Patterns": [], "Disruptive Behaviors": [], "Behavior Change": [], "Tool Set": [], "Tool Usage": [], "Access Barriers": [], "CTF Challenges": [], "Challenge Setup": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

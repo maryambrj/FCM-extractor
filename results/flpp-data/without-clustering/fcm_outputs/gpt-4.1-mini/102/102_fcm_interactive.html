@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"food system cultural factors": {"concepts": "food system cultural factors", "concept_list": ["food system cultural factors"], "type": "cluster", "node_size": 18, "label": "food system cultural factors"}, "nutritious foods": {"concepts": "nutritious foods", "concept_list": ["nutritious foods"], "type": "cluster", "node_size": 18, "label": "nutritious foods"}, "food system qualitative data": {"concepts": "food system qualitative data", "concept_list": ["food system qualitative data"], "type": "cluster", "node_size": 18, "label": "food system qualitative data"}, "food system access": {"concepts": "food system access", "concept_list": ["food system access"], "type": "cluster", "node_size": 18, "label": "food system access"}, "food system participant suggestions": {"concepts": "food system participant suggestions", "concept_list": ["food system participant suggestions"], "type": "cluster", "node_size": 18, "label": "food system participant suggestions"}, "food system values": {"concepts": "food system values", "concept_list": ["food system values"], "type": "cluster", "node_size": 18, "label": "food system values"}, "food quality judgment": {"concepts": "food quality judgment", "concept_list": ["food quality judgment"], "type": "cluster", "node_size": 18, "label": "food quality judgment"}, "food system supplemental": {"concepts": "food system supplemental", "concept_list": ["food system supplemental"], "type": "cluster", "node_size": 18, "label": "food system supplemental"}, "emergency food": {"concepts": "emergency food", "concept_list": ["emergency food"], "type": "cluster", "node_size": 18, "label": "emergency food"}, "supplemental food programs": {"concepts": "supplemental food programs", "concept_list": ["supplemental food programs"], "type": "cluster", "node_size": 18, "label": "supplemental food programs"}, "food system participant priorities": {"concepts": "food system participant priorities", "concept_list": ["food system participant priorities"], "type": "cluster", "node_size": 18, "label": "food system participant priorities"}, "retail sector": {"concepts": "retail sector", "concept_list": ["retail sector"], "type": "cluster", "node_size": 18, "label": "retail sector"}, "food environment": {"concepts": "food environment", "concept_list": ["food environment"], "type": "cluster", "node_size": 18, "label": "food environment"}, "food system participant entities": {"concepts": "food system participant entities", "concept_list": ["food system participant entities"], "type": "cluster", "node_size": 18, "label": "food system participant entities"}, "food system nutrition": {"concepts": "food system nutrition", "concept_list": ["food system nutrition"], "type": "cluster", "node_size": 18, "label": "food system nutrition"}, "kroger": {"concepts": "kroger", "concept_list": ["kroger"], "type": "cluster", "node_size": 18, "label": "kroger"}, "walmart": {"concepts": "walmart", "concept_list": ["walmart"], "type": "cluster", "node_size": 18, "label": "walmart"}, "food system participant experiences": {"concepts": "food system participant experiences", "concept_list": ["food system participant experiences"], "type": "cluster", "node_size": 18, "label": "food system participant experiences"}, "food system employment": {"concepts": "food system employment", "concept_list": ["food system employment"], "type": "cluster", "node_size": 18, "label": "food system employment"}, "income inequality": {"concepts": "income inequality", "concept_list": ["income inequality"], "type": "cluster", "node_size": 18, "label": "income inequality"}, "availability": {"concepts": "availability", "concept_list": ["availability"], "type": "cluster", "node_size": 18, "label": "availability"}, "human services": {"concepts": "human services", "concept_list": ["human services"], "type": "cluster", "node_size": 18, "label": "human services"}, "food retail connections": {"concepts": "food retail connections", "concept_list": ["food retail connections"], "type": "cluster", "node_size": 18, "label": "food retail connections"}, "food accessibility": {"concepts": "food accessibility", "concept_list": ["food accessibility"], "type": "cluster", "node_size": 18, "label": "food accessibility"}, "emergency sector": {"concepts": "emergency sector", "concept_list": ["emergency sector"], "type": "cluster", "node_size": 18, "label": "emergency sector"}, "food system education": {"concepts": "food system education", "concept_list": ["food system education"], "type": "cluster", "node_size": 18, "label": "food system education"}, "food system equity": {"concepts": "food system equity", "concept_list": ["food system equity"], "type": "cluster", "node_size": 18, "label": "food system equity"}, "food system transportation": {"concepts": "food system transportation", "concept_list": ["food system transportation"], "type": "cluster", "node_size": 18, "label": "food system transportation"}, "convenience stores": {"concepts": "convenience stores", "concept_list": ["convenience stores"], "type": "cluster", "node_size": 18, "label": "convenience stores"}, "food system narrative": {"concepts": "food system narrative", "concept_list": ["food system narrative"], "type": "cluster", "node_size": 18, "label": "food system narrative"}, "food system relationships": {"concepts": "food system relationships", "concept_list": ["food system relationships"], "type": "cluster", "node_size": 18, "label": "food system relationships"}, "food system impact": {"concepts": "food system impact", "concept_list": ["food system impact"], "type": "cluster", "node_size": 18, "label": "food system impact"}, "supplemental sector": {"concepts": "supplemental sector", "concept_list": ["supplemental sector"], "type": "cluster", "node_size": 18, "label": "supplemental sector"}, "food purchasing": {"concepts": "food purchasing", "concept_list": ["food purchasing"], "type": "cluster", "node_size": 18, "label": "food purchasing"}, "food system improvement": {"concepts": "food system improvement", "concept_list": ["food system improvement"], "type": "cluster", "node_size": 18, "label": "food system improvement"}, "food system sectors": {"concepts": "food system sectors", "concept_list": ["food system sectors"], "type": "cluster", "node_size": 18, "label": "food system sectors"}, "food system connections": {"concepts": "food system connections", "concept_list": ["food system connections"], "type": "cluster", "node_size": 18, "label": "food system connections"}, "food system participant needs": {"concepts": "food system participant needs", "concept_list": ["food system participant needs"], "type": "cluster", "node_size": 18, "label": "food system participant needs"}, "cultural perceptions": {"concepts": "cultural perceptions", "concept_list": ["cultural perceptions"], "type": "cluster", "node_size": 18, "label": "cultural perceptions"}, "food system leverage points": {"concepts": "food system leverage points", "concept_list": ["food system leverage points"], "type": "cluster", "node_size": 18, "label": "food system leverage points"}, "food system analysis": {"concepts": "food system analysis", "concept_list": ["food system analysis"], "type": "cluster", "node_size": 18, "label": "food system analysis"}, "nutrition improvement": {"concepts": "nutrition improvement", "concept_list": ["nutrition improvement"], "type": "cluster", "node_size": 18, "label": "nutrition improvement"}, "retail use": {"concepts": "retail use", "concept_list": ["retail use"], "type": "cluster", "node_size": 18, "label": "retail use"}, "food system complexity": {"concepts": "food system complexity", "concept_list": ["food system complexity"], "type": "cluster", "node_size": 18, "label": "food system complexity"}, "human service needs": {"concepts": "human service needs", "concept_list": ["human service needs"], "type": "cluster", "node_size": 18, "label": "human service needs"}, "built environment": {"concepts": "built environment", "concept_list": ["built environment"], "type": "cluster", "node_size": 18, "label": "built environment"}, "food system participant perspective": {"concepts": "food system participant perspective", "concept_list": ["food system participant perspective"], "type": "cluster", "node_size": 18, "label": "food system participant perspective"}, "nutritious food": {"concepts": "nutritious food", "concept_list": ["nutritious food"], "type": "cluster", "node_size": 18, "label": "nutritious food"}, "economic recovery": {"concepts": "economic recovery", "concept_list": ["economic recovery"], "type": "cluster", "node_size": 18, "label": "economic recovery"}, "pandemic regulations": {"concepts": "pandemic regulations", "concept_list": ["pandemic regulations"], "type": "cluster", "node_size": 18, "label": "pandemic regulations"}, "food system emergency": {"concepts": "food system emergency", "concept_list": ["food system emergency"], "type": "cluster", "node_size": 18, "label": "food system emergency"}, "food system influence": {"concepts": "food system influence", "concept_list": ["food system influence"], "type": "cluster", "node_size": 18, "label": "food system influence"}, "unemployment benefits": {"concepts": "unemployment benefits", "concept_list": ["unemployment benefits"], "type": "cluster", "node_size": 18, "label": "unemployment benefits"}, "covid impact": {"concepts": "covid impact", "concept_list": ["covid impact"], "type": "cluster", "node_size": 18, "label": "covid impact"}, "food consumption patterns": {"concepts": "food consumption patterns", "concept_list": ["food consumption patterns"], "type": "cluster", "node_size": 18, "label": "food consumption patterns"}, "food system participant improvements": {"concepts": "food system participant improvements", "concept_list": ["food system participant improvements"], "type": "cluster", "node_size": 18, "label": "food system participant improvements"}, "food consumption": {"concepts": "food consumption", "concept_list": ["food consumption"], "type": "cluster", "node_size": 18, "label": "food consumption"}, "supplemental nutrition programs": {"concepts": "supplemental nutrition programs", "concept_list": ["supplemental nutrition programs"], "type": "cluster", "node_size": 18, "label": "supplemental nutrition programs"}, "emergency food system": {"concepts": "emergency food system", "concept_list": ["emergency food system"], "type": "cluster", "node_size": 18, "label": "emergency food system"}, "retail food stores": {"concepts": "retail food stores", "concept_list": ["retail food stores"], "type": "cluster", "node_size": 18, "label": "retail food stores"}, "personal transportation": {"concepts": "personal transportation", "concept_list": ["personal transportation"], "type": "cluster", "node_size": 18, "label": "personal transportation"}, "economic factors": {"concepts": "economic factors", "concept_list": ["economic factors"], "type": "cluster", "node_size": 18, "label": "economic factors"}, "food access": {"concepts": "food access", "concept_list": ["food access"], "type": "cluster", "node_size": 18, "label": "food access"}, "masking": {"concepts": "masking", "concept_list": ["masking"], "type": "cluster", "node_size": 18, "label": "masking"}, "food system time constraints": {"concepts": "food system time constraints", "concept_list": ["food system time constraints"], "type": "cluster", "node_size": 18, "label": "food system time constraints"}, "disability payments": {"concepts": "disability payments", "concept_list": ["disability payments"], "type": "cluster", "node_size": 18, "label": "disability payments"}, "social tension": {"concepts": "social tension", "concept_list": ["social tension"], "type": "cluster", "node_size": 18, "label": "social tension"}, "time constraints": {"concepts": "time constraints", "concept_list": ["time constraints"], "type": "cluster", "node_size": 18, "label": "time constraints"}, "food system participant resources": {"concepts": "food system participant resources", "concept_list": ["food system participant resources"], "type": "cluster", "node_size": 18, "label": "food system participant resources"}, "national priorities": {"concepts": "national priorities", "concept_list": ["national priorities"], "type": "cluster", "node_size": 18, "label": "national priorities"}, "food nutrition": {"concepts": "food nutrition", "concept_list": ["food nutrition"], "type": "cluster", "node_size": 18, "label": "food nutrition"}, "food retail stores": {"concepts": "food retail stores", "concept_list": ["food retail stores"], "type": "cluster", "node_size": 18, "label": "food retail stores"}, "health recovery": {"concepts": "health recovery", "concept_list": ["health recovery"], "type": "cluster", "node_size": 18, "label": "health recovery"}, "food system retail": {"concepts": "food system retail", "concept_list": ["food system retail"], "type": "cluster", "node_size": 18, "label": "food system retail"}, "soup kitchen": {"concepts": "soup kitchen", "concept_list": ["soup kitchen"], "type": "cluster", "node_size": 18, "label": "soup kitchen"}, "affordability": {"concepts": "affordability", "concept_list": ["affordability"], "type": "cluster", "node_size": 18, "label": "affordability"}, "food cost": {"concepts": "food cost", "concept_list": ["food cost"], "type": "cluster", "node_size": 18, "label": "food cost"}, "food quality": {"concepts": "food quality", "concept_list": ["food quality"], "type": "cluster", "node_size": 18, "label": "food quality"}, "kitchen access": {"concepts": "kitchen access", "concept_list": ["kitchen access"], "type": "cluster", "node_size": 18, "label": "kitchen access"}, "food system priorities": {"concepts": "food system priorities", "concept_list": ["food system priorities"], "type": "cluster", "node_size": 18, "label": "food system priorities"}, "social distancing": {"concepts": "social distancing", "concept_list": ["social distancing"], "type": "cluster", "node_size": 18, "label": "social distancing"}, "food system participant connections": {"concepts": "food system participant connections", "concept_list": ["food system participant connections"], "type": "cluster", "node_size": 18, "label": "food system participant connections"}, "food system participant outcomes": {"concepts": "food system participant outcomes", "concept_list": ["food system participant outcomes"], "type": "cluster", "node_size": 18, "label": "food system participant outcomes"}, "transportation access": {"concepts": "transportation access", "concept_list": ["transportation access"], "type": "cluster", "node_size": 18, "label": "transportation access"}, "food access barriers": {"concepts": "food access barriers", "concept_list": ["food access barriers"], "type": "cluster", "node_size": 18, "label": "food access barriers"}, "food system participant knowledge": {"concepts": "food system participant knowledge", "concept_list": ["food system participant knowledge"], "type": "cluster", "node_size": 18, "label": "food system participant knowledge"}, "food distribution": {"concepts": "food distribution", "concept_list": ["food distribution"], "type": "cluster", "node_size": 18, "label": "food distribution"}, "care packages": {"concepts": "care packages", "concept_list": ["care packages"], "type": "cluster", "node_size": 18, "label": "care packages"}, "food purchasing behavior": {"concepts": "food purchasing behavior", "concept_list": ["food purchasing behavior"], "type": "cluster", "node_size": 18, "label": "food purchasing behavior"}, "social determinants": {"concepts": "social determinants", "concept_list": ["social determinants"], "type": "cluster", "node_size": 18, "label": "social determinants"}, "income influence": {"concepts": "income influence", "concept_list": ["income influence"], "type": "cluster", "node_size": 18, "label": "income influence"}, "food system mapping": {"concepts": "food system mapping", "concept_list": ["food system mapping"], "type": "cluster", "node_size": 18, "label": "food system mapping"}, "supplemental income": {"concepts": "supplemental income", "concept_list": ["supplemental income"], "type": "cluster", "node_size": 18, "label": "supplemental income"}, "retail types": {"concepts": "retail types", "concept_list": ["retail types"], "type": "cluster", "node_size": 18, "label": "retail types"}, "food retail": {"concepts": "food retail", "concept_list": ["food retail"], "type": "cluster", "node_size": 18, "label": "food retail"}, "food system interview": {"concepts": "food system interview", "concept_list": ["food system interview"], "type": "cluster", "node_size": 18, "label": "food system interview"}, "basic income": {"concepts": "basic income", "concept_list": ["basic income"], "type": "cluster", "node_size": 18, "label": "basic income"}, "food system perception": {"concepts": "food system perception", "concept_list": ["food system perception"], "type": "cluster", "node_size": 18, "label": "food system perception"}, "food system participant strategies": {"concepts": "food system participant strategies", "concept_list": ["food system participant strategies"], "type": "cluster", "node_size": 18, "label": "food system participant strategies"}, "societal values": {"concepts": "societal values", "concept_list": ["societal values"], "type": "cluster", "node_size": 18, "label": "societal values"}, "food preparation": {"concepts": "food preparation", "concept_list": ["food preparation"], "type": "cluster", "node_size": 18, "label": "food preparation"}, "housing conditions": {"concepts": "housing conditions", "concept_list": ["housing conditions"], "type": "cluster", "node_size": 18, "label": "housing conditions"}, "food system participant impacts": {"concepts": "food system participant impacts", "concept_list": ["food system participant impacts"], "type": "cluster", "node_size": 18, "label": "food system participant impacts"}, "city limits": {"concepts": "city limits", "concept_list": ["city limits"], "type": "cluster", "node_size": 18, "label": "city limits"}, "food affordability": {"concepts": "food affordability", "concept_list": ["food affordability"], "type": "cluster", "node_size": 18, "label": "food affordability"}, "food calories": {"concepts": "food calories", "concept_list": ["food calories"], "type": "cluster", "node_size": 18, "label": "food calories"}, "food system participant challenges": {"concepts": "food system participant challenges", "concept_list": ["food system participant challenges"], "type": "cluster", "node_size": 18, "label": "food system participant challenges"}, "food system income": {"concepts": "food system income", "concept_list": ["food system income"], "type": "cluster", "node_size": 18, "label": "food system income"}, "employment availability": {"concepts": "employment availability", "concept_list": ["employment availability"], "type": "cluster", "node_size": 18, "label": "employment availability"}, "flint food system": {"concepts": "flint food system", "concept_list": ["flint food system"], "type": "cluster", "node_size": 18, "label": "flint food system"}, "grocery stores": {"concepts": "grocery stores", "concept_list": ["grocery stores"], "type": "cluster", "node_size": 18, "label": "grocery stores"}, "food preparation cost": {"concepts": "food preparation cost", "concept_list": ["food preparation cost"], "type": "cluster", "node_size": 18, "label": "food preparation cost"}, "economic challenges": {"concepts": "economic challenges", "concept_list": ["economic challenges"], "type": "cluster", "node_size": 18, "label": "economic challenges"}, "farmers markets": {"concepts": "farmers markets", "concept_list": ["farmers markets"], "type": "cluster", "node_size": 18, "label": "farmers markets"}, "food availability": {"concepts": "food availability", "concept_list": ["food availability"], "type": "cluster", "node_size": 18, "label": "food availability"}, "food system participant responsibilities": {"concepts": "food system participant responsibilities", "concept_list": ["food system participant responsibilities"], "type": "cluster", "node_size": 18, "label": "food system participant responsibilities"}, "public transportation": {"concepts": "public transportation", "concept_list": ["public transportation"], "type": "cluster", "node_size": 18, "label": "public transportation"}, "food security": {"concepts": "food security", "concept_list": ["food security"], "type": "cluster", "node_size": 18, "label": "food security"}, "public transportation conflict": {"concepts": "public transportation conflict", "concept_list": ["public transportation conflict"], "type": "cluster", "node_size": 18, "label": "public transportation conflict"}, "independent grocery stores": {"concepts": "independent grocery stores", "concept_list": ["independent grocery stores"], "type": "cluster", "node_size": 18, "label": "independent grocery stores"}, "food system social services": {"concepts": "food system social services", "concept_list": ["food system social services"], "type": "cluster", "node_size": 18, "label": "food system social services"}, "food system availability": {"concepts": "food system availability", "concept_list": ["food system availability"], "type": "cluster", "node_size": 18, "label": "food system availability"}, "local restaurants": {"concepts": "local restaurants", "concept_list": ["local restaurants"], "type": "cluster", "node_size": 18, "label": "local restaurants"}, "food storage": {"concepts": "food storage", "concept_list": ["food storage"], "type": "cluster", "node_size": 18, "label": "food storage"}, "food system economics": {"concepts": "food system economics", "concept_list": ["food system economics"], "type": "cluster", "node_size": 18, "label": "food system economics"}, "food system barriers": {"concepts": "food system barriers", "concept_list": ["food system barriers"], "type": "cluster", "node_size": 18, "label": "food system barriers"}, "food system map": {"concepts": "food system map", "concept_list": ["food system map"], "type": "cluster", "node_size": 18, "label": "food system map"}, "income levels": {"concepts": "income levels", "concept_list": ["income levels"], "type": "cluster", "node_size": 18, "label": "income levels"}, "public health compliance": {"concepts": "public health compliance", "concept_list": ["public health compliance"], "type": "cluster", "node_size": 18, "label": "public health compliance"}, "food system participant feedback": {"concepts": "food system participant feedback", "concept_list": ["food system participant feedback"], "type": "cluster", "node_size": 18, "label": "food system participant feedback"}};
+        const conceptData = {};
+        const interClusterEdges = [["food system cultural factors", "retail sector", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food system cultural factors", "food system connections", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["nutritious foods", "food system participant knowledge", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food system qualitative data", "retail sector", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food system access", "food system emergency", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food system values", "food system employment", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["food system supplemental", "societal values", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["emergency food", "food system improvement", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["supplemental food programs", "nutritious food", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["food system participant priorities", "food cost", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food system nutrition", "flint food system", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["kroger", "food purchasing", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["walmart", "food system retail", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["food system participant experiences", "food system map", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["food system employment", "nutritious food", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food system employment", "food accessibility", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["income inequality", "affordability", {"weight": -1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["human services", "food system impact", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["human services", "food environment", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["food retail connections", "city limits", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["food retail connections", "food system analysis", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food accessibility", "affordability", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food accessibility", "food system participant suggestions", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["emergency sector", "food system participant knowledge", {"weight": 0.5, "confidence": 0.25, "type": "inter_cluster", "style": "solid"}], ["food system equity", "food consumption patterns", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food system transportation", "food system narrative", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["convenience stores", "food system values", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["convenience stores", "supplemental nutrition programs", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["convenience stores", "transportation access", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["food system impact", "built environment", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food system improvement", "national priorities", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food system improvement", "food distribution", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food system improvement", "farmers markets", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["food system sectors", "food system relationships", {"weight": 1.0, "confidence": 0.875, "type": "inter_cluster", "style": "solid"}], ["food system sectors", "food system participant needs", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food system sectors", "grocery stores", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["cultural perceptions", "societal values", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["cultural perceptions", "public transportation conflict", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["food system analysis", "food system nutrition", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["retail use", "personal transportation", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food system complexity", "food system time constraints", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["nutritious food", "food accessibility", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["nutritious food", "food purchasing", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["economic recovery", "food system participant connections", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["economic recovery", "nutritious foods", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["pandemic regulations", "supplemental sector", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["unemployment benefits", "food system leverage points", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["unemployment benefits", "food system nutrition", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food system participant improvements", "supplemental income", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food consumption", "retail food stores", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["emergency food system", "availability", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["economic factors", "income inequality", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["economic factors", "food nutrition", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["economic factors", "food system barriers", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food access", "food system values", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["food access", "nutrition improvement", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["masking", "food system narrative", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["masking", "food system sectors", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["food system time constraints", "food access", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food system time constraints", "food environment", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["disability payments", "food retail stores", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["social tension", "food system education", {"weight": -1.0, "confidence": 0.45, "type": "inter_cluster", "style": "solid"}], ["social tension", "basic income", {"weight": -1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["time constraints", "food consumption patterns", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food system participant resources", "health recovery", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["food retail stores", "food retail connections", {"weight": 1.0, "confidence": 0.875, "type": "inter_cluster", "style": "solid"}], ["health recovery", "social determinants", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["health recovery", "food system income", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["affordability", "social determinants", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["food cost", "food system relationships", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food cost", "food retail connections", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food cost", "food system participant needs", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food quality", "food system participant perspective", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food quality", "food system leverage points", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["kitchen access", "food environment", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food system priorities", "food system participant suggestions", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["social distancing", "retail sector", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["food system participant outcomes", "food consumption", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["transportation access", "local restaurants", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["transportation access", "food system availability", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["food access barriers", "kitchen access", {"weight": -1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["food system participant knowledge", "food system connections", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["care packages", "emergency sector", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["food purchasing behavior", "food system relationships", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food purchasing behavior", "food system participant resources", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["social determinants", "retail sector", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["income influence", "built environment", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food system mapping", "food system participant entities", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["retail types", "food system map", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["food retail", "food system relationships", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food system interview", "soup kitchen", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["basic income", "food system social services", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food system perception", "food system leverage points", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["food system participant strategies", "emergency food", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food system participant strategies", "housing conditions", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["societal values", "food system cultural factors", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food preparation", "time constraints", {"weight": -1.0, "confidence": 0.7666666666666666, "type": "inter_cluster", "style": "solid"}], ["housing conditions", "food access barriers", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["housing conditions", "food purchasing behavior", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["food system participant impacts", "cultural perceptions", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food calories", "food consumption", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["food calories", "food retail connections", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food system participant challenges", "emergency food system", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food system income", "food system connections", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["employment availability", "affordability", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["food preparation cost", "food availability", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["economic challenges", "covid impact", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food availability", "human service needs", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["food availability", "supplemental sector", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food system participant responsibilities", "food system connections", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["public transportation", "food system leverage points", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["public transportation", "food system influence", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food security", "covid impact", {"weight": -1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["food security", "food retail", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["independent grocery stores", "economic factors", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food system availability", "food system map", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["local restaurants", "food access", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["local restaurants", "food affordability", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food storage", "food system improvement", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food storage", "food consumption patterns", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food storage", "food system participant suggestions", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food storage", "health recovery", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food storage", "food system availability", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food storage", "income levels", {"weight": 0.5, "confidence": 0.325, "type": "inter_cluster", "style": "solid"}], ["food system economics", "food system participant resources", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food system barriers", "food quality judgment", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["food system map", "flint food system", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["public health compliance", "affordability", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food system participant feedback", "food system map", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

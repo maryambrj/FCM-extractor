@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"decommissioning plans": {"concepts": "decommissioning plans", "concept_list": ["decommissioning plans"], "type": "cluster", "node_size": 18, "label": "decommissioning plans"}, "exclusion zone": {"concepts": "exclusion zone", "concept_list": ["exclusion zone"], "type": "cluster", "node_size": 18, "label": "exclusion zone"}, "floating platform": {"concepts": "floating platform", "concept_list": ["floating platform"], "type": "cluster", "node_size": 18, "label": "floating platform"}, "recreational fishing": {"concepts": "recreational fishing", "concept_list": ["recreational fishing"], "type": "cluster", "node_size": 18, "label": "recreational fishing"}, "community concern": {"concepts": "community concern", "concept_list": ["community concern"], "type": "cluster", "node_size": 18, "label": "community concern"}, "access restriction": {"concepts": "access restriction", "concept_list": ["access restriction"], "type": "cluster", "node_size": 18, "label": "access restriction"}, "oil spill": {"concepts": "oil spill", "concept_list": ["oil spill"], "type": "cluster", "node_size": 18, "label": "oil spill"}, "production aggregation": {"concepts": "production aggregation", "concept_list": ["production aggregation"], "type": "cluster", "node_size": 18, "label": "production aggregation"}, "visual concerns": {"concepts": "visual concerns", "concept_list": ["visual concerns"], "type": "cluster", "node_size": 18, "label": "visual concerns"}, "abandoned structures": {"concepts": "abandoned structures", "concept_list": ["abandoned structures"], "type": "cluster", "node_size": 18, "label": "abandoned structures"}, "population increase": {"concepts": "population increase", "concept_list": ["population increase"], "type": "cluster", "node_size": 18, "label": "population increase"}, "louisiana stakeholders": {"concepts": "louisiana stakeholders", "concept_list": ["louisiana stakeholders"], "type": "cluster", "node_size": 18, "label": "louisiana stakeholders"}, "species impacts": {"concepts": "species impacts", "concept_list": ["species impacts"], "type": "cluster", "node_size": 18, "label": "species impacts"}, "area restrictions": {"concepts": "area restrictions", "concept_list": ["area restrictions"], "type": "cluster", "node_size": 18, "label": "area restrictions"}, "ecological impacts": {"concepts": "ecological impacts", "concept_list": ["ecological impacts"], "type": "cluster", "node_size": 18, "label": "ecological impacts"}, "coastal communities": {"concepts": "coastal communities", "concept_list": ["coastal communities"], "type": "cluster", "node_size": 18, "label": "coastal communities"}, "sustainable jobs": {"concepts": "sustainable jobs", "concept_list": ["sustainable jobs"], "type": "cluster", "node_size": 18, "label": "sustainable jobs"}, "affordable housing": {"concepts": "affordable housing", "concept_list": ["affordable housing"], "type": "cluster", "node_size": 18, "label": "affordable housing"}, "aquaculture zones": {"concepts": "aquaculture zones", "concept_list": ["aquaculture zones"], "type": "cluster", "node_size": 18, "label": "aquaculture zones"}, "career paths": {"concepts": "career paths", "concept_list": ["career paths"], "type": "cluster", "node_size": 18, "label": "career paths"}, "trophic interactions": {"concepts": "trophic interactions", "concept_list": ["trophic interactions"], "type": "cluster", "node_size": 18, "label": "trophic interactions"}, "environmental groups": {"concepts": "environmental groups", "concept_list": ["environmental groups"], "type": "cluster", "node_size": 18, "label": "environmental groups"}, "light pollution": {"concepts": "light pollution", "concept_list": ["light pollution"], "type": "cluster", "node_size": 18, "label": "light pollution"}, "science community": {"concepts": "science community", "concept_list": ["science community"], "type": "cluster", "node_size": 18, "label": "science community"}, "diversion projects": {"concepts": "diversion projects", "concept_list": ["diversion projects"], "type": "cluster", "node_size": 18, "label": "diversion projects"}, "fishing access": {"concepts": "fishing access", "concept_list": ["fishing access"], "type": "cluster", "node_size": 18, "label": "fishing access"}, "wind energy": {"concepts": "wind energy", "concept_list": ["wind energy"], "type": "cluster", "node_size": 18, "label": "wind energy"}, "marine mammals": {"concepts": "marine mammals", "concept_list": ["marine mammals"], "type": "cluster", "node_size": 18, "label": "marine mammals"}, "statewide politics": {"concepts": "statewide politics", "concept_list": ["statewide politics"], "type": "cluster", "node_size": 18, "label": "statewide politics"}, "lng": {"concepts": "lng", "concept_list": ["lng"], "type": "cluster", "node_size": 18, "label": "lng"}, "alternative career": {"concepts": "alternative career", "concept_list": ["alternative career"], "type": "cluster", "node_size": 18, "label": "alternative career"}, "industry attention": {"concepts": "industry attention", "concept_list": ["industry attention"], "type": "cluster", "node_size": 18, "label": "industry attention"}, "anchored structure": {"concepts": "anchored structure", "concept_list": ["anchored structure"], "type": "cluster", "node_size": 18, "label": "anchored structure"}, "key species": {"concepts": "key species", "concept_list": ["key species"], "type": "cluster", "node_size": 18, "label": "key species"}, "marine protected area": {"concepts": "marine protected area", "concept_list": ["marine protected area"], "type": "cluster", "node_size": 18, "label": "marine protected area"}, "seascape impact": {"concepts": "seascape impact", "concept_list": ["seascape impact"], "type": "cluster", "node_size": 18, "label": "seascape impact"}, "management policies": {"concepts": "management policies", "concept_list": ["management policies"], "type": "cluster", "node_size": 18, "label": "management policies"}, "waste production": {"concepts": "waste production", "concept_list": ["waste production"], "type": "cluster", "node_size": 18, "label": "waste production"}, "oil and gas": {"concepts": "oil and gas", "concept_list": ["oil and gas"], "type": "cluster", "node_size": 18, "label": "oil and gas"}, "cumulative stressor": {"concepts": "cumulative stressor", "concept_list": ["cumulative stressor"], "type": "cluster", "node_size": 18, "label": "cumulative stressor"}, "protected species": {"concepts": "protected species", "concept_list": ["protected species"], "type": "cluster", "node_size": 18, "label": "protected species"}, "information sharing": {"concepts": "information sharing", "concept_list": ["information sharing"], "type": "cluster", "node_size": 18, "label": "information sharing"}, "commercial fisheries": {"concepts": "commercial fisheries", "concept_list": ["commercial fisheries"], "type": "cluster", "node_size": 18, "label": "commercial fisheries"}, "development companies": {"concepts": "development companies", "concept_list": ["development companies"], "type": "cluster", "node_size": 18, "label": "development companies"}, "management actions": {"concepts": "management actions", "concept_list": ["management actions"], "type": "cluster", "node_size": 18, "label": "management actions"}, "psychological impact": {"concepts": "psychological impact", "concept_list": ["psychological impact"], "type": "cluster", "node_size": 18, "label": "psychological impact"}, "oil gas structures": {"concepts": "oil gas structures", "concept_list": ["oil gas structures"], "type": "cluster", "node_size": 18, "label": "oil gas structures"}, "offshore wind": {"concepts": "offshore wind", "concept_list": ["offshore wind"], "type": "cluster", "node_size": 18, "label": "offshore wind"}, "louisiana politics": {"concepts": "louisiana politics", "concept_list": ["louisiana politics"], "type": "cluster", "node_size": 18, "label": "louisiana politics"}, "texas fishermen": {"concepts": "texas fishermen", "concept_list": ["texas fishermen"], "type": "cluster", "node_size": 18, "label": "texas fishermen"}, "end of life": {"concepts": "end of life", "concept_list": ["end of life"], "type": "cluster", "node_size": 18, "label": "end of life"}, "fisheries spillover": {"concepts": "fisheries spillover", "concept_list": ["fisheries spillover"], "type": "cluster", "node_size": 18, "label": "fisheries spillover"}, "artificial structure": {"concepts": "artificial structure", "concept_list": ["artificial structure"], "type": "cluster", "node_size": 18, "label": "artificial structure"}, "recyclable requirements": {"concepts": "recyclable requirements", "concept_list": ["recyclable requirements"], "type": "cluster", "node_size": 18, "label": "recyclable requirements"}, "intensive expertise": {"concepts": "intensive expertise", "concept_list": ["intensive expertise"], "type": "cluster", "node_size": 18, "label": "intensive expertise"}, "decision making": {"concepts": "decision making", "concept_list": ["decision making"], "type": "cluster", "node_size": 18, "label": "decision making"}, "coastal residents": {"concepts": "coastal residents", "concept_list": ["coastal residents"], "type": "cluster", "node_size": 18, "label": "coastal residents"}, "public meetings": {"concepts": "public meetings", "concept_list": ["public meetings"], "type": "cluster", "node_size": 18, "label": "public meetings"}, "ecological benefits": {"concepts": "ecological benefits", "concept_list": ["ecological benefits"], "type": "cluster", "node_size": 18, "label": "ecological benefits"}, "hypoxic zone": {"concepts": "hypoxic zone", "concept_list": ["hypoxic zone"], "type": "cluster", "node_size": 18, "label": "hypoxic zone"}, "environmental changes": {"concepts": "environmental changes", "concept_list": ["environmental changes"], "type": "cluster", "node_size": 18, "label": "environmental changes"}, "cable installation": {"concepts": "cable installation", "concept_list": ["cable installation"], "type": "cluster", "node_size": 18, "label": "cable installation"}, "commercial fishing": {"concepts": "commercial fishing", "concept_list": ["commercial fishing"], "type": "cluster", "node_size": 18, "label": "commercial fishing"}, "lng facilities": {"concepts": "lng facilities", "concept_list": ["lng facilities"], "type": "cluster", "node_size": 18, "label": "lng facilities"}, "industry tension": {"concepts": "industry tension", "concept_list": ["industry tension"], "type": "cluster", "node_size": 18, "label": "industry tension"}, "coastal restoration": {"concepts": "coastal restoration", "concept_list": ["coastal restoration"], "type": "cluster", "node_size": 18, "label": "coastal restoration"}, "policy makers": {"concepts": "policy makers", "concept_list": ["policy makers"], "type": "cluster", "node_size": 18, "label": "policy makers"}};
+        const conceptData = {};
+        const interClusterEdges = [["decommissioning plans", "marine protected area", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["exclusion zone", "access restriction", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["exclusion zone", "information sharing", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["floating platform", "fisheries spillover", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["community concern", "cumulative stressor", {"weight": 1.0, "confidence": 0.6666666666666666, "type": "inter_cluster", "style": "solid"}], ["community concern", "commercial fisheries", {"weight": -0.5, "confidence": 0.2, "type": "inter_cluster", "style": "solid"}], ["community concern", "area restrictions", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["community concern", "waste production", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["access restriction", "species impacts", {"weight": 0.3333333333333333, "confidence": 0.6333333333333334, "type": "inter_cluster", "style": "solid"}], ["oil spill", "environmental groups", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["oil spill", "marine mammals", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["oil spill", "protected species", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["oil spill", "area restrictions", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["production aggregation", "management actions", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["abandoned structures", "management policies", {"weight": 0.3333333333333333, "confidence": 0.5666666666666668, "type": "inter_cluster", "style": "solid"}], ["louisiana stakeholders", "industry tension", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["species impacts", "science community", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["species impacts", "coastal communities", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["ecological impacts", "artificial structure", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["ecological impacts", "recreational fishing", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["sustainable jobs", "psychological impact", {"weight": 0.5, "confidence": 0.15, "type": "inter_cluster", "style": "solid"}], ["affordable housing", "development companies", {"weight": -1.0, "confidence": 0.39999999999999997, "type": "inter_cluster", "style": "solid"}], ["aquaculture zones", "policy makers", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["aquaculture zones", "louisiana politics", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["trophic interactions", "environmental changes", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["trophic interactions", "production aggregation", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["trophic interactions", "industry attention", {"weight": 0.5, "confidence": 0.2, "type": "inter_cluster", "style": "solid"}], ["light pollution", "offshore wind", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["diversion projects", "community concern", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["fishing access", "recreational fishing", {"weight": 1.0, "confidence": 0.8333333333333334, "type": "inter_cluster", "style": "solid"}], ["wind energy", "intensive expertise", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["wind energy", "key species", {"weight": -1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["marine mammals", "fishing access", {"weight": -1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["statewide politics", "public meetings", {"weight": 0.5, "confidence": 0.2, "type": "inter_cluster", "style": "solid"}], ["lng", "visual concerns", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["alternative career", "decision making", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["industry attention", "policy makers", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["industry attention", "population increase", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["marine protected area", "management actions", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["marine protected area", "public meetings", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["seascape impact", "coastal residents", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["management policies", "marine protected area", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["management policies", "area restrictions", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["waste production", "decommissioning plans", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["waste production", "commercial fisheries", {"weight": -0.5, "confidence": 0.15, "type": "inter_cluster", "style": "solid"}], ["oil and gas", "oil spill", {"weight": 1.0, "confidence": 0.525, "type": "inter_cluster", "style": "solid"}], ["oil and gas", "industry attention", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["cumulative stressor", "affordable housing", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["protected species", "lng facilities", {"weight": -1.0, "confidence": 0.2, "type": "inter_cluster", "style": "solid"}], ["information sharing", "commercial fisheries", {"weight": 1.0, "confidence": 0.5800000000000001, "type": "inter_cluster", "style": "solid"}], ["information sharing", "career paths", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["information sharing", "exclusion zone", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["commercial fisheries", "management policies", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["commercial fisheries", "trophic interactions", {"weight": 1.0, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["development companies", "ecological benefits", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["management actions", "decommissioning plans", {"weight": 1.0, "confidence": 0.6875, "type": "inter_cluster", "style": "solid"}], ["management actions", "end of life", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["management actions", "management policies", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["management actions", "production aggregation", {"weight": 0.5, "confidence": 0.2, "type": "inter_cluster", "style": "solid"}], ["management actions", "species impacts", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["management actions", "cable installation", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["psychological impact", "louisiana stakeholders", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["psychological impact", "lng facilities", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["psychological impact", "recreational fishing", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["oil gas structures", "coastal communities", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["oil gas structures", "industry tension", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["oil gas structures", "coastal restoration", {"weight": -1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["louisiana politics", "louisiana stakeholders", {"weight": 1.0, "confidence": 0.6333333333333333, "type": "inter_cluster", "style": "solid"}], ["louisiana politics", "policy makers", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["texas fishermen", "commercial fishing", {"weight": 1.0, "confidence": 0.4000000000000001, "type": "inter_cluster", "style": "solid"}], ["recyclable requirements", "abandoned structures", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["recyclable requirements", "science community", {"weight": 0.5, "confidence": 0.1, "type": "inter_cluster", "style": "solid"}], ["intensive expertise", "louisiana stakeholders", {"weight": 0.5, "confidence": 0.15, "type": "inter_cluster", "style": "solid"}], ["decision making", "career paths", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["decision making", "affordable housing", {"weight": -1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["coastal residents", "lng facilities", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["coastal residents", "louisiana politics", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["coastal residents", "aquaculture zones", {"weight": 0.5, "confidence": 0.15, "type": "inter_cluster", "style": "solid"}], ["ecological benefits", "policy makers", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["hypoxic zone", "commercial fisheries", {"weight": -1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["hypoxic zone", "fishing access", {"weight": -1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["environmental changes", "trophic interactions", {"weight": 1.0, "confidence": 0.575, "type": "inter_cluster", "style": "solid"}], ["environmental changes", "alternative career", {"weight": 0.5, "confidence": 0.2, "type": "inter_cluster", "style": "solid"}], ["cable installation", "protected species", {"weight": 1.0, "confidence": 0.45, "type": "inter_cluster", "style": "solid"}], ["cable installation", "anchored structure", {"weight": -1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["commercial fishing", "management actions", {"weight": 1.0, "confidence": 0.6000000000000001, "type": "inter_cluster", "style": "solid"}], ["commercial fishing", "protected species", {"weight": -0.6666666666666666, "confidence": 0.2333333333333333, "type": "inter_cluster", "style": "solid"}], ["commercial fishing", "industry attention", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["industry tension", "science community", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["coastal restoration", "protected species", {"weight": -1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["coastal restoration", "louisiana stakeholders", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["policy makers", "end of life", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

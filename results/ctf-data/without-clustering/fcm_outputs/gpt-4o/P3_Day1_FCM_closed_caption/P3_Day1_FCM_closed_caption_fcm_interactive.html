@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"query": {"concepts": "query", "concept_list": ["query"], "type": "cluster", "node_size": 18, "label": "query"}, "geography": {"concepts": "geography", "concept_list": ["geography"], "type": "cluster", "node_size": 18, "label": "geography"}, "semi-structured interview": {"concepts": "semi-structured interview", "concept_list": ["semi-structured interview"], "type": "cluster", "node_size": 18, "label": "semi-structured interview"}, "go": {"concepts": "go", "concept_list": ["go"], "type": "cluster", "node_size": 18, "label": "go"}, "templating": {"concepts": "templating", "concept_list": ["templating"], "type": "cluster", "node_size": 18, "label": "templating"}, "opcode": {"concepts": "opcode", "concept_list": ["opcode"], "type": "cluster", "node_size": 18, "label": "opcode"}, "windows": {"concepts": "windows", "concept_list": ["windows"], "type": "cluster", "node_size": 18, "label": "windows"}, "prior knowledge": {"concepts": "prior knowledge", "concept_list": ["prior knowledge"], "type": "cluster", "node_size": 18, "label": "prior knowledge"}, "graph": {"concepts": "graph", "concept_list": ["graph"], "type": "cluster", "node_size": 18, "label": "graph"}, "labeled": {"concepts": "labeled", "concept_list": ["labeled"], "type": "cluster", "node_size": 18, "label": "labeled"}, "infrastructure": {"concepts": "infrastructure", "concept_list": ["infrastructure"], "type": "cluster", "node_size": 18, "label": "infrastructure"}, "teammate": {"concepts": "teammate", "concept_list": ["teammate"], "type": "cluster", "node_size": 18, "label": "teammate"}, "firmware": {"concepts": "firmware", "concept_list": ["firmware"], "type": "cluster", "node_size": 18, "label": "firmware"}, "causal factors": {"concepts": "causal factors", "concept_list": ["causal factors"], "type": "cluster", "node_size": 18, "label": "causal factors"}, "tools": {"concepts": "tools", "concept_list": ["tools"], "type": "cluster", "node_size": 18, "label": "tools"}, "function": {"concepts": "function", "concept_list": ["function"], "type": "cluster", "node_size": 18, "label": "function"}, "block cipher": {"concepts": "block cipher", "concept_list": ["block cipher"], "type": "cluster", "node_size": 18, "label": "block cipher"}, "major os": {"concepts": "major os", "concept_list": ["major os"], "type": "cluster", "node_size": 18, "label": "major os"}, "dynamic modifications": {"concepts": "dynamic modifications", "concept_list": ["dynamic modifications"], "type": "cluster", "node_size": 18, "label": "dynamic modifications"}, "outcomes": {"concepts": "outcomes", "concept_list": ["outcomes"], "type": "cluster", "node_size": 18, "label": "outcomes"}, "data structures": {"concepts": "data structures", "concept_list": ["data structures"], "type": "cluster", "node_size": 18, "label": "data structures"}, "static analysis": {"concepts": "static analysis", "concept_list": ["static analysis"], "type": "cluster", "node_size": 18, "label": "static analysis"}, "unstructured data": {"concepts": "unstructured data", "concept_list": ["unstructured data"], "type": "cluster", "node_size": 18, "label": "unstructured data"}, "decision": {"concepts": "decision", "concept_list": ["decision"], "type": "cluster", "node_size": 18, "label": "decision"}, "frequency analysis.": {"concepts": "frequency analysis.", "concept_list": ["frequency analysis."], "type": "cluster", "node_size": 18, "label": "frequency analysis."}, "subject matter expert": {"concepts": "subject matter expert", "concept_list": ["subject matter expert"], "type": "cluster", "node_size": 18, "label": "subject matter expert"}, "ghidra": {"concepts": "ghidra", "concept_list": ["ghidra"], "type": "cluster", "node_size": 18, "label": "ghidra"}, "bare metal": {"concepts": "bare metal", "concept_list": ["bare metal"], "type": "cluster", "node_size": 18, "label": "bare metal"}, "breakpoints": {"concepts": "breakpoints", "concept_list": ["breakpoints"], "type": "cluster", "node_size": 18, "label": "breakpoints"}, "functions": {"concepts": "functions", "concept_list": ["functions"], "type": "cluster", "node_size": 18, "label": "functions"}, "protocol handling": {"concepts": "protocol handling", "concept_list": ["protocol handling"], "type": "cluster", "node_size": 18, "label": "protocol handling"}, "rtti": {"concepts": "rtti", "concept_list": ["rtti"], "type": "cluster", "node_size": 18, "label": "rtti"}, "distraction": {"concepts": "distraction", "concept_list": ["distraction"], "type": "cluster", "node_size": 18, "label": "distraction"}, "cyber attacks": {"concepts": "cyber attacks", "concept_list": ["cyber attacks"], "type": "cluster", "node_size": 18, "label": "cyber attacks"}, "custom protocol": {"concepts": "custom protocol", "concept_list": ["custom protocol"], "type": "cluster", "node_size": 18, "label": "custom protocol"}, "surprise": {"concepts": "surprise", "concept_list": ["surprise"], "type": "cluster", "node_size": 18, "label": "surprise"}, "issues": {"concepts": "issues", "concept_list": ["issues"], "type": "cluster", "node_size": 18, "label": "issues"}, "binary": {"concepts": "binary", "concept_list": ["binary"], "type": "cluster", "node_size": 18, "label": "binary"}, "configs": {"concepts": "configs", "concept_list": ["configs"], "type": "cluster", "node_size": 18, "label": "configs"}, "location": {"concepts": "location", "concept_list": ["location"], "type": "cluster", "node_size": 18, "label": "location"}, "binary compilation": {"concepts": "binary compilation", "concept_list": ["binary compilation"], "type": "cluster", "node_size": 18, "label": "binary compilation"}, "hardware": {"concepts": "hardware", "concept_list": ["hardware"], "type": "cluster", "node_size": 18, "label": "hardware"}, "architecture": {"concepts": "architecture", "concept_list": ["architecture"], "type": "cluster", "node_size": 18, "label": "architecture"}, "program execution": {"concepts": "program execution", "concept_list": ["program execution"], "type": "cluster", "node_size": 18, "label": "program execution"}, "local setup": {"concepts": "local setup", "concept_list": ["local setup"], "type": "cluster", "node_size": 18, "label": "local setup"}, "dynamically linked": {"concepts": "dynamically linked", "concept_list": ["dynamically linked"], "type": "cluster", "node_size": 18, "label": "dynamically linked"}, "function labeling": {"concepts": "function labeling", "concept_list": ["function labeling"], "type": "cluster", "node_size": 18, "label": "function labeling"}, "aws": {"concepts": "aws", "concept_list": ["aws"], "type": "cluster", "node_size": 18, "label": "aws"}, "challenge": {"concepts": "challenge", "concept_list": ["challenge"], "type": "cluster", "node_size": 18, "label": "challenge"}, "gef": {"concepts": "gef", "concept_list": ["gef"], "type": "cluster", "node_size": 18, "label": "gef"}, "causal relationship": {"concepts": "causal relationship", "concept_list": ["causal relationship"], "type": "cluster", "node_size": 18, "label": "causal relationship"}, "gdb": {"concepts": "gdb", "concept_list": ["gdb"], "type": "cluster", "node_size": 18, "label": "gdb"}, "data structure": {"concepts": "data structure", "concept_list": ["data structure"], "type": "cluster", "node_size": 18, "label": "data structure"}, "mitigation strategy": {"concepts": "mitigation strategy", "concept_list": ["mitigation strategy"], "type": "cluster", "node_size": 18, "label": "mitigation strategy"}, "disruption": {"concepts": "disruption", "concept_list": ["disruption"], "type": "cluster", "node_size": 18, "label": "disruption"}, "decompilation": {"concepts": "decompilation", "concept_list": ["decompilation"], "type": "cluster", "node_size": 18, "label": "decompilation"}, "component frequency": {"concepts": "component frequency", "concept_list": ["component frequency"], "type": "cluster", "node_size": 18, "label": "component frequency"}, "linux": {"concepts": "linux", "concept_list": ["linux"], "type": "cluster", "node_size": 18, "label": "linux"}, "arm": {"concepts": "arm", "concept_list": ["arm"], "type": "cluster", "node_size": 18, "label": "arm"}, "rust": {"concepts": "rust", "concept_list": ["rust"], "type": "cluster", "node_size": 18, "label": "rust"}, "c++": {"concepts": "c++", "concept_list": ["c++"], "type": "cluster", "node_size": 18, "label": "c++"}, "cyber attacker": {"concepts": "cyber attacker", "concept_list": ["cyber attacker"], "type": "cluster", "node_size": 18, "label": "cyber attacker"}, "tls": {"concepts": "tls", "concept_list": ["tls"], "type": "cluster", "node_size": 18, "label": "tls"}, "user friendliness": {"concepts": "user friendliness", "concept_list": ["user friendliness"], "type": "cluster", "node_size": 18, "label": "user friendliness"}, "research": {"concepts": "research", "concept_list": ["research"], "type": "cluster", "node_size": 18, "label": "research"}, "instruction patterns": {"concepts": "instruction patterns", "concept_list": ["instruction patterns"], "type": "cluster", "node_size": 18, "label": "instruction patterns"}, "influential factors": {"concepts": "influential factors", "concept_list": ["influential factors"], "type": "cluster", "node_size": 18, "label": "influential factors"}, "positive arrow": {"concepts": "positive arrow", "concept_list": ["positive arrow"], "type": "cluster", "node_size": 18, "label": "positive arrow"}, "loader": {"concepts": "loader", "concept_list": ["loader"], "type": "cluster", "node_size": 18, "label": "loader"}, "templated code": {"concepts": "templated code", "concept_list": ["templated code"], "type": "cluster", "node_size": 18, "label": "templated code"}, "control flow": {"concepts": "control flow", "concept_list": ["control flow"], "type": "cluster", "node_size": 18, "label": "control flow"}, "challenges": {"concepts": "challenges", "concept_list": ["challenges"], "type": "cluster", "node_size": 18, "label": "challenges"}, "file signature": {"concepts": "file signature", "concept_list": ["file signature"], "type": "cluster", "node_size": 18, "label": "file signature"}, "goal-oriented task analysis": {"concepts": "goal-oriented task analysis", "concept_list": ["goal-oriented task analysis"], "type": "cluster", "node_size": 18, "label": "goal-oriented task analysis"}, "dynamic variable": {"concepts": "dynamic variable", "concept_list": ["dynamic variable"], "type": "cluster", "node_size": 18, "label": "dynamic variable"}, "string obfuscation": {"concepts": "string obfuscation", "concept_list": ["string obfuscation"], "type": "cluster", "node_size": 18, "label": "string obfuscation"}, "docker file": {"concepts": "docker file", "concept_list": ["docker file"], "type": "cluster", "node_size": 18, "label": "docker file"}, "solve script": {"concepts": "solve script", "concept_list": ["solve script"], "type": "cluster", "node_size": 18, "label": "solve script"}, "diffie-hellman": {"concepts": "diffie-hellman", "concept_list": ["diffie-hellman"], "type": "cluster", "node_size": 18, "label": "diffie-hellman"}, "complex data structure": {"concepts": "complex data structure", "concept_list": ["complex data structure"], "type": "cluster", "node_size": 18, "label": "complex data structure"}, "software stack": {"concepts": "software stack", "concept_list": ["software stack"], "type": "cluster", "node_size": 18, "label": "software stack"}, "searching": {"concepts": "searching", "concept_list": ["searching"], "type": "cluster", "node_size": 18, "label": "searching"}, "signed directed graph": {"concepts": "signed directed graph", "concept_list": ["signed directed graph"], "type": "cluster", "node_size": 18, "label": "signed directed graph"}, "socket input": {"concepts": "socket input", "concept_list": ["socket input"], "type": "cluster", "node_size": 18, "label": "socket input"}, "statically compiled": {"concepts": "statically compiled", "concept_list": ["statically compiled"], "type": "cluster", "node_size": 18, "label": "statically compiled"}, "file format": {"concepts": "file format", "concept_list": ["file format"], "type": "cluster", "node_size": 18, "label": "file format"}, "socket": {"concepts": "socket", "concept_list": ["socket"], "type": "cluster", "node_size": 18, "label": "socket"}, "decompiling": {"concepts": "decompiling", "concept_list": ["decompiling"], "type": "cluster", "node_size": 18, "label": "decompiling"}, "decompile": {"concepts": "decompile", "concept_list": ["decompile"], "type": "cluster", "node_size": 18, "label": "decompile"}, "libc": {"concepts": "libc", "concept_list": ["libc"], "type": "cluster", "node_size": 18, "label": "libc"}, "script": {"concepts": "script", "concept_list": ["script"], "type": "cluster", "node_size": 18, "label": "script"}, "libc version": {"concepts": "libc version", "concept_list": ["libc version"], "type": "cluster", "node_size": 18, "label": "libc version"}, "details": {"concepts": "details", "concept_list": ["details"], "type": "cluster", "node_size": 18, "label": "details"}, "debugging information": {"concepts": "debugging information", "concept_list": ["debugging information"], "type": "cluster", "node_size": 18, "label": "debugging information"}, "environmental variables": {"concepts": "environmental variables", "concept_list": ["environmental variables"], "type": "cluster", "node_size": 18, "label": "environmental variables"}, "binwalk": {"concepts": "binwalk", "concept_list": ["binwalk"], "type": "cluster", "node_size": 18, "label": "binwalk"}, "directed graph": {"concepts": "directed graph", "concept_list": ["directed graph"], "type": "cluster", "node_size": 18, "label": "directed graph"}, "cargo": {"concepts": "cargo", "concept_list": ["cargo"], "type": "cluster", "node_size": 18, "label": "cargo"}, "architectures": {"concepts": "architectures", "concept_list": ["architectures"], "type": "cluster", "node_size": 18, "label": "architectures"}, "decompiled": {"concepts": "decompiled", "concept_list": ["decompiled"], "type": "cluster", "node_size": 18, "label": "decompiled"}, "multiple languages": {"concepts": "multiple languages", "concept_list": ["multiple languages"], "type": "cluster", "node_size": 18, "label": "multiple languages"}, "package": {"concepts": "package", "concept_list": ["package"], "type": "cluster", "node_size": 18, "label": "package"}, "compressed section": {"concepts": "compressed section", "concept_list": ["compressed section"], "type": "cluster", "node_size": 18, "label": "compressed section"}, "protocol": {"concepts": "protocol", "concept_list": ["protocol"], "type": "cluster", "node_size": 18, "label": "protocol"}, "object modifications": {"concepts": "object modifications", "concept_list": ["object modifications"], "type": "cluster", "node_size": 18, "label": "object modifications"}, "optimization level": {"concepts": "optimization level", "concept_list": ["optimization level"], "type": "cluster", "node_size": 18, "label": "optimization level"}, "os-based linux": {"concepts": "os-based linux", "concept_list": ["os-based linux"], "type": "cluster", "node_size": 18, "label": "os-based linux"}, "california": {"concepts": "california", "concept_list": ["california"], "type": "cluster", "node_size": 18, "label": "california"}, "python packages": {"concepts": "python packages", "concept_list": ["python packages"], "type": "cluster", "node_size": 18, "label": "python packages"}, "automated": {"concepts": "automated", "concept_list": ["automated"], "type": "cluster", "node_size": 18, "label": "automated"}, "debugger friendliness": {"concepts": "debugger friendliness", "concept_list": ["debugger friendliness"], "type": "cluster", "node_size": 18, "label": "debugger friendliness"}, "lattice structure": {"concepts": "lattice structure", "concept_list": ["lattice structure"], "type": "cluster", "node_size": 18, "label": "lattice structure"}, "protocol familiarity": {"concepts": "protocol familiarity", "concept_list": ["protocol familiarity"], "type": "cluster", "node_size": 18, "label": "protocol familiarity"}, "elliptic curve": {"concepts": "elliptic curve", "concept_list": ["elliptic curve"], "type": "cluster", "node_size": 18, "label": "elliptic curve"}};
+        const conceptData = {};
+        const interClusterEdges = [["query", "compressed section", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["geography", "searching", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["geography", "architectures", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["semi-structured interview", "outcomes", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["opcode", "function", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["windows", "component frequency", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["windows", "decompiling", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["prior knowledge", "major os", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["graph", "socket", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["infrastructure", "searching", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["infrastructure", "arm", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["firmware", "user friendliness", {"weight": -0.5, "confidence": 0.325, "type": "inter_cluster", "style": "solid"}], ["causal factors", "causal relationship", {"weight": 1.0, "confidence": 0.8333333333333334, "type": "inter_cluster", "style": "solid"}], ["function", "environmental variables", {"weight": 0.5, "confidence": 0.325, "type": "inter_cluster", "style": "solid"}], ["block cipher", "location", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["block cipher", "dynamic modifications", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["major os", "multiple languages", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["dynamic modifications", "statically compiled", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["data structures", "go", {"weight": 0.5, "confidence": 0.325, "type": "inter_cluster", "style": "solid"}], ["data structures", "bare metal", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["static analysis", "causal factors", {"weight": 0.5, "confidence": 0.425, "type": "inter_cluster", "style": "solid"}], ["static analysis", "binary", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["unstructured data", "functions", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["decision", "decompile", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["decision", "frequency analysis.", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["frequency analysis.", "decompiled", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["frequency analysis.", "rust", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["subject matter expert", "cargo", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["breakpoints", "debugging information", {"weight": 1.0, "confidence": 0.7166666666666667, "type": "inter_cluster", "style": "solid"}], ["protocol handling", "package", {"weight": 1.0, "confidence": 0.7666666666666666, "type": "inter_cluster", "style": "solid"}], ["rtti", "dynamic modifications", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["distraction", "decision", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["cyber attacks", "dynamic modifications", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["custom protocol", "block cipher", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["issues", "data structure", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["issues", "outcomes", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["binary", "prior knowledge", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["configs", "dynamic modifications", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["architecture", "file signature", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["program execution", "decompiling", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["program execution", "protocol familiarity", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["local setup", "challenges", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["dynamically linked", "graph", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["function labeling", "challenges", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["function labeling", "templated code", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["function labeling", "rust", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["aws", "templating", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["challenge", "lattice structure", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["gef", "architecture", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["causal relationship", "file signature", {"weight": 0.3333333333333333, "confidence": 0.2833333333333333, "type": "inter_cluster", "style": "solid"}], ["mitigation strategy", "solve script", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["disruption", "aws", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["disruption", "subject matter expert", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["decompilation", "optimization level", {"weight": -1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["component frequency", "control flow", {"weight": 0.5, "confidence": 0.325, "type": "inter_cluster", "style": "solid"}], ["linux", "optimization level", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["rust", "decision", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["c++", "gdb", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["c++", "string obfuscation", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["cyber attacker", "dynamic variable", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["tls", "function labeling", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["research", "challenge", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["instruction patterns", "optimization level", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["instruction patterns", "elliptic curve", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["influential factors", "function", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["influential factors", "lattice structure", {"weight": 0.5, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["influential factors", "data structure", {"weight": 0.5, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["positive arrow", "rust", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["positive arrow", "cyber attacker", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["loader", "directed graph", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["file signature", "ghidra", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["file signature", "binary compilation", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["goal-oriented task analysis", "decompile", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["dynamic variable", "data structure", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["string obfuscation", "influential factors", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["string obfuscation", "labeled", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["solve script", "challenge", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["solve script", "tools", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["diffie-hellman", "decompiling", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["complex data structure", "ghidra", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["software stack", "go", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["searching", "instruction patterns", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["signed directed graph", "debugging information", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["socket input", "causal relationship", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["socket input", "binary compilation", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["decompiling", "binary", {"weight": 1.0, "confidence": 0.8166666666666668, "type": "inter_cluster", "style": "solid"}], ["decompiling", "protocol handling", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["libc", "decision", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["script", "string obfuscation", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["libc version", "hardware", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["details", "architecture", {"weight": 1.0, "confidence": 0.7166666666666667, "type": "inter_cluster", "style": "solid"}], ["details", "teammate", {"weight": 0.6666666666666666, "confidence": 0.39999999999999997, "type": "inter_cluster", "style": "solid"}], ["details", "file format", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["details", "binary compilation", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["debugging information", "protocol", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["binwalk", "statically compiled", {"weight": 1.0, "confidence": 0.7333333333333334, "type": "inter_cluster", "style": "solid"}], ["binwalk", "binary compilation", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["directed graph", "subject matter expert", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["architectures", "issues", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["multiple languages", "decompiled", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["package", "script", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["object modifications", "custom protocol", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["os-based linux", "docker file", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["os-based linux", "influential factors", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["california", "local setup", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["python packages", "automated", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["debugger friendliness", "surprise", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["protocol familiarity", "decompilation", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

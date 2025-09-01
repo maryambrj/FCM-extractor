@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"covid-19 impact": {"concepts": "covid-19 impact", "concept_list": ["covid-19 impact"], "type": "cluster", "node_size": 18, "label": "covid-19 impact"}, "consumer choice": {"concepts": "consumer choice", "concept_list": ["consumer choice"], "type": "cluster", "node_size": 18, "label": "consumer choice"}, "food availability": {"concepts": "food availability", "concept_list": ["food availability"], "type": "cluster", "node_size": 18, "label": "food availability"}, "community trust": {"concepts": "community trust", "concept_list": ["community trust"], "type": "cluster", "node_size": 18, "label": "community trust"}, "empowerment": {"concepts": "empowerment", "concept_list": ["empowerment"], "type": "cluster", "node_size": 18, "label": "empowerment"}, "food partnerships": {"concepts": "food partnerships", "concept_list": ["food partnerships"], "type": "cluster", "node_size": 18, "label": "food partnerships"}, "community food systems": {"concepts": "community food systems", "concept_list": ["community food systems"], "type": "cluster", "node_size": 18, "label": "community food systems"}, "urban farming": {"concepts": "urban farming", "concept_list": ["urban farming"], "type": "cluster", "node_size": 18, "label": "urban farming"}, "flint food system": {"concepts": "flint food system", "concept_list": ["flint food system"], "type": "cluster", "node_size": 18, "label": "flint food system"}, "flint": {"concepts": "flint", "concept_list": ["flint"], "type": "cluster", "node_size": 18, "label": "flint"}, "food access": {"concepts": "food access", "concept_list": ["food access"], "type": "cluster", "node_size": 18, "label": "food access"}, "supplemental programs": {"concepts": "supplemental programs", "concept_list": ["supplemental programs"], "type": "cluster", "node_size": 18, "label": "supplemental programs"}, "flint food": {"concepts": "flint food", "concept_list": ["flint food"], "type": "cluster", "node_size": 18, "label": "flint food"}, "farmers markets": {"concepts": "farmers markets", "concept_list": ["farmers markets"], "type": "cluster", "node_size": 18, "label": "farmers markets"}, "supplemental nutrition": {"concepts": "supplemental nutrition", "concept_list": ["supplemental nutrition"], "type": "cluster", "node_size": 18, "label": "supplemental nutrition"}, "community empowerment": {"concepts": "community empowerment", "concept_list": ["community empowerment"], "type": "cluster", "node_size": 18, "label": "community empowerment"}, "retail dynamics": {"concepts": "retail dynamics", "concept_list": ["retail dynamics"], "type": "cluster", "node_size": 18, "label": "retail dynamics"}, "shelf stability": {"concepts": "shelf stability", "concept_list": ["shelf stability"], "type": "cluster", "node_size": 18, "label": "shelf stability"}, "retail access": {"concepts": "retail access", "concept_list": ["retail access"], "type": "cluster", "node_size": 18, "label": "retail access"}, "grocery stores": {"concepts": "grocery stores", "concept_list": ["grocery stores"], "type": "cluster", "node_size": 18, "label": "grocery stores"}, "affordability": {"concepts": "affordability", "concept_list": ["affordability"], "type": "cluster", "node_size": 18, "label": "affordability"}, "covid-19": {"concepts": "covid-19", "concept_list": ["covid-19"], "type": "cluster", "node_size": 18, "label": "covid-19"}, "local growers": {"concepts": "local growers", "concept_list": ["local growers"], "type": "cluster", "node_size": 18, "label": "local growers"}, "food choices": {"concepts": "food choices", "concept_list": ["food choices"], "type": "cluster", "node_size": 18, "label": "food choices"}, "wic": {"concepts": "wic", "concept_list": ["wic"], "type": "cluster", "node_size": 18, "label": "wic"}, "food purchasing": {"concepts": "food purchasing", "concept_list": ["food purchasing"], "type": "cluster", "node_size": 18, "label": "food purchasing"}, "convenience stores": {"concepts": "convenience stores", "concept_list": ["convenience stores"], "type": "cluster", "node_size": 18, "label": "convenience stores"}, "food preferences": {"concepts": "food preferences", "concept_list": ["food preferences"], "type": "cluster", "node_size": 18, "label": "food preferences"}, "social programs": {"concepts": "social programs", "concept_list": ["social programs"], "type": "cluster", "node_size": 18, "label": "social programs"}, "partnerships": {"concepts": "partnerships", "concept_list": ["partnerships"], "type": "cluster", "node_size": 18, "label": "partnerships"}, "quality of life": {"concepts": "quality of life", "concept_list": ["quality of life"], "type": "cluster", "node_size": 18, "label": "quality of life"}, "nutritious foods": {"concepts": "nutritious foods", "concept_list": ["nutritious foods"], "type": "cluster", "node_size": 18, "label": "nutritious foods"}, "community involvement": {"concepts": "community involvement", "concept_list": ["community involvement"], "type": "cluster", "node_size": 18, "label": "community involvement"}, "transportation": {"concepts": "transportation", "concept_list": ["transportation"], "type": "cluster", "node_size": 18, "label": "transportation"}, "consumer choices": {"concepts": "consumer choices", "concept_list": ["consumer choices"], "type": "cluster", "node_size": 18, "label": "consumer choices"}, "food trust": {"concepts": "food trust", "concept_list": ["food trust"], "type": "cluster", "node_size": 18, "label": "food trust"}};
+        const conceptData = {};
+        const interClusterEdges = [["covid-19 impact", "urban farming", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["covid-19 impact", "social programs", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["consumer choice", "quality of life", {"weight": 1.0, "confidence": 0.8666666666666667, "type": "inter_cluster", "style": "solid"}], ["consumer choice", "grocery stores", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["consumer choice", "nutritious foods", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food availability", "nutritious foods", {"weight": 1.0, "confidence": 0.6999999999999998, "type": "inter_cluster", "style": "solid"}], ["community trust", "flint food system", {"weight": 1.0, "confidence": 0.8625, "type": "inter_cluster", "style": "solid"}], ["community trust", "flint food", {"weight": 1.0, "confidence": 0.8500000000000001, "type": "inter_cluster", "style": "solid"}], ["empowerment", "flint", {"weight": 1.0, "confidence": 0.7299999999999999, "type": "inter_cluster", "style": "solid"}], ["empowerment", "urban farming", {"weight": 1.0, "confidence": 0.7666666666666666, "type": "inter_cluster", "style": "solid"}], ["food partnerships", "flint food", {"weight": 1.0, "confidence": 0.7799999999999999, "type": "inter_cluster", "style": "solid"}], ["food partnerships", "farmers markets", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food partnerships", "retail dynamics", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food partnerships", "urban farming", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food partnerships", "supplemental nutrition", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["community food systems", "retail dynamics", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["community food systems", "convenience stores", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["community food systems", "community trust", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["urban farming", "community involvement", {"weight": 1.0, "confidence": 0.8375, "type": "inter_cluster", "style": "solid"}], ["urban farming", "partnerships", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["flint food system", "food availability", {"weight": 0.2, "confidence": 0.8100000000000002, "type": "inter_cluster", "style": "solid"}], ["flint food system", "nutritious foods", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["flint food system", "community trust", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["flint food system", "local growers", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["flint food system", "consumer choices", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["flint", "convenience stores", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["flint", "urban farming", {"weight": 1.0, "confidence": 0.6666666666666666, "type": "inter_cluster", "style": "solid"}], ["food access", "grocery stores", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["food access", "community empowerment", {"weight": 1.0, "confidence": 0.8000000000000002, "type": "inter_cluster", "style": "solid"}], ["food access", "food purchasing", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["food access", "urban farming", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["supplemental programs", "community food systems", {"weight": 1.0, "confidence": 0.7875, "type": "inter_cluster", "style": "solid"}], ["supplemental programs", "partnerships", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["supplemental programs", "empowerment", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["flint food", "food trust", {"weight": -0.3333333333333333, "confidence": 0.6999999999999998, "type": "inter_cluster", "style": "solid"}], ["farmers markets", "community involvement", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["farmers markets", "food trust", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["supplemental nutrition", "convenience stores", {"weight": 1.0, "confidence": 0.9125000000000001, "type": "inter_cluster", "style": "solid"}], ["shelf stability", "affordability", {"weight": -0.3333333333333333, "confidence": 0.6166666666666667, "type": "inter_cluster", "style": "solid"}], ["shelf stability", "flint food", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["retail access", "community involvement", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["grocery stores", "community food systems", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["grocery stores", "flint food system", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["grocery stores", "food trust", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["affordability", "retail access", {"weight": 1.0, "confidence": 0.82, "type": "inter_cluster", "style": "solid"}], ["covid-19", "community trust", {"weight": -1.0, "confidence": 0.7375, "type": "inter_cluster", "style": "solid"}], ["local growers", "community empowerment", {"weight": 1.0, "confidence": 0.76, "type": "inter_cluster", "style": "solid"}], ["local growers", "consumer choices", {"weight": 1.0, "confidence": 0.7124999999999999, "type": "inter_cluster", "style": "solid"}], ["food choices", "covid-19", {"weight": -0.5, "confidence": 0.6625000000000001, "type": "inter_cluster", "style": "solid"}], ["food choices", "food availability", {"weight": 1.0, "confidence": 0.7333333333333334, "type": "inter_cluster", "style": "solid"}], ["food choices", "food access", {"weight": 1.0, "confidence": 0.875, "type": "inter_cluster", "style": "solid"}], ["food choices", "flint food system", {"weight": 1.0, "confidence": 0.875, "type": "inter_cluster", "style": "solid"}], ["wic", "social programs", {"weight": 1.0, "confidence": 1.0, "type": "inter_cluster", "style": "solid"}], ["wic", "retail access", {"weight": 1.0, "confidence": 0.89, "type": "inter_cluster", "style": "solid"}], ["wic", "affordability", {"weight": 1.0, "confidence": 0.8833333333333333, "type": "inter_cluster", "style": "solid"}], ["food purchasing", "consumer choice", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["food purchasing", "food choices", {"weight": 1.0, "confidence": 0.9625, "type": "inter_cluster", "style": "solid"}], ["food purchasing", "flint food system", {"weight": 1.0, "confidence": 0.875, "type": "inter_cluster", "style": "solid"}], ["food purchasing", "food access", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["convenience stores", "grocery stores", {"weight": -0.6, "confidence": 0.6799999999999999, "type": "inter_cluster", "style": "solid"}], ["convenience stores", "quality of life", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["convenience stores", "flint", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["convenience stores", "farmers markets", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["food preferences", "social programs", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food preferences", "nutritious foods", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food preferences", "covid-19", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["social programs", "affordability", {"weight": 1.0, "confidence": 0.86, "type": "inter_cluster", "style": "solid"}], ["social programs", "food preferences", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["social programs", "retail access", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["social programs", "covid-19", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["partnerships", "wic", {"weight": 0.5, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["quality of life", "flint food", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["quality of life", "covid-19 impact", {"weight": -1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["quality of life", "food purchasing", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["quality of life", "community involvement", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["nutritious foods", "food purchasing", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["nutritious foods", "farmers markets", {"weight": 1.0, "confidence": 0.8833333333333333, "type": "inter_cluster", "style": "solid"}], ["nutritious foods", "consumer choice", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["community involvement", "covid-19 impact", {"weight": -1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["transportation", "food availability", {"weight": -0.5, "confidence": 0.7125, "type": "inter_cluster", "style": "solid"}], ["consumer choices", "food preferences", {"weight": 1.0, "confidence": 0.975, "type": "inter_cluster", "style": "solid"}], ["consumer choices", "shelf stability", {"weight": 0.5, "confidence": 0.6375, "type": "inter_cluster", "style": "solid"}], ["consumer choices", "covid-19 impact", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food trust", "food purchasing", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food trust", "quality of life", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

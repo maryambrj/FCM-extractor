@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"spawning behavior": {"concepts": "spawning behavior", "concept_list": ["spawning behavior"], "type": "cluster", "node_size": 18, "label": "spawning behavior"}, "fish houses": {"concepts": "fish houses, poisonous fish (medical)", "concept_list": ["fish houses", "poisonous fish (medical)"], "type": "cluster", "node_size": 21, "label": "fish houses"}, "fishing gears": {"concepts": "fishing gears", "concept_list": ["fishing gears"], "type": "cluster", "node_size": 18, "label": "fishing gears"}, "fish populations": {"concepts": "fish populations", "concept_list": ["fish populations"], "type": "cluster", "node_size": 18, "label": "fish populations"}, "spawning aggregations": {"concepts": "spawning aggregations", "concept_list": ["spawning aggregations"], "type": "cluster", "node_size": 18, "label": "spawning aggregations"}, "coral habitat (medical)": {"concepts": "coral habitat (medical)", "concept_list": ["coral habitat (medical)"], "type": "cluster", "node_size": 18, "label": "coral habitat (medical)"}, "Tourism & Recreation": {"concepts": "pollution, coastal erosion, climate change (medical), changes at sea, wave action, climate change (social), weather, climate change, sea level rise, hurricanes (medical), ecosystems, ecosystem impact", "concept_list": ["pollution", "coastal erosion", "climate change (medical)", "changes at sea", "wave action", "climate change (social)", "weather", "climate change", "sea level rise", "hurricanes (medical)", "ecosystems", "ecosystem impact"], "type": "cluster", "node_size": 51, "label": "Tourism & Recreation"}, "Resource Depletion": {"concepts": "views, scuba diving, boat access, tourism industry, kayaks, tourists, tourism (social), skin diving, tourism, diving schools", "concept_list": ["views", "scuba diving", "boat access", "tourism industry", "kayaks", "tourists", "tourism (social)", "skin diving", "tourism", "diving schools"], "type": "cluster", "node_size": 45, "label": "Resource Depletion"}, "Community & Management": {"concepts": "food source, species decline, poachers, data collection, data, overexploitation, objective studies, living resources, biological limits, ecosystem protection, life history, resource conservation, queen conch, lobster, species groups (medical), overfishing, species", "concept_list": ["food source", "species decline", "poachers", "data collection", "data", "overexploitation", "objective studies", "living resources", "biological limits", "ecosystem protection", "life history", "resource conservation", "queen conch", "lobster", "species groups (medical)", "overfishing", "species"], "type": "cluster", "node_size": 66, "label": "Community & Management"}, "Coastal Resource Management": {"concepts": "community problems, strained relationship (social), caribbean eez (social), coastal communities (social), conflicts, public hearing, management measures, major problems, enforcement, work opportunities (social), regulations, public meetings (organizational), communication, hurricanes (social), stakeholders, family business, decision making, socioeconomic effects (social), geographical location, cultural impacts (social), lab work, conflict resolution, meeting minutes (organizational), cultural events (social), lack of compliance, ngo presence, livelihood, workshops, dner secretary, decision-makers, livelihood dependency (social), education program, reduce effort, frustration, profitable catch, agency efforts, external help, informational meetings (organizational), regulatory agency, research component, community problems (social), regulatory changes (organizational), compliance levels, lobster traps (social), dialogue, resource allocation, compromises, lifestyle, regulatory capture, researchers, junta de pesca, public outcry (social), cooperation, lack of education, agenda, rising costs (social), community improvement, management decisions, fair decisions, council members (organizational), education, public meetings, government, commercial sectors, participatory action, manager conflicts (organizational), dner secretary (organizational), dependency, marine education, landing areas, government communication, transition period, management, business impacts, research, accountability measures (organizational), seasonal closures (organizational), federal waters (social), government cooperation, coastal communities, language barrier (social), job opportunities (social), seasonal weather (social), monetary value, livelihood dependency, commercial permits (organizational), puerto rico, combustible price, community action (social), community action, social connections (social), concerns, species", "concept_list": ["community problems", "strained relationship (social)", "caribbean eez (social)", "coastal communities (social)", "conflicts", "public hearing", "management measures", "major problems", "enforcement", "work opportunities (social)", "regulations", "public meetings (organizational)", "communication", "hurricanes (social)", "stakeholders", "family business", "decision making", "socioeconomic effects (social)", "geographical location", "cultural impacts (social)", "lab work", "conflict resolution", "meeting minutes (organizational)", "cultural events (social)", "lack of compliance", "ngo presence", "livelihood", "workshops", "dner secretary", "decision-makers", "livelihood dependency (social)", "education program", "reduce effort", "frustration", "profitable catch", "agency efforts", "external help", "informational meetings (organizational)", "regulatory agency", "research component", "community problems (social)", "regulatory changes (organizational)", "compliance levels", "lobster traps (social)", "dialogue", "resource allocation", "compromises", "lifestyle", "regulatory capture", "researchers", "junta de pesca", "public outcry (social)", "cooperation", "lack of education", "agenda", "rising costs (social)", "community improvement", "management decisions", "fair decisions", "council members (organizational)", "education", "public meetings", "government", "commercial sectors", "participatory action", "manager conflicts (organizational)", "dner secretary (organizational)", "dependency", "marine education", "landing areas", "government communication", "transition period", "management", "business impacts", "research", "accountability measures (organizational)", "seasonal closures (organizational)", "federal waters (social)", "government cooperation", "coastal communities", "language barrier (social)", "job opportunities (social)", "seasonal weather (social)", "monetary value", "livelihood dependency", "commercial permits (organizational)", "puerto rico", "combustible price", "community action (social)", "community action", "social connections (social)", "concerns", "species"], "type": "cluster", "node_size": 294, "label": "Coastal Resource Management"}, "Water Pollution": {"concepts": "water discharges, untreated sewage", "concept_list": ["water discharges", "untreated sewage"], "type": "cluster", "node_size": 21, "label": "Water Pollution"}, "Recreation Sector": {"concepts": "recreational sectors, recreation", "concept_list": ["recreational sectors", "recreation"], "type": "cluster", "node_size": 21, "label": "Recreation Sector"}, "Marine Poaching": {"concepts": "marine resources, poaching", "concept_list": ["marine resources", "poaching"], "type": "cluster", "node_size": 21, "label": "Marine Poaching"}, "Fishery Management": {"concepts": "fishery managers, fishery management", "concept_list": ["fishery managers", "fishery management"], "type": "cluster", "node_size": 21, "label": "Fishery Management"}, "Commercial Fishing": {"concepts": "fisheries, commercial fisheries, commercial fishermen", "concept_list": ["fisheries", "commercial fisheries", "commercial fishermen"], "type": "cluster", "node_size": 24, "label": "Commercial Fishing"}, "Fishing Activities": {"concepts": "recreational fishermen, fishermen", "concept_list": ["recreational fishermen", "fishermen"], "type": "cluster", "node_size": 21, "label": "Fishing Activities"}, "Fisher Community & Concerns": {"concepts": "fisher concerns, fisher relations, fisheries statistics, fishermen knowledge, fisher understanding, fisher cooperation, fisher cooperatives, fisher representation, fishery dependent, fishermen's incomes, fisher groups", "concept_list": ["fisher concerns", "fisher relations", "fisheries statistics", "fishermen knowledge", "fisher understanding", "fisher cooperation", "fisher cooperatives", "fisher representation", "fishery dependent", "fishermen's incomes", "fisher groups"], "type": "cluster", "node_size": 48, "label": "Fisher Community & Concerns"}, "Fishing Types": {"concepts": "traditional fishing, fishing practices, commercial fishing, recreational fishing", "concept_list": ["traditional fishing", "fishing practices", "commercial fishing", "recreational fishing"], "type": "cluster", "node_size": 27, "label": "Fishing Types"}, "Fishing Regulations": {"concepts": "fishing regulations, fishing law", "concept_list": ["fishing regulations", "fishing law"], "type": "cluster", "node_size": 21, "label": "Fishing Regulations"}, "Fisher Conflicts": {"concepts": "fisher-manager conflicts (social), fisher conflicts (social)", "concept_list": ["fisher-manager conflicts (social)", "fisher conflicts (social)"], "type": "cluster", "node_size": 21, "label": "Fisher Conflicts"}, "Fishing Seasonality": {"concepts": "seasonal fishing (social), recreational fishermen (social)", "concept_list": ["seasonal fishing (social)", "recreational fishermen (social)"], "type": "cluster", "node_size": 21, "label": "Fishing Seasonality"}, "Fishing Communities Studies": {"concepts": "fisheries studies (medical), fisheries studies (social), fishermen interviews (social), fishing communities (social)", "concept_list": ["fisheries studies (medical)", "fisheries studies (social)", "fishermen interviews (social)", "fishing communities (social)"], "type": "cluster", "node_size": 27, "label": "Fishing Communities Studies"}, "Seafood Management": {"concepts": "seafood demand (social), fishery management (organizational)", "concept_list": ["seafood demand (social)", "fishery management (organizational)"], "type": "cluster", "node_size": 21, "label": "Seafood Management"}, "Marine Ecosystem": {"concepts": "fish migration, fish species, marine life, algal blooms", "concept_list": ["fish migration", "fish species", "marine life", "algal blooms"], "type": "cluster", "node_size": 27, "label": "Marine Ecosystem"}, "Coral Reefs": {"concepts": "coral reefs (social), coral reefs", "concept_list": ["coral reefs (social)", "coral reefs"], "type": "cluster", "node_size": 21, "label": "Coral Reefs"}, "Reef Decline": {"concepts": "reef catches, coral reefs decline, coral reefs (medical)", "concept_list": ["reef catches", "coral reefs decline", "coral reefs (medical)"], "type": "cluster", "node_size": 24, "label": "Reef Decline"}};
+        const conceptData = {};
+        const interClusterEdges = [["fish houses", "Fishing Types", {"weight": 1.0, "confidence": 0.575, "type": "inter_cluster", "style": "solid"}], ["fish houses", "Fishery Management", {"weight": 0.6, "confidence": 0.18, "type": "inter_cluster", "style": "solid"}], ["fish houses", "fishing gears", {"weight": 0.6666666666666666, "confidence": 0.2333333333333333, "type": "inter_cluster", "style": "solid"}], ["fish houses", "Fishing Regulations", {"weight": 0.3333333333333333, "confidence": 0.09999999999999999, "type": "inter_cluster", "style": "solid"}], ["fish houses", "spawning behavior", {"weight": -1.0, "confidence": 0.1, "type": "inter_cluster", "style": "solid"}], ["fish populations", "fish houses", {"weight": 1.0, "confidence": 0.38, "type": "inter_cluster", "style": "solid"}], ["fish populations", "Fishery Management", {"weight": 1.0, "confidence": 0.4833333333333334, "type": "inter_cluster", "style": "solid"}], ["spawning aggregations", "Water Pollution", {"weight": 1.0, "confidence": 0.1, "type": "inter_cluster", "style": "solid"}], ["coral habitat (medical)", "Fishing Activities", {"weight": 1.0, "confidence": 0.2, "type": "inter_cluster", "style": "solid"}], ["Tourism & Recreation", "spawning aggregations", {"weight": -1.0, "confidence": 0.4625, "type": "inter_cluster", "style": "solid"}], ["Tourism & Recreation", "Fishing Types", {"weight": -1.0, "confidence": 0.3833333333333333, "type": "inter_cluster", "style": "solid"}], ["Resource Depletion", "Recreation Sector", {"weight": 1.0, "confidence": 0.8300000000000001, "type": "inter_cluster", "style": "solid"}], ["Community & Management", "Marine Poaching", {"weight": 1.0, "confidence": 0.525, "type": "inter_cluster", "style": "solid"}], ["Coastal Resource Management", "fish houses", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["Coastal Resource Management", "spawning behavior", {"weight": 1.0, "confidence": 0.1, "type": "inter_cluster", "style": "solid"}], ["Water Pollution", "Fishing Regulations", {"weight": 1.0, "confidence": 0.26, "type": "inter_cluster", "style": "solid"}], ["Water Pollution", "Fishing Activities", {"weight": -1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["Recreation Sector", "Fishing Activities", {"weight": 1.0, "confidence": 0.76, "type": "inter_cluster", "style": "solid"}], ["Recreation Sector", "Fishing Regulations", {"weight": 0.8, "confidence": 0.21999999999999997, "type": "inter_cluster", "style": "solid"}], ["Marine Poaching", "Fishing Regulations", {"weight": 1.0, "confidence": 0.51, "type": "inter_cluster", "style": "solid"}], ["Fishery Management", "Fishing Regulations", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Commercial Fishing", "Fishing Types", {"weight": 0.75, "confidence": 0.575, "type": "inter_cluster", "style": "solid"}], ["Fishing Activities", "Recreation Sector", {"weight": 1.0, "confidence": 0.7250000000000001, "type": "inter_cluster", "style": "solid"}], ["Fishing Activities", "fishing gears", {"weight": 0.6666666666666666, "confidence": 0.2333333333333333, "type": "inter_cluster", "style": "solid"}], ["Fishing Activities", "spawning aggregations", {"weight": 0.6666666666666666, "confidence": 0.16666666666666666, "type": "inter_cluster", "style": "solid"}], ["Fisher Community & Concerns", "Fishing Types", {"weight": 0.6, "confidence": 0.27999999999999997, "type": "inter_cluster", "style": "solid"}], ["Fishing Types", "Fishing Regulations", {"weight": 1.0, "confidence": 0.43333333333333335, "type": "inter_cluster", "style": "solid"}], ["Fishing Types", "Commercial Fishing", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Fishing Regulations", "Fisher Community & Concerns", {"weight": 1.0, "confidence": 0.3833333333333333, "type": "inter_cluster", "style": "solid"}], ["Fishing Regulations", "Resource Depletion", {"weight": -0.5, "confidence": 0.15, "type": "inter_cluster", "style": "solid"}], ["Fisher Conflicts", "Fishing Regulations", {"weight": 1.0, "confidence": 0.3625, "type": "inter_cluster", "style": "solid"}], ["Fishing Seasonality", "fishing gears", {"weight": 0.6666666666666666, "confidence": 0.19999999999999998, "type": "inter_cluster", "style": "solid"}], ["Fishing Communities Studies", "Fishery Management", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["Fishing Communities Studies", "spawning behavior", {"weight": 0.8, "confidence": 0.22000000000000003, "type": "inter_cluster", "style": "solid"}], ["Fishing Communities Studies", "Fishing Activities", {"weight": 0.6666666666666666, "confidence": 0.25, "type": "inter_cluster", "style": "solid"}], ["Fishing Communities Studies", "fish houses", {"weight": 1.0, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["Seafood Management", "Recreation Sector", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["Marine Ecosystem", "Fisher Community & Concerns", {"weight": 1.0, "confidence": 0.3375, "type": "inter_cluster", "style": "solid"}], ["Coral Reefs", "fishing gears", {"weight": 0.5, "confidence": 0.1, "type": "inter_cluster", "style": "solid"}], ["Reef Decline", "Fishing Regulations", {"weight": 1.0, "confidence": 0.45, "type": "inter_cluster", "style": "solid"}], ["Reef Decline", "Fisher Community & Concerns", {"weight": 1.0, "confidence": 0.30000000000000004, "type": "inter_cluster", "style": "solid"}], ["Reef Decline", "Marine Poaching", {"weight": 0.6666666666666666, "confidence": 0.19999999999999998, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {"fish houses": [], "Tourism & Recreation": [], "Resource Depletion": [], "Community & Management": [], "Coastal Resource Management": [], "Water Pollution": [], "Recreation Sector": [], "Marine Poaching": [], "Fishery Management": [], "Commercial Fishing": [], "Fishing Activities": [], "Fisher Community & Concerns": [], "Fishing Types": [], "Fishing Regulations": [], "Fisher Conflicts": [], "Fishing Seasonality": [], "Fishing Communities Studies": [], "Seafood Management": [], "Marine Ecosystem": [], "Coral Reefs": [], "Reef Decline": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

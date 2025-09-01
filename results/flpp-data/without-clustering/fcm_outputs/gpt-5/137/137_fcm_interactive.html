@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"resource distribution": {"concepts": "resource distribution", "concept_list": ["resource distribution"], "type": "cluster", "node_size": 18, "label": "resource distribution"}, "connection": {"concepts": "connection", "concept_list": ["connection"], "type": "cluster", "node_size": 18, "label": "connection"}, "transportation access": {"concepts": "transportation access", "concept_list": ["transportation access"], "type": "cluster", "node_size": 18, "label": "transportation access"}, "biases": {"concepts": "biases", "concept_list": ["biases"], "type": "cluster", "node_size": 18, "label": "biases"}, "food assistance": {"concepts": "food assistance", "concept_list": ["food assistance"], "type": "cluster", "node_size": 18, "label": "food assistance"}, "community partnerships": {"concepts": "community partnerships", "concept_list": ["community partnerships"], "type": "cluster", "node_size": 18, "label": "community partnerships"}, "skills": {"concepts": "skills", "concept_list": ["skills"], "type": "cluster", "node_size": 18, "label": "skills"}, "promotion": {"concepts": "promotion", "concept_list": ["promotion"], "type": "cluster", "node_size": 18, "label": "promotion"}, "social services": {"concepts": "social services", "concept_list": ["social services"], "type": "cluster", "node_size": 18, "label": "social services"}, "spanish translation": {"concepts": "spanish translation", "concept_list": ["spanish translation"], "type": "cluster", "node_size": 18, "label": "spanish translation"}, "delivery": {"concepts": "delivery", "concept_list": ["delivery"], "type": "cluster", "node_size": 18, "label": "delivery"}, "office closures": {"concepts": "office closures", "concept_list": ["office closures"], "type": "cluster", "node_size": 18, "label": "office closures"}, "spanish language": {"concepts": "spanish language", "concept_list": ["spanish language"], "type": "cluster", "node_size": 18, "label": "spanish language"}, "racial inequalities": {"concepts": "racial inequalities", "concept_list": ["racial inequalities"], "type": "cluster", "node_size": 18, "label": "racial inequalities"}, "settlement access": {"concepts": "settlement access", "concept_list": ["settlement access"], "type": "cluster", "node_size": 18, "label": "settlement access"}, "supplemental programs": {"concepts": "supplemental programs", "concept_list": ["supplemental programs"], "type": "cluster", "node_size": 18, "label": "supplemental programs"}, "geographic distance": {"concepts": "geographic distance", "concept_list": ["geographic distance"], "type": "cluster", "node_size": 18, "label": "geographic distance"}, "values": {"concepts": "values", "concept_list": ["values"], "type": "cluster", "node_size": 18, "label": "values"}, "programs": {"concepts": "programs", "concept_list": ["programs"], "type": "cluster", "node_size": 18, "label": "programs"}, "bilingual support": {"concepts": "bilingual support", "concept_list": ["bilingual support"], "type": "cluster", "node_size": 18, "label": "bilingual support"}, "cooking programs": {"concepts": "cooking programs", "concept_list": ["cooking programs"], "type": "cluster", "node_size": 18, "label": "cooking programs"}, "delivery system": {"concepts": "delivery system", "concept_list": ["delivery system"], "type": "cluster", "node_size": 18, "label": "delivery system"}, "community values": {"concepts": "community values", "concept_list": ["community values"], "type": "cluster", "node_size": 18, "label": "community values"}, "collaboration": {"concepts": "collaboration", "concept_list": ["collaboration"], "type": "cluster", "node_size": 18, "label": "collaboration"}, "ebt": {"concepts": "ebt", "concept_list": ["ebt"], "type": "cluster", "node_size": 18, "label": "ebt"}, "social support": {"concepts": "social support", "concept_list": ["social support"], "type": "cluster", "node_size": 18, "label": "social support"}, "community hub": {"concepts": "community hub", "concept_list": ["community hub"], "type": "cluster", "node_size": 18, "label": "community hub"}, "program participation": {"concepts": "program participation", "concept_list": ["program participation"], "type": "cluster", "node_size": 18, "label": "program participation"}, "financial support": {"concepts": "financial support", "concept_list": ["financial support"], "type": "cluster", "node_size": 18, "label": "financial support"}, "fast food": {"concepts": "fast food", "concept_list": ["fast food"], "type": "cluster", "node_size": 18, "label": "fast food"}, "seeds": {"concepts": "seeds", "concept_list": ["seeds"], "type": "cluster", "node_size": 18, "label": "seeds"}, "community engagement": {"concepts": "community engagement", "concept_list": ["community engagement"], "type": "cluster", "node_size": 18, "label": "community engagement"}, "barriers": {"concepts": "barriers", "concept_list": ["barriers"], "type": "cluster", "node_size": 18, "label": "barriers"}, "growing kits": {"concepts": "growing kits", "concept_list": ["growing kits"], "type": "cluster", "node_size": 18, "label": "growing kits"}, "recovery efforts": {"concepts": "recovery efforts", "concept_list": ["recovery efforts"], "type": "cluster", "node_size": 18, "label": "recovery efforts"}, "wic office": {"concepts": "wic office", "concept_list": ["wic office"], "type": "cluster", "node_size": 18, "label": "wic office"}, "nutrition programs": {"concepts": "nutrition programs", "concept_list": ["nutrition programs"], "type": "cluster", "node_size": 18, "label": "nutrition programs"}, "food access": {"concepts": "food access", "concept_list": ["food access"], "type": "cluster", "node_size": 18, "label": "food access"}, "wic program": {"concepts": "wic program", "concept_list": ["wic program"], "type": "cluster", "node_size": 18, "label": "wic program"}, "safe drinking water": {"concepts": "safe drinking water", "concept_list": ["safe drinking water"], "type": "cluster", "node_size": 18, "label": "safe drinking water"}, "water vouchers": {"concepts": "water vouchers", "concept_list": ["water vouchers"], "type": "cluster", "node_size": 18, "label": "water vouchers"}, "local economic development": {"concepts": "local economic development", "concept_list": ["local economic development"], "type": "cluster", "node_size": 18, "label": "local economic development"}, "dignity": {"concepts": "dignity", "concept_list": ["dignity"], "type": "cluster", "node_size": 18, "label": "dignity"}, "covid": {"concepts": "covid", "concept_list": ["covid"], "type": "cluster", "node_size": 18, "label": "covid"}, "program knowledge": {"concepts": "program knowledge", "concept_list": ["program knowledge"], "type": "cluster", "node_size": 18, "label": "program knowledge"}, "edible flint": {"concepts": "edible flint", "concept_list": ["edible flint"], "type": "cluster", "node_size": 18, "label": "edible flint"}, "food banks": {"concepts": "food banks", "concept_list": ["food banks"], "type": "cluster", "node_size": 18, "label": "food banks"}, "food insecurity": {"concepts": "food insecurity", "concept_list": ["food insecurity"], "type": "cluster", "node_size": 18, "label": "food insecurity"}, "video calls": {"concepts": "video calls", "concept_list": ["video calls"], "type": "cluster", "node_size": 18, "label": "video calls"}, "snap benefits": {"concepts": "snap benefits", "concept_list": ["snap benefits"], "type": "cluster", "node_size": 18, "label": "snap benefits"}, "flint": {"concepts": "flint", "concept_list": ["flint"], "type": "cluster", "node_size": 18, "label": "flint"}, "covid impact": {"concepts": "covid impact", "concept_list": ["covid impact"], "type": "cluster", "node_size": 18, "label": "covid impact"}, "cultural values": {"concepts": "cultural values", "concept_list": ["cultural values"], "type": "cluster", "node_size": 18, "label": "cultural values"}, "children education": {"concepts": "children education", "concept_list": ["children education"], "type": "cluster", "node_size": 18, "label": "children education"}, "emergency programs": {"concepts": "emergency programs", "concept_list": ["emergency programs"], "type": "cluster", "node_size": 18, "label": "emergency programs"}, "leadership": {"concepts": "leadership", "concept_list": ["leadership"], "type": "cluster", "node_size": 18, "label": "leadership"}, "safety": {"concepts": "safety", "concept_list": ["safety"], "type": "cluster", "node_size": 18, "label": "safety"}, "food system": {"concepts": "food system", "concept_list": ["food system"], "type": "cluster", "node_size": 18, "label": "food system"}, "cashier participation": {"concepts": "cashier participation", "concept_list": ["cashier participation"], "type": "cluster", "node_size": 18, "label": "cashier participation"}, "racial issues": {"concepts": "racial issues", "concept_list": ["racial issues"], "type": "cluster", "node_size": 18, "label": "racial issues"}, "latinx technology and community center": {"concepts": "latinx technology and community center", "concept_list": ["latinx technology and community center"], "type": "cluster", "node_size": 18, "label": "latinx technology and community center"}, "research": {"concepts": "research", "concept_list": ["research"], "type": "cluster", "node_size": 18, "label": "research"}, "grocery participation": {"concepts": "grocery participation", "concept_list": ["grocery participation"], "type": "cluster", "node_size": 18, "label": "grocery participation"}, "empowerment outcomes": {"concepts": "empowerment outcomes", "concept_list": ["empowerment outcomes"], "type": "cluster", "node_size": 18, "label": "empowerment outcomes"}, "st mary's food bank": {"concepts": "st mary's food bank", "concept_list": ["st mary's food bank"], "type": "cluster", "node_size": 18, "label": "st mary's food bank"}, "education": {"concepts": "education", "concept_list": ["education"], "type": "cluster", "node_size": 18, "label": "education"}, "healthier choices": {"concepts": "healthier choices", "concept_list": ["healthier choices"], "type": "cluster", "node_size": 18, "label": "healthier choices"}, "cooking": {"concepts": "cooking", "concept_list": ["cooking"], "type": "cluster", "node_size": 18, "label": "cooking"}, "local economy": {"concepts": "local economy", "concept_list": ["local economy"], "type": "cluster", "node_size": 18, "label": "local economy"}, "cashiers": {"concepts": "cashiers", "concept_list": ["cashiers"], "type": "cluster", "node_size": 18, "label": "cashiers"}, "children": {"concepts": "children", "concept_list": ["children"], "type": "cluster", "node_size": 18, "label": "children"}, "caregiving": {"concepts": "caregiving", "concept_list": ["caregiving"], "type": "cluster", "node_size": 18, "label": "caregiving"}, "problem solving": {"concepts": "problem solving", "concept_list": ["problem solving"], "type": "cluster", "node_size": 18, "label": "problem solving"}, "wic": {"concepts": "wic", "concept_list": ["wic"], "type": "cluster", "node_size": 18, "label": "wic"}, "martha luna food bank": {"concepts": "martha luna food bank", "concept_list": ["martha luna food bank"], "type": "cluster", "node_size": 18, "label": "martha luna food bank"}, "applications": {"concepts": "applications", "concept_list": ["applications"], "type": "cluster", "node_size": 18, "label": "applications"}, "outreach": {"concepts": "outreach", "concept_list": ["outreach"], "type": "cluster", "node_size": 18, "label": "outreach"}, "community support": {"concepts": "community support", "concept_list": ["community support"], "type": "cluster", "node_size": 18, "label": "community support"}, "transportation": {"concepts": "transportation", "concept_list": ["transportation"], "type": "cluster", "node_size": 18, "label": "transportation"}, "nutritious foods": {"concepts": "nutritious foods", "concept_list": ["nutritious foods"], "type": "cluster", "node_size": 18, "label": "nutritious foods"}, "groceries": {"concepts": "groceries", "concept_list": ["groceries"], "type": "cluster", "node_size": 18, "label": "groceries"}, "community officers": {"concepts": "community officers", "concept_list": ["community officers"], "type": "cluster", "node_size": 18, "label": "community officers"}, "partnership": {"concepts": "partnership", "concept_list": ["partnership"], "type": "cluster", "node_size": 18, "label": "partnership"}, "program awareness": {"concepts": "program awareness", "concept_list": ["program awareness"], "type": "cluster", "node_size": 18, "label": "program awareness"}, "technology barriers": {"concepts": "technology barriers", "concept_list": ["technology barriers"], "type": "cluster", "node_size": 18, "label": "technology barriers"}, "spanish literature": {"concepts": "spanish literature", "concept_list": ["spanish literature"], "type": "cluster", "node_size": 18, "label": "spanish literature"}, "food pantry": {"concepts": "food pantry", "concept_list": ["food pantry"], "type": "cluster", "node_size": 18, "label": "food pantry"}, "community organizing": {"concepts": "community organizing", "concept_list": ["community organizing"], "type": "cluster", "node_size": 18, "label": "community organizing"}, "nutrition": {"concepts": "nutrition", "concept_list": ["nutrition"], "type": "cluster", "node_size": 18, "label": "nutrition"}, "neighborhood disadvantage": {"concepts": "neighborhood disadvantage", "concept_list": ["neighborhood disadvantage"], "type": "cluster", "node_size": 18, "label": "neighborhood disadvantage"}, "emergency sector": {"concepts": "emergency sector", "concept_list": ["emergency sector"], "type": "cluster", "node_size": 18, "label": "emergency sector"}, "grubhub": {"concepts": "grubhub", "concept_list": ["grubhub"], "type": "cluster", "node_size": 18, "label": "grubhub"}, "independence": {"concepts": "independence", "concept_list": ["independence"], "type": "cluster", "node_size": 18, "label": "independence"}, "local restaurants": {"concepts": "local restaurants", "concept_list": ["local restaurants"], "type": "cluster", "node_size": 18, "label": "local restaurants"}, "family nutrition": {"concepts": "family nutrition", "concept_list": ["family nutrition"], "type": "cluster", "node_size": 18, "label": "family nutrition"}, "bus passes": {"concepts": "bus passes", "concept_list": ["bus passes"], "type": "cluster", "node_size": 18, "label": "bus passes"}, "utility assistance": {"concepts": "utility assistance", "concept_list": ["utility assistance"], "type": "cluster", "node_size": 18, "label": "utility assistance"}, "health": {"concepts": "health", "concept_list": ["health"], "type": "cluster", "node_size": 18, "label": "health"}, "program barriers": {"concepts": "program barriers", "concept_list": ["program barriers"], "type": "cluster", "node_size": 18, "label": "program barriers"}, "nutrition education": {"concepts": "nutrition education", "concept_list": ["nutrition education"], "type": "cluster", "node_size": 18, "label": "nutrition education"}, "social programs": {"concepts": "social programs", "concept_list": ["social programs"], "type": "cluster", "node_size": 18, "label": "social programs"}, "stores": {"concepts": "stores", "concept_list": ["stores"], "type": "cluster", "node_size": 18, "label": "stores"}, "basic needs": {"concepts": "basic needs", "concept_list": ["basic needs"], "type": "cluster", "node_size": 18, "label": "basic needs"}, "fruits": {"concepts": "fruits", "concept_list": ["fruits"], "type": "cluster", "node_size": 18, "label": "fruits"}, "child care": {"concepts": "child care", "concept_list": ["child care"], "type": "cluster", "node_size": 18, "label": "child care"}, "chain restaurants": {"concepts": "chain restaurants", "concept_list": ["chain restaurants"], "type": "cluster", "node_size": 18, "label": "chain restaurants"}, "red cross": {"concepts": "red cross", "concept_list": ["red cross"], "type": "cluster", "node_size": 18, "label": "red cross"}, "hispanic center": {"concepts": "hispanic center", "concept_list": ["hispanic center"], "type": "cluster", "node_size": 18, "label": "hispanic center"}, "government phones": {"concepts": "government phones", "concept_list": ["government phones"], "type": "cluster", "node_size": 18, "label": "government phones"}, "resources": {"concepts": "resources", "concept_list": ["resources"], "type": "cluster", "node_size": 18, "label": "resources"}, "food bank": {"concepts": "food bank", "concept_list": ["food bank"], "type": "cluster", "node_size": 18, "label": "food bank"}, "cultural foods": {"concepts": "cultural foods", "concept_list": ["cultural foods"], "type": "cluster", "node_size": 18, "label": "cultural foods"}, "latino foods": {"concepts": "latino foods", "concept_list": ["latino foods"], "type": "cluster", "node_size": 18, "label": "latino foods"}, "community outreach": {"concepts": "community outreach", "concept_list": ["community outreach"], "type": "cluster", "node_size": 18, "label": "community outreach"}, "zoom calls": {"concepts": "zoom calls", "concept_list": ["zoom calls"], "type": "cluster", "node_size": 18, "label": "zoom calls"}, "retail sector": {"concepts": "retail sector", "concept_list": ["retail sector"], "type": "cluster", "node_size": 18, "label": "retail sector"}, "north side hub": {"concepts": "north side hub", "concept_list": ["north side hub"], "type": "cluster", "node_size": 18, "label": "north side hub"}, "accessibility": {"concepts": "accessibility", "concept_list": ["accessibility"], "type": "cluster", "node_size": 18, "label": "accessibility"}, "non-english speakers": {"concepts": "non-english speakers", "concept_list": ["non-english speakers"], "type": "cluster", "node_size": 18, "label": "non-english speakers"}, "covid-19 impact": {"concepts": "covid-19 impact", "concept_list": ["covid-19 impact"], "type": "cluster", "node_size": 18, "label": "covid-19 impact"}, "supplemental sector": {"concepts": "supplemental sector", "concept_list": ["supplemental sector"], "type": "cluster", "node_size": 18, "label": "supplemental sector"}, "effective programming": {"concepts": "effective programming", "concept_list": ["effective programming"], "type": "cluster", "node_size": 18, "label": "effective programming"}, "vegetables": {"concepts": "vegetables", "concept_list": ["vegetables"], "type": "cluster", "node_size": 18, "label": "vegetables"}, "restaurants": {"concepts": "restaurants", "concept_list": ["restaurants"], "type": "cluster", "node_size": 18, "label": "restaurants"}, "covid-19": {"concepts": "covid-19", "concept_list": ["covid-19"], "type": "cluster", "node_size": 18, "label": "covid-19"}, "geographic barriers": {"concepts": "geographic barriers", "concept_list": ["geographic barriers"], "type": "cluster", "node_size": 18, "label": "geographic barriers"}, "program promotion": {"concepts": "program promotion", "concept_list": ["program promotion"], "type": "cluster", "node_size": 18, "label": "program promotion"}, "healthy food": {"concepts": "healthy food", "concept_list": ["healthy food"], "type": "cluster", "node_size": 18, "label": "healthy food"}, "community center": {"concepts": "community center", "concept_list": ["community center"], "type": "cluster", "node_size": 18, "label": "community center"}, "community empowerment": {"concepts": "community empowerment", "concept_list": ["community empowerment"], "type": "cluster", "node_size": 18, "label": "community empowerment"}, "food pantries": {"concepts": "food pantries", "concept_list": ["food pantries"], "type": "cluster", "node_size": 18, "label": "food pantries"}, "flint food system": {"concepts": "flint food system", "concept_list": ["flint food system"], "type": "cluster", "node_size": 18, "label": "flint food system"}, "vegetarian diet": {"concepts": "vegetarian diet", "concept_list": ["vegetarian diet"], "type": "cluster", "node_size": 18, "label": "vegetarian diet"}, "socioeconomic inequality": {"concepts": "socioeconomic inequality", "concept_list": ["socioeconomic inequality"], "type": "cluster", "node_size": 18, "label": "socioeconomic inequality"}, "access": {"concepts": "access", "concept_list": ["access"], "type": "cluster", "node_size": 18, "label": "access"}, "food delivery": {"concepts": "food delivery", "concept_list": ["food delivery"], "type": "cluster", "node_size": 18, "label": "food delivery"}, "healthy choices": {"concepts": "healthy choices", "concept_list": ["healthy choices"], "type": "cluster", "node_size": 18, "label": "healthy choices"}, "farmers market": {"concepts": "farmers market", "concept_list": ["farmers market"], "type": "cluster", "node_size": 18, "label": "farmers market"}, "older adults": {"concepts": "older adults", "concept_list": ["older adults"], "type": "cluster", "node_size": 18, "label": "older adults"}, "outreach programs": {"concepts": "outreach programs", "concept_list": ["outreach programs"], "type": "cluster", "node_size": 18, "label": "outreach programs"}, "food skills": {"concepts": "food skills", "concept_list": ["food skills"], "type": "cluster", "node_size": 18, "label": "food skills"}, "community": {"concepts": "community", "concept_list": ["community"], "type": "cluster", "node_size": 18, "label": "community"}, "transportation barriers": {"concepts": "transportation barriers", "concept_list": ["transportation barriers"], "type": "cluster", "node_size": 18, "label": "transportation barriers"}, "tools": {"concepts": "tools", "concept_list": ["tools"], "type": "cluster", "node_size": 18, "label": "tools"}, "family wellbeing": {"concepts": "family wellbeing", "concept_list": ["family wellbeing"], "type": "cluster", "node_size": 18, "label": "family wellbeing"}, "smartphones": {"concepts": "smartphones", "concept_list": ["smartphones"], "type": "cluster", "node_size": 18, "label": "smartphones"}, "water distribution": {"concepts": "water distribution", "concept_list": ["water distribution"], "type": "cluster", "node_size": 18, "label": "water distribution"}, "medicaid": {"concepts": "medicaid", "concept_list": ["medicaid"], "type": "cluster", "node_size": 18, "label": "medicaid"}, "dhhs": {"concepts": "dhhs", "concept_list": ["dhhs"], "type": "cluster", "node_size": 18, "label": "dhhs"}, "quality of life": {"concepts": "quality of life", "concept_list": ["quality of life"], "type": "cluster", "node_size": 18, "label": "quality of life"}, "partnerships": {"concepts": "partnerships", "concept_list": ["partnerships"], "type": "cluster", "node_size": 18, "label": "partnerships"}, "family needs": {"concepts": "family needs", "concept_list": ["family needs"], "type": "cluster", "node_size": 18, "label": "family needs"}, "illness": {"concepts": "illness", "concept_list": ["illness"], "type": "cluster", "node_size": 18, "label": "illness"}, "outcomes": {"concepts": "outcomes", "concept_list": ["outcomes"], "type": "cluster", "node_size": 18, "label": "outcomes"}, "funding": {"concepts": "funding", "concept_list": ["funding"], "type": "cluster", "node_size": 18, "label": "funding"}, "leverage points": {"concepts": "leverage points", "concept_list": ["leverage points"], "type": "cluster", "node_size": 18, "label": "leverage points"}, "community partners": {"concepts": "community partners", "concept_list": ["community partners"], "type": "cluster", "node_size": 18, "label": "community partners"}, "flint recovery": {"concepts": "flint recovery", "concept_list": ["flint recovery"], "type": "cluster", "node_size": 18, "label": "flint recovery"}, "eastside mission": {"concepts": "eastside mission", "concept_list": ["eastside mission"], "type": "cluster", "node_size": 18, "label": "eastside mission"}, "online services": {"concepts": "online services", "concept_list": ["online services"], "type": "cluster", "node_size": 18, "label": "online services"}, "education access": {"concepts": "education access", "concept_list": ["education access"], "type": "cluster", "node_size": 18, "label": "education access"}, "career development": {"concepts": "career development", "concept_list": ["career development"], "type": "cluster", "node_size": 18, "label": "career development"}, "affordability": {"concepts": "affordability", "concept_list": ["affordability"], "type": "cluster", "node_size": 18, "label": "affordability"}, "food stamps": {"concepts": "food stamps", "concept_list": ["food stamps"], "type": "cluster", "node_size": 18, "label": "food stamps"}, "families without vehicles": {"concepts": "families without vehicles", "concept_list": ["families without vehicles"], "type": "cluster", "node_size": 18, "label": "families without vehicles"}};
+        const conceptData = {};
+        const interClusterEdges = [["resource distribution", "promotion", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["transportation access", "martha luna food bank", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["transportation access", "leverage points", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["biases", "partnership", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food assistance", "social services", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["skills", "accessibility", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["promotion", "community organizing", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["spanish translation", "health", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["delivery", "vegetables", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["delivery", "snap benefits", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["spanish language", "caregiving", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["spanish language", "edible flint", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["settlement access", "flint recovery", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["settlement access", "program barriers", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["supplemental programs", "healthy choices", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["values", "cooking", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["programs", "smartphones", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["bilingual support", "eastside mission", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["bilingual support", "community engagement", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["delivery system", "food banks", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["delivery system", "cultural values", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["community values", "transportation access", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["community values", "food skills", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["collaboration", "spanish literature", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["collaboration", "healthy food", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["collaboration", "cultural values", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["program participation", "leverage points", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["program participation", "delivery", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["seeds", "older adults", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["growing kits", "geographic distance", {"weight": -0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["nutrition programs", "healthy food", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["food access", "geographic distance", {"weight": -1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["food access", "transportation access", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["wic program", "access", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["safe drinking water", "covid-19 impact", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["water vouchers", "nutritious foods", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["water vouchers", "healthy choices", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["local economic development", "flint", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["covid", "community hub", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["program knowledge", "community engagement", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["edible flint", "problem solving", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food banks", "community values", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["video calls", "partnerships", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["video calls", "transportation", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["snap benefits", "supplemental programs", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["snap benefits", "connection", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["children education", "nutrition", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["children education", "covid-19", {"weight": -1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["emergency programs", "edible flint", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["emergency programs", "tools", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["safety", "food assistance", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["food system", "social programs", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["cashier participation", "nutrition", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["racial issues", "health", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["latinx technology and community center", "spanish literature", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["st mary's food bank", "community engagement", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["education", "food bank", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["education", "cultural values", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["education", "covid-19 impact", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["cooking", "quality of life", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["cooking", "access", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["local economy", "stores", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["cashiers", "socioeconomic inequality", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["children", "leverage points", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["children", "transportation", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["children", "cultural foods", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["wic", "community partners", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["community support", "food pantry", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["community support", "local economic development", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["nutritious foods", "empowerment outcomes", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["nutritious foods", "social programs", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["groceries", "snap benefits", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["groceries", "research", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["community officers", "program awareness", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["technology barriers", "financial support", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["technology barriers", "problem solving", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["technology barriers", "office closures", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["food pantry", "families without vehicles", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food pantry", "outreach", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["community organizing", "applications", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["nutrition", "food assistance", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["neighborhood disadvantage", "cashier participation", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["neighborhood disadvantage", "edible flint", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["emergency sector", "effective programming", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["independence", "partnerships", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["independence", "programs", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["independence", "utility assistance", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["local restaurants", "resources", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["family nutrition", "financial support", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["bus passes", "healthy food", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["utility assistance", "social support", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["program barriers", "online services", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["nutrition education", "healthier choices", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["basic needs", "grocery participation", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["fruits", "community empowerment", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["child care", "social support", {"weight": 0.5, "confidence": 0.325, "type": "inter_cluster", "style": "solid"}], ["child care", "leadership", {"weight": 1.0, "confidence": 0.45, "type": "inter_cluster", "style": "solid"}], ["chain restaurants", "vegetables", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["chain restaurants", "barriers", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["red cross", "outreach programs", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["hispanic center", "program promotion", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["government phones", "wic office", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["resources", "spanish translation", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["resources", "financial support", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["food bank", "local economic development", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["cultural foods", "community partnerships", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["cultural foods", "community engagement", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["latino foods", "healthier choices", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["latino foods", "fast food", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["community outreach", "growing kits", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["zoom calls", "recovery efforts", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["retail sector", "partnerships", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["covid-19 impact", "racial inequalities", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["vegetables", "programs", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["restaurants", "community", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["covid-19", "safety", {"weight": -1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["geographic barriers", "geographic distance", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["geographic barriers", "nutrition", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["program promotion", "bilingual support", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["program promotion", "cooking", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["community center", "safety", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["community empowerment", "food insecurity", {"weight": -1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["community empowerment", "non-english speakers", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food pantries", "effective programming", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["flint food system", "non-english speakers", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["flint food system", "supplemental sector", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["vegetarian diet", "values", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["vegetarian diet", "cultural values", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["access", "seeds", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["access", "cultural values", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["food delivery", "flint recovery", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food delivery", "online services", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["healthy choices", "transportation barriers", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["healthy choices", "restaurants", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["healthy choices", "growing kits", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["healthy choices", "geographic distance", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["farmers market", "cooking programs", {"weight": 1.0, "confidence": 0.8999999999999999, "type": "inter_cluster", "style": "solid"}], ["older adults", "community officers", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["older adults", "dignity", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["outreach programs", "video calls", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["food skills", "local economy", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["transportation barriers", "hispanic center", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["tools", "resource distribution", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["tools", "social programs", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["family wellbeing", "food pantry", {"weight": 1.0, "confidence": 0.7749999999999999, "type": "inter_cluster", "style": "solid"}], ["family wellbeing", "socioeconomic inequality", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["smartphones", "nutrition education", {"weight": -1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["water distribution", "resource distribution", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["medicaid", "community engagement", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["dhhs", "ebt", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["family needs", "north side hub", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["illness", "covid impact", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["illness", "nutrition education", {"weight": -1.0, "confidence": 0.45, "type": "inter_cluster", "style": "solid"}], ["funding", "leverage points", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["funding", "grubhub", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["leverage points", "delivery system", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["leverage points", "community hub", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["leverage points", "grocery participation", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["leverage points", "racial inequalities", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["community partners", "north side hub", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["online services", "socioeconomic inequality", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["online services", "grocery participation", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["online services", "program awareness", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["education access", "outcomes", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["career development", "community hub", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["affordability", "healthy food", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["food stamps", "leverage points", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["families without vehicles", "local economy", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

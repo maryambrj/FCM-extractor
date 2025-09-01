@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"energy sources": {"concepts": "energy sources", "concept_list": ["energy sources"], "type": "cluster", "node_size": 18, "label": "energy sources"}, "energy policy": {"concepts": "energy policy", "concept_list": ["energy policy"], "type": "cluster", "node_size": 18, "label": "energy policy"}, "bird migration": {"concepts": "bird migration", "concept_list": ["bird migration"], "type": "cluster", "node_size": 18, "label": "bird migration"}, "education": {"concepts": "education", "concept_list": ["education"], "type": "cluster", "node_size": 18, "label": "education"}, "communication": {"concepts": "communication", "concept_list": ["communication"], "type": "cluster", "node_size": 18, "label": "communication"}, "offshore wind": {"concepts": "offshore wind", "concept_list": ["offshore wind"], "type": "cluster", "node_size": 18, "label": "offshore wind"}, "job creation": {"concepts": "job creation", "concept_list": ["job creation"], "type": "cluster", "node_size": 18, "label": "job creation"}, "pros/cons": {"concepts": "pros/cons", "concept_list": ["pros/cons"], "type": "cluster", "node_size": 18, "label": "pros/cons"}, "aesthetics": {"concepts": "aesthetics", "concept_list": ["aesthetics"], "type": "cluster", "node_size": 18, "label": "aesthetics"}, "mitigation": {"concepts": "mitigation", "concept_list": ["mitigation"], "type": "cluster", "node_size": 18, "label": "mitigation"}, "public knowledge": {"concepts": "public knowledge", "concept_list": ["public knowledge"], "type": "cluster", "node_size": 18, "label": "public knowledge"}, "resource management": {"concepts": "resource management", "concept_list": ["resource management"], "type": "cluster", "node_size": 18, "label": "resource management"}, "political climate": {"concepts": "political climate", "concept_list": ["political climate"], "type": "cluster", "node_size": 18, "label": "political climate"}, "environmental impact": {"concepts": "environmental impact", "concept_list": ["environmental impact"], "type": "cluster", "node_size": 18, "label": "environmental impact"}, "mitigation strategies": {"concepts": "mitigation strategies", "concept_list": ["mitigation strategies"], "type": "cluster", "node_size": 18, "label": "mitigation strategies"}, "public perception": {"concepts": "public perception", "concept_list": ["public perception"], "type": "cluster", "node_size": 18, "label": "public perception"}, "texas politics": {"concepts": "texas politics", "concept_list": ["texas politics"], "type": "cluster", "node_size": 18, "label": "texas politics"}, "habitat impacts": {"concepts": "habitat impacts", "concept_list": ["habitat impacts"], "type": "cluster", "node_size": 18, "label": "habitat impacts"}, "stakeholder engagement": {"concepts": "stakeholder engagement", "concept_list": ["stakeholder engagement"], "type": "cluster", "node_size": 18, "label": "stakeholder engagement"}};
+        const conceptData = {};
+        const interClusterEdges = [["energy sources", "mitigation", {"weight": 1.0, "confidence": 0.6749999999999999, "type": "inter_cluster", "style": "solid"}], ["energy sources", "education", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["energy policy", "energy sources", {"weight": 1.0, "confidence": 0.8699999999999999, "type": "inter_cluster", "style": "solid"}], ["energy policy", "job creation", {"weight": 1.0, "confidence": 0.7300000000000001, "type": "inter_cluster", "style": "solid"}], ["energy policy", "public knowledge", {"weight": 1.0, "confidence": 0.7375, "type": "inter_cluster", "style": "solid"}], ["energy policy", "stakeholder engagement", {"weight": 1.0, "confidence": 0.7250000000000001, "type": "inter_cluster", "style": "solid"}], ["energy policy", "habitat impacts", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["bird migration", "resource management", {"weight": 1.0, "confidence": 0.8625, "type": "inter_cluster", "style": "solid"}], ["bird migration", "offshore wind", {"weight": -1.0, "confidence": 0.8333333333333334, "type": "inter_cluster", "style": "solid"}], ["education", "resource management", {"weight": 1.0, "confidence": 0.7250000000000001, "type": "inter_cluster", "style": "solid"}], ["education", "environmental impact", {"weight": 1.0, "confidence": 0.7000000000000001, "type": "inter_cluster", "style": "solid"}], ["communication", "public knowledge", {"weight": 1.0, "confidence": 0.9100000000000001, "type": "inter_cluster", "style": "solid"}], ["communication", "public perception", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["communication", "mitigation strategies", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["communication", "resource management", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["communication", "environmental impact", {"weight": 1.0, "confidence": 0.66, "type": "inter_cluster", "style": "solid"}], ["communication", "energy policy", {"weight": 1.0, "confidence": 0.6599999999999999, "type": "inter_cluster", "style": "solid"}], ["communication", "energy sources", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["communication", "political climate", {"weight": 0.5, "confidence": 0.6125, "type": "inter_cluster", "style": "solid"}], ["offshore wind", "aesthetics", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["job creation", "stakeholder engagement", {"weight": 1.0, "confidence": 0.6900000000000001, "type": "inter_cluster", "style": "solid"}], ["job creation", "mitigation", {"weight": 1.0, "confidence": 0.6124999999999999, "type": "inter_cluster", "style": "solid"}], ["job creation", "environmental impact", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["job creation", "public knowledge", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["pros/cons", "job creation", {"weight": 0.8, "confidence": 0.48, "type": "inter_cluster", "style": "solid"}], ["aesthetics", "environmental impact", {"weight": 1.0, "confidence": 0.56, "type": "inter_cluster", "style": "solid"}], ["aesthetics", "mitigation", {"weight": 0.8, "confidence": 0.45999999999999996, "type": "inter_cluster", "style": "solid"}], ["aesthetics", "public knowledge", {"weight": 0.6, "confidence": 0.33999999999999997, "type": "inter_cluster", "style": "solid"}], ["mitigation", "offshore wind", {"weight": 1.0, "confidence": 0.925, "type": "inter_cluster", "style": "solid"}], ["mitigation", "aesthetics", {"weight": 0.5, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["public knowledge", "stakeholder engagement", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["public knowledge", "job creation", {"weight": 0.8, "confidence": 0.48, "type": "inter_cluster", "style": "solid"}], ["public knowledge", "communication", {"weight": 1.0, "confidence": 0.7666666666666666, "type": "inter_cluster", "style": "solid"}], ["resource management", "energy policy", {"weight": 1.0, "confidence": 0.74, "type": "inter_cluster", "style": "solid"}], ["resource management", "texas politics", {"weight": -0.25, "confidence": 0.4375, "type": "inter_cluster", "style": "solid"}], ["political climate", "pros/cons", {"weight": 0.6, "confidence": 0.7100000000000001, "type": "inter_cluster", "style": "solid"}], ["political climate", "education", {"weight": -1.0, "confidence": 0.69, "type": "inter_cluster", "style": "solid"}], ["political climate", "offshore wind", {"weight": -1.0, "confidence": 0.7666666666666666, "type": "inter_cluster", "style": "solid"}], ["environmental impact", "mitigation strategies", {"weight": 1.0, "confidence": 0.89, "type": "inter_cluster", "style": "solid"}], ["environmental impact", "habitat impacts", {"weight": 1.0, "confidence": 0.8400000000000001, "type": "inter_cluster", "style": "solid"}], ["environmental impact", "offshore wind", {"weight": 1.0, "confidence": 0.8300000000000001, "type": "inter_cluster", "style": "solid"}], ["environmental impact", "pros/cons", {"weight": 1.0, "confidence": 0.7799999999999999, "type": "inter_cluster", "style": "solid"}], ["environmental impact", "texas politics", {"weight": 1.0, "confidence": 0.68, "type": "inter_cluster", "style": "solid"}], ["environmental impact", "energy sources", {"weight": 1.0, "confidence": 0.6875, "type": "inter_cluster", "style": "solid"}], ["environmental impact", "energy policy", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["mitigation strategies", "mitigation", {"weight": 1.0, "confidence": 0.96, "type": "inter_cluster", "style": "solid"}], ["mitigation strategies", "offshore wind", {"weight": 1.0, "confidence": 0.9125, "type": "inter_cluster", "style": "solid"}], ["mitigation strategies", "energy sources", {"weight": 1.0, "confidence": 0.71, "type": "inter_cluster", "style": "solid"}], ["public perception", "education", {"weight": 1.0, "confidence": 0.7700000000000001, "type": "inter_cluster", "style": "solid"}], ["public perception", "mitigation strategies", {"weight": 1.0, "confidence": 0.6599999999999999, "type": "inter_cluster", "style": "solid"}], ["public perception", "energy policy", {"weight": 1.0, "confidence": 0.6749999999999999, "type": "inter_cluster", "style": "solid"}], ["public perception", "political climate", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["public perception", "environmental impact", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["texas politics", "pros/cons", {"weight": 0.6, "confidence": 0.7499999999999999, "type": "inter_cluster", "style": "solid"}], ["texas politics", "public knowledge", {"weight": -1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["texas politics", "aesthetics", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["stakeholder engagement", "public knowledge", {"weight": 1.0, "confidence": 0.7700000000000001, "type": "inter_cluster", "style": "solid"}], ["stakeholder engagement", "environmental impact", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["stakeholder engagement", "energy sources", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

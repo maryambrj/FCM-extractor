@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"community engagement": {"concepts": "community engagement", "concept_list": ["community engagement"], "type": "cluster", "node_size": 18, "label": "community engagement"}, "violence": {"concepts": "violence", "concept_list": ["violence"], "type": "cluster", "node_size": 18, "label": "violence"}, "organizational capacity": {"concepts": "organizational capacity", "concept_list": ["organizational capacity"], "type": "cluster", "node_size": 18, "label": "organizational capacity"}, "brain development": {"concepts": "brain development", "concept_list": ["brain development"], "type": "cluster", "node_size": 18, "label": "brain development"}, "hunger": {"concepts": "hunger", "concept_list": ["hunger"], "type": "cluster", "node_size": 18, "label": "hunger"}, "flint": {"concepts": "flint", "concept_list": ["flint"], "type": "cluster", "node_size": 18, "label": "flint"}, "food system": {"concepts": "food system", "concept_list": ["food system"], "type": "cluster", "node_size": 18, "label": "food system"}, "covid-19": {"concepts": "covid-19", "concept_list": ["covid-19"], "type": "cluster", "node_size": 18, "label": "covid-19"}, "quality of life": {"concepts": "quality of life", "concept_list": ["quality of life"], "type": "cluster", "node_size": 18, "label": "quality of life"}, "resource access": {"concepts": "resource access", "concept_list": ["resource access"], "type": "cluster", "node_size": 18, "label": "resource access"}, "crime": {"concepts": "crime", "concept_list": ["crime"], "type": "cluster", "node_size": 18, "label": "crime"}, "causal diagrams": {"concepts": "causal diagrams", "concept_list": ["causal diagrams"], "type": "cluster", "node_size": 18, "label": "causal diagrams"}, "public awareness": {"concepts": "public awareness", "concept_list": ["public awareness"], "type": "cluster", "node_size": 18, "label": "public awareness"}, "education": {"concepts": "education", "concept_list": ["education"], "type": "cluster", "node_size": 18, "label": "education"}, "community": {"concepts": "community", "concept_list": ["community"], "type": "cluster", "node_size": 18, "label": "community"}, "capacity building": {"concepts": "capacity building", "concept_list": ["capacity building"], "type": "cluster", "node_size": 18, "label": "capacity building"}, "food deserts": {"concepts": "food deserts", "concept_list": ["food deserts"], "type": "cluster", "node_size": 18, "label": "food deserts"}, "aggression": {"concepts": "aggression", "concept_list": ["aggression"], "type": "cluster", "node_size": 18, "label": "aggression"}, "poverty traps": {"concepts": "poverty traps", "concept_list": ["poverty traps"], "type": "cluster", "node_size": 18, "label": "poverty traps"}, "food availability": {"concepts": "food availability", "concept_list": ["food availability"], "type": "cluster", "node_size": 18, "label": "food availability"}, "partnerships": {"concepts": "partnerships", "concept_list": ["partnerships"], "type": "cluster", "node_size": 18, "label": "partnerships"}, "retail sectors": {"concepts": "retail sectors", "concept_list": ["retail sectors"], "type": "cluster", "node_size": 18, "label": "retail sectors"}, "trust": {"concepts": "trust", "concept_list": ["trust"], "type": "cluster", "node_size": 18, "label": "trust"}, "disinvestment": {"concepts": "disinvestment", "concept_list": ["disinvestment"], "type": "cluster", "node_size": 18, "label": "disinvestment"}, "biological factors": {"concepts": "biological factors", "concept_list": ["biological factors"], "type": "cluster", "node_size": 18, "label": "biological factors"}, "food affordability": {"concepts": "food affordability", "concept_list": ["food affordability"], "type": "cluster", "node_size": 18, "label": "food affordability"}, "food systems": {"concepts": "food systems", "concept_list": ["food systems"], "type": "cluster", "node_size": 18, "label": "food systems"}, "food access": {"concepts": "food access", "concept_list": ["food access"], "type": "cluster", "node_size": 18, "label": "food access"}, "urban agriculture": {"concepts": "urban agriculture", "concept_list": ["urban agriculture"], "type": "cluster", "node_size": 18, "label": "urban agriculture"}, "systems modeling": {"concepts": "systems modeling", "concept_list": ["systems modeling"], "type": "cluster", "node_size": 18, "label": "systems modeling"}, "economic decline": {"concepts": "economic decline", "concept_list": ["economic decline"], "type": "cluster", "node_size": 18, "label": "economic decline"}};
+        const conceptData = {};
+        const interClusterEdges = [["community engagement", "retail sectors", {"weight": 1.0, "confidence": 0.6799999999999999, "type": "inter_cluster", "style": "solid"}], ["community engagement", "organizational capacity", {"weight": 1.0, "confidence": 0.8333333333333334, "type": "inter_cluster", "style": "solid"}], ["violence", "food deserts", {"weight": 1.0, "confidence": 0.525, "type": "inter_cluster", "style": "solid"}], ["violence", "public awareness", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["violence", "food availability", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["violence", "food affordability", {"weight": -0.5, "confidence": 0.25, "type": "inter_cluster", "style": "solid"}], ["organizational capacity", "food availability", {"weight": 1.0, "confidence": 0.8200000000000001, "type": "inter_cluster", "style": "solid"}], ["organizational capacity", "resource access", {"weight": 1.0, "confidence": 0.8625, "type": "inter_cluster", "style": "solid"}], ["hunger", "poverty traps", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["hunger", "public awareness", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["flint", "systems modeling", {"weight": 1.0, "confidence": 0.6699999999999999, "type": "inter_cluster", "style": "solid"}], ["flint", "capacity building", {"weight": 1.0, "confidence": 0.6333333333333333, "type": "inter_cluster", "style": "solid"}], ["food system", "retail sectors", {"weight": 1.0, "confidence": 0.8125, "type": "inter_cluster", "style": "solid"}], ["food system", "crime", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["covid-19", "trust", {"weight": -1.0, "confidence": 0.6375, "type": "inter_cluster", "style": "solid"}], ["covid-19", "violence", {"weight": 1.0, "confidence": 0.525, "type": "inter_cluster", "style": "solid"}], ["covid-19", "community engagement", {"weight": -1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["quality of life", "food systems", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["quality of life", "food availability", {"weight": 1.0, "confidence": 0.8333333333333334, "type": "inter_cluster", "style": "solid"}], ["quality of life", "food access", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["quality of life", "capacity building", {"weight": 1.0, "confidence": 0.6666666666666666, "type": "inter_cluster", "style": "solid"}], ["quality of life", "aggression", {"weight": -1.0, "confidence": 0.6166666666666667, "type": "inter_cluster", "style": "solid"}], ["resource access", "disinvestment", {"weight": -1.0, "confidence": 0.78, "type": "inter_cluster", "style": "solid"}], ["resource access", "community engagement", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["resource access", "hunger", {"weight": -1.0, "confidence": 0.8500000000000001, "type": "inter_cluster", "style": "solid"}], ["resource access", "brain development", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["resource access", "systems modeling", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["crime", "community", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["crime", "food systems", {"weight": -1.0, "confidence": 0.6100000000000001, "type": "inter_cluster", "style": "solid"}], ["crime", "food access", {"weight": -1.0, "confidence": 0.6666666666666666, "type": "inter_cluster", "style": "solid"}], ["crime", "food affordability", {"weight": -0.6, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["crime", "public awareness", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["public awareness", "retail sectors", {"weight": 1.0, "confidence": 0.575, "type": "inter_cluster", "style": "solid"}], ["education", "community", {"weight": 1.0, "confidence": 0.7166666666666667, "type": "inter_cluster", "style": "solid"}], ["education", "urban agriculture", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["community", "resource access", {"weight": 1.0, "confidence": 0.7875, "type": "inter_cluster", "style": "solid"}], ["community", "public awareness", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["community", "food deserts", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["community", "food access", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["capacity building", "food systems", {"weight": 1.0, "confidence": 0.79, "type": "inter_cluster", "style": "solid"}], ["food deserts", "hunger", {"weight": 1.0, "confidence": 0.9375, "type": "inter_cluster", "style": "solid"}], ["food deserts", "partnerships", {"weight": 1.0, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["food deserts", "trust", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["partnerships", "covid-19", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["retail sectors", "hunger", {"weight": -1.0, "confidence": 0.6625, "type": "inter_cluster", "style": "solid"}], ["retail sectors", "covid-19", {"weight": -1.0, "confidence": 0.7166666666666667, "type": "inter_cluster", "style": "solid"}], ["retail sectors", "resource access", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["trust", "community engagement", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["trust", "disinvestment", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["disinvestment", "flint", {"weight": -0.6, "confidence": 0.9200000000000002, "type": "inter_cluster", "style": "solid"}], ["disinvestment", "urban agriculture", {"weight": -1.0, "confidence": 0.7200000000000001, "type": "inter_cluster", "style": "solid"}], ["disinvestment", "organizational capacity", {"weight": -1.0, "confidence": 0.7749999999999999, "type": "inter_cluster", "style": "solid"}], ["disinvestment", "education", {"weight": -1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["biological factors", "brain development", {"weight": 0.6, "confidence": 0.54, "type": "inter_cluster", "style": "solid"}], ["food affordability", "food access", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["food affordability", "retail sectors", {"weight": 0.5, "confidence": 0.6375, "type": "inter_cluster", "style": "solid"}], ["food systems", "hunger", {"weight": -0.5, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food systems", "resource access", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food access", "resource access", {"weight": 1.0, "confidence": 0.9333333333333332, "type": "inter_cluster", "style": "solid"}], ["urban agriculture", "food access", {"weight": 1.0, "confidence": 0.89, "type": "inter_cluster", "style": "solid"}], ["urban agriculture", "food availability", {"weight": 1.0, "confidence": 0.875, "type": "inter_cluster", "style": "solid"}], ["systems modeling", "food system", {"weight": 1.0, "confidence": 0.8375, "type": "inter_cluster", "style": "solid"}], ["systems modeling", "food access", {"weight": 1.0, "confidence": 0.62, "type": "inter_cluster", "style": "solid"}], ["systems modeling", "causal diagrams", {"weight": 1.0, "confidence": 0.9333333333333332, "type": "inter_cluster", "style": "solid"}], ["economic decline", "poverty traps", {"weight": 1.0, "confidence": 0.8374999999999999, "type": "inter_cluster", "style": "solid"}], ["economic decline", "brain development", {"weight": -1.0, "confidence": 0.6999999999999998, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

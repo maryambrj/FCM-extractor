@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"dairy products": {"concepts": "dairy products", "concept_list": ["dairy products"], "type": "cluster", "node_size": 18, "label": "dairy products"}, "fresh food": {"concepts": "fresh food", "concept_list": ["fresh food"], "type": "cluster", "node_size": 18, "label": "fresh food"}, "access barriers": {"concepts": "access barriers", "concept_list": ["access barriers"], "type": "cluster", "node_size": 18, "label": "access barriers"}, "selection": {"concepts": "selection", "concept_list": ["selection"], "type": "cluster", "node_size": 18, "label": "selection"}, "affordability": {"concepts": "affordability", "concept_list": ["affordability"], "type": "cluster", "node_size": 18, "label": "affordability"}, "small stores": {"concepts": "small stores", "concept_list": ["small stores"], "type": "cluster", "node_size": 18, "label": "small stores"}, "pharmacies": {"concepts": "pharmacies", "concept_list": ["pharmacies"], "type": "cluster", "node_size": 18, "label": "pharmacies"}, "sector": {"concepts": "sector", "concept_list": ["sector"], "type": "cluster", "node_size": 18, "label": "sector"}, "kroger": {"concepts": "kroger", "concept_list": ["kroger"], "type": "cluster", "node_size": 18, "label": "kroger"}, "canned food": {"concepts": "canned food", "concept_list": ["canned food"], "type": "cluster", "node_size": 18, "label": "canned food"}, "grant": {"concepts": "grant", "concept_list": ["grant"], "type": "cluster", "node_size": 18, "label": "grant"}, "nutrition programs": {"concepts": "nutrition programs", "concept_list": ["nutrition programs"], "type": "cluster", "node_size": 18, "label": "nutrition programs"}, "supply challenges": {"concepts": "supply challenges", "concept_list": ["supply challenges"], "type": "cluster", "node_size": 18, "label": "supply challenges"}, "food access": {"concepts": "food access", "concept_list": ["food access"], "type": "cluster", "node_size": 18, "label": "food access"}, "staple items": {"concepts": "staple items", "concept_list": ["staple items"], "type": "cluster", "node_size": 18, "label": "staple items"}, "stocking": {"concepts": "stocking", "concept_list": ["stocking"], "type": "cluster", "node_size": 18, "label": "stocking"}, "choices": {"concepts": "choices", "concept_list": ["choices"], "type": "cluster", "node_size": 18, "label": "choices"}, "resource utilization": {"concepts": "resource utilization", "concept_list": ["resource utilization"], "type": "cluster", "node_size": 18, "label": "resource utilization"}, "convenience stores": {"concepts": "convenience stores", "concept_list": ["convenience stores"], "type": "cluster", "node_size": 18, "label": "convenience stores"}, "regular customers": {"concepts": "regular customers", "concept_list": ["regular customers"], "type": "cluster", "node_size": 18, "label": "regular customers"}, "choice": {"concepts": "choice", "concept_list": ["choice"], "type": "cluster", "node_size": 18, "label": "choice"}, "beer": {"concepts": "beer", "concept_list": ["beer"], "type": "cluster", "node_size": 18, "label": "beer"}, "baked goods": {"concepts": "baked goods", "concept_list": ["baked goods"], "type": "cluster", "node_size": 18, "label": "baked goods"}, "value": {"concepts": "value", "concept_list": ["value"], "type": "cluster", "node_size": 18, "label": "value"}, "flint food system": {"concepts": "flint food system", "concept_list": ["flint food system"], "type": "cluster", "node_size": 18, "label": "flint food system"}, "household": {"concepts": "household", "concept_list": ["household"], "type": "cluster", "node_size": 18, "label": "household"}, "cooler": {"concepts": "cooler", "concept_list": ["cooler"], "type": "cluster", "node_size": 18, "label": "cooler"}, "adaptation": {"concepts": "adaptation", "concept_list": ["adaptation"], "type": "cluster", "node_size": 18, "label": "adaptation"}, "local foods": {"concepts": "local foods", "concept_list": ["local foods"], "type": "cluster", "node_size": 18, "label": "local foods"}, "connection strengths": {"concepts": "connection strengths", "concept_list": ["connection strengths"], "type": "cluster", "node_size": 18, "label": "connection strengths"}, "convenience factors": {"concepts": "convenience factors", "concept_list": ["convenience factors"], "type": "cluster", "node_size": 18, "label": "convenience factors"}, "retail sector": {"concepts": "retail sector", "concept_list": ["retail sector"], "type": "cluster", "node_size": 18, "label": "retail sector"}, "connection strength": {"concepts": "connection strength", "concept_list": ["connection strength"], "type": "cluster", "node_size": 18, "label": "connection strength"}, "first ring suburb": {"concepts": "first ring suburb", "concept_list": ["first ring suburb"], "type": "cluster", "node_size": 18, "label": "first ring suburb"}, "market experience": {"concepts": "market experience", "concept_list": ["market experience"], "type": "cluster", "node_size": 18, "label": "market experience"}, "protein": {"concepts": "protein", "concept_list": ["protein"], "type": "cluster", "node_size": 18, "label": "protein"}, "local grocer": {"concepts": "local grocer", "concept_list": ["local grocer"], "type": "cluster", "node_size": 18, "label": "local grocer"}, "cooked product": {"concepts": "cooked product", "concept_list": ["cooked product"], "type": "cluster", "node_size": 18, "label": "cooked product"}, "community mix": {"concepts": "community mix", "concept_list": ["community mix"], "type": "cluster", "node_size": 18, "label": "community mix"}, "food quantity": {"concepts": "food quantity", "concept_list": ["food quantity"], "type": "cluster", "node_size": 18, "label": "food quantity"}, "flint community": {"concepts": "flint community", "concept_list": ["flint community"], "type": "cluster", "node_size": 18, "label": "flint community"}, "market access": {"concepts": "market access", "concept_list": ["market access"], "type": "cluster", "node_size": 18, "label": "market access"}, "customer satisfaction": {"concepts": "customer satisfaction", "concept_list": ["customer satisfaction"], "type": "cluster", "node_size": 18, "label": "customer satisfaction"}, "access points": {"concepts": "access points", "concept_list": ["access points"], "type": "cluster", "node_size": 18, "label": "access points"}, "product eligibility": {"concepts": "product eligibility", "concept_list": ["product eligibility"], "type": "cluster", "node_size": 18, "label": "product eligibility"}, "fresh vegetables": {"concepts": "fresh vegetables", "concept_list": ["fresh vegetables"], "type": "cluster", "node_size": 18, "label": "fresh vegetables"}, "incubation space": {"concepts": "incubation space", "concept_list": ["incubation space"], "type": "cluster", "node_size": 18, "label": "incubation space"}, "emergency sector": {"concepts": "emergency sector", "concept_list": ["emergency sector"], "type": "cluster", "node_size": 18, "label": "emergency sector"}, "water crisis": {"concepts": "water crisis", "concept_list": ["water crisis"], "type": "cluster", "node_size": 18, "label": "water crisis"}, "food sector": {"concepts": "food sector", "concept_list": ["food sector"], "type": "cluster", "node_size": 18, "label": "food sector"}, "coop houses": {"concepts": "coop houses", "concept_list": ["coop houses"], "type": "cluster", "node_size": 18, "label": "coop houses"}, "license": {"concepts": "license", "concept_list": ["license"], "type": "cluster", "node_size": 18, "label": "license"}, "personality": {"concepts": "personality", "concept_list": ["personality"], "type": "cluster", "node_size": 18, "label": "personality"}, "market diversity": {"concepts": "market diversity", "concept_list": ["market diversity"], "type": "cluster", "node_size": 18, "label": "market diversity"}, "weekends": {"concepts": "weekends", "concept_list": ["weekends"], "type": "cluster", "node_size": 18, "label": "weekends"}, "food pantry": {"concepts": "food pantry", "concept_list": ["food pantry"], "type": "cluster", "node_size": 18, "label": "food pantry"}, "corner stores": {"concepts": "corner stores", "concept_list": ["corner stores"], "type": "cluster", "node_size": 18, "label": "corner stores"}, "abundance": {"concepts": "abundance", "concept_list": ["abundance"], "type": "cluster", "node_size": 18, "label": "abundance"}, "ready to eat food": {"concepts": "ready to eat food", "concept_list": ["ready to eat food"], "type": "cluster", "node_size": 18, "label": "ready to eat food"}, "salads": {"concepts": "salads", "concept_list": ["salads"], "type": "cluster", "node_size": 18, "label": "salads"}, "farmers markets": {"concepts": "farmers markets", "concept_list": ["farmers markets"], "type": "cluster", "node_size": 18, "label": "farmers markets"}, "quality": {"concepts": "quality", "concept_list": ["quality"], "type": "cluster", "node_size": 18, "label": "quality"}, "staff": {"concepts": "staff", "concept_list": ["staff"], "type": "cluster", "node_size": 18, "label": "staff"}, "graduation": {"concepts": "graduation", "concept_list": ["graduation"], "type": "cluster", "node_size": 18, "label": "graduation"}, "customer experience": {"concepts": "customer experience", "concept_list": ["customer experience"], "type": "cluster", "node_size": 18, "label": "customer experience"}, "availability": {"concepts": "availability", "concept_list": ["availability"], "type": "cluster", "node_size": 18, "label": "availability"}, "racial profiling": {"concepts": "racial profiling", "concept_list": ["racial profiling"], "type": "cluster", "node_size": 18, "label": "racial profiling"}, "business growth": {"concepts": "business growth", "concept_list": ["business growth"], "type": "cluster", "node_size": 18, "label": "business growth"}, "food businesses": {"concepts": "food businesses", "concept_list": ["food businesses"], "type": "cluster", "node_size": 18, "label": "food businesses"}, "big city challenge": {"concepts": "big city challenge", "concept_list": ["big city challenge"], "type": "cluster", "node_size": 18, "label": "big city challenge"}, "market success": {"concepts": "market success", "concept_list": ["market success"], "type": "cluster", "node_size": 18, "label": "market success"}, "farmers market": {"concepts": "farmers market", "concept_list": ["farmers market"], "type": "cluster", "node_size": 18, "label": "farmers market"}, "leverage points": {"concepts": "leverage points", "concept_list": ["leverage points"], "type": "cluster", "node_size": 18, "label": "leverage points"}, "succession": {"concepts": "succession", "concept_list": ["succession"], "type": "cluster", "node_size": 18, "label": "succession"}, "food producers": {"concepts": "food producers", "concept_list": ["food producers"], "type": "cluster", "node_size": 18, "label": "food producers"}, "leading indicator": {"concepts": "leading indicator", "concept_list": ["leading indicator"], "type": "cluster", "node_size": 18, "label": "leading indicator"}, "eastern michigan": {"concepts": "eastern michigan", "concept_list": ["eastern michigan"], "type": "cluster", "node_size": 18, "label": "eastern michigan"}, "faith communities": {"concepts": "faith communities", "concept_list": ["faith communities"], "type": "cluster", "node_size": 18, "label": "faith communities"}, "small church": {"concepts": "small church", "concept_list": ["small church"], "type": "cluster", "node_size": 18, "label": "small church"}, "retail types": {"concepts": "retail types", "concept_list": ["retail types"], "type": "cluster", "node_size": 18, "label": "retail types"}, "pantry clients": {"concepts": "pantry clients", "concept_list": ["pantry clients"], "type": "cluster", "node_size": 18, "label": "pantry clients"}, "distributors": {"concepts": "distributors", "concept_list": ["distributors"], "type": "cluster", "node_size": 18, "label": "distributors"}, "church meals": {"concepts": "church meals", "concept_list": ["church meals"], "type": "cluster", "node_size": 18, "label": "church meals"}, "food presence": {"concepts": "food presence", "concept_list": ["food presence"], "type": "cluster", "node_size": 18, "label": "food presence"}, "celebration meals": {"concepts": "celebration meals", "concept_list": ["celebration meals"], "type": "cluster", "node_size": 18, "label": "celebration meals"}, "dignity": {"concepts": "dignity", "concept_list": ["dignity"], "type": "cluster", "node_size": 18, "label": "dignity"}, "hamady stores": {"concepts": "hamady stores", "concept_list": ["hamady stores"], "type": "cluster", "node_size": 18, "label": "hamady stores"}, "local restaurants": {"concepts": "local restaurants", "concept_list": ["local restaurants"], "type": "cluster", "node_size": 18, "label": "local restaurants"}, "double up food bucks": {"concepts": "double up food bucks", "concept_list": ["double up food bucks"], "type": "cluster", "node_size": 18, "label": "double up food bucks"}, "store owner": {"concepts": "store owner", "concept_list": ["store owner"], "type": "cluster", "node_size": 18, "label": "store owner"}, "cooler space": {"concepts": "cooler space", "concept_list": ["cooler space"], "type": "cluster", "node_size": 18, "label": "cooler space"}, "economic data": {"concepts": "economic data", "concept_list": ["economic data"], "type": "cluster", "node_size": 18, "label": "economic data"}, "beirut restaurant": {"concepts": "beirut restaurant", "concept_list": ["beirut restaurant"], "type": "cluster", "node_size": 18, "label": "beirut restaurant"}, "volunteers": {"concepts": "volunteers", "concept_list": ["volunteers"], "type": "cluster", "node_size": 18, "label": "volunteers"}, "freezer": {"concepts": "freezer", "concept_list": ["freezer"], "type": "cluster", "node_size": 18, "label": "freezer"}, "dairy": {"concepts": "dairy", "concept_list": ["dairy"], "type": "cluster", "node_size": 18, "label": "dairy"}, "customer engagement": {"concepts": "customer engagement", "concept_list": ["customer engagement"], "type": "cluster", "node_size": 18, "label": "customer engagement"}, "ownership": {"concepts": "ownership", "concept_list": ["ownership"], "type": "cluster", "node_size": 18, "label": "ownership"}, "transportation link": {"concepts": "transportation link", "concept_list": ["transportation link"], "type": "cluster", "node_size": 18, "label": "transportation link"}, "food system": {"concepts": "food system", "concept_list": ["food system"], "type": "cluster", "node_size": 18, "label": "food system"}, "convenience": {"concepts": "convenience", "concept_list": ["convenience"], "type": "cluster", "node_size": 18, "label": "convenience"}, "commercial use": {"concepts": "commercial use", "concept_list": ["commercial use"], "type": "cluster", "node_size": 18, "label": "commercial use"}, "stock maintenance": {"concepts": "stock maintenance", "concept_list": ["stock maintenance"], "type": "cluster", "node_size": 18, "label": "stock maintenance"}, "parking": {"concepts": "parking", "concept_list": ["parking"], "type": "cluster", "node_size": 18, "label": "parking"}, "community connections": {"concepts": "community connections", "concept_list": ["community connections"], "type": "cluster", "node_size": 18, "label": "community connections"}, "produce": {"concepts": "produce", "concept_list": ["produce"], "type": "cluster", "node_size": 18, "label": "produce"}, "under-recognized": {"concepts": "under-recognized", "concept_list": ["under-recognized"], "type": "cluster", "node_size": 18, "label": "under-recognized"}, "trade area": {"concepts": "trade area", "concept_list": ["trade area"], "type": "cluster", "node_size": 18, "label": "trade area"}, "local restaurant": {"concepts": "local restaurant", "concept_list": ["local restaurant"], "type": "cluster", "node_size": 18, "label": "local restaurant"}, "problem solving": {"concepts": "problem solving", "concept_list": ["problem solving"], "type": "cluster", "node_size": 18, "label": "problem solving"}, "single household": {"concepts": "single household", "concept_list": ["single household"], "type": "cluster", "node_size": 18, "label": "single household"}, "market management": {"concepts": "market management", "concept_list": ["market management"], "type": "cluster", "node_size": 18, "label": "market management"}, "entrepreneurs": {"concepts": "entrepreneurs", "concept_list": ["entrepreneurs"], "type": "cluster", "node_size": 18, "label": "entrepreneurs"}, "growers": {"concepts": "growers", "concept_list": ["growers"], "type": "cluster", "node_size": 18, "label": "growers"}, "investment": {"concepts": "investment", "concept_list": ["investment"], "type": "cluster", "node_size": 18, "label": "investment"}, "walking distance": {"concepts": "walking distance", "concept_list": ["walking distance"], "type": "cluster", "node_size": 18, "label": "walking distance"}, "supplemental nutrition programs": {"concepts": "supplemental nutrition programs", "concept_list": ["supplemental nutrition programs"], "type": "cluster", "node_size": 18, "label": "supplemental nutrition programs"}, "reluctance": {"concepts": "reluctance", "concept_list": ["reluctance"], "type": "cluster", "node_size": 18, "label": "reluctance"}, "technology": {"concepts": "technology", "concept_list": ["technology"], "type": "cluster", "node_size": 18, "label": "technology"}, "shelf stable food": {"concepts": "shelf stable food", "concept_list": ["shelf stable food"], "type": "cluster", "node_size": 18, "label": "shelf stable food"}, "grant program": {"concepts": "grant program", "concept_list": ["grant program"], "type": "cluster", "node_size": 18, "label": "grant program"}, "flint": {"concepts": "flint", "concept_list": ["flint"], "type": "cluster", "node_size": 18, "label": "flint"}, "social connection": {"concepts": "social connection", "concept_list": ["social connection"], "type": "cluster", "node_size": 18, "label": "social connection"}, "vendors": {"concepts": "vendors", "concept_list": ["vendors"], "type": "cluster", "node_size": 18, "label": "vendors"}, "grocery stores": {"concepts": "grocery stores", "concept_list": ["grocery stores"], "type": "cluster", "node_size": 18, "label": "grocery stores"}, "congregation": {"concepts": "congregation", "concept_list": ["congregation"], "type": "cluster", "node_size": 18, "label": "congregation"}, "catering": {"concepts": "catering", "concept_list": ["catering"], "type": "cluster", "node_size": 18, "label": "catering"}, "store owners": {"concepts": "store owners", "concept_list": ["store owners"], "type": "cluster", "node_size": 18, "label": "store owners"}, "church life": {"concepts": "church life", "concept_list": ["church life"], "type": "cluster", "node_size": 18, "label": "church life"}, "flint residents": {"concepts": "flint residents", "concept_list": ["flint residents"], "type": "cluster", "node_size": 18, "label": "flint residents"}, "michigan lottery": {"concepts": "michigan lottery", "concept_list": ["michigan lottery"], "type": "cluster", "node_size": 18, "label": "michigan lottery"}, "dominance": {"concepts": "dominance", "concept_list": ["dominance"], "type": "cluster", "node_size": 18, "label": "dominance"}, "shelf stable products": {"concepts": "shelf stable products", "concept_list": ["shelf stable products"], "type": "cluster", "node_size": 18, "label": "shelf stable products"}, "evaluation": {"concepts": "evaluation", "concept_list": ["evaluation"], "type": "cluster", "node_size": 18, "label": "evaluation"}, "freezer equipment": {"concepts": "freezer equipment", "concept_list": ["freezer equipment"], "type": "cluster", "node_size": 18, "label": "freezer equipment"}, "packaged meals": {"concepts": "packaged meals", "concept_list": ["packaged meals"], "type": "cluster", "node_size": 18, "label": "packaged meals"}, "business capacity": {"concepts": "business capacity", "concept_list": ["business capacity"], "type": "cluster", "node_size": 18, "label": "business capacity"}, "fast food": {"concepts": "fast food", "concept_list": ["fast food"], "type": "cluster", "node_size": 18, "label": "fast food"}, "freezer space": {"concepts": "freezer space", "concept_list": ["freezer space"], "type": "cluster", "node_size": 18, "label": "freezer space"}, "crossover outreach": {"concepts": "crossover outreach", "concept_list": ["crossover outreach"], "type": "cluster", "node_size": 18, "label": "crossover outreach"}, "independent grocers": {"concepts": "independent grocers", "concept_list": ["independent grocers"], "type": "cluster", "node_size": 18, "label": "independent grocers"}, "frozen products": {"concepts": "frozen products", "concept_list": ["frozen products"], "type": "cluster", "node_size": 18, "label": "frozen products"}, "congregate meals": {"concepts": "congregate meals", "concept_list": ["congregate meals"], "type": "cluster", "node_size": 18, "label": "congregate meals"}, "safety": {"concepts": "safety", "concept_list": ["safety"], "type": "cluster", "node_size": 18, "label": "safety"}, "traffic patterns": {"concepts": "traffic patterns", "concept_list": ["traffic patterns"], "type": "cluster", "node_size": 18, "label": "traffic patterns"}, "grocers": {"concepts": "grocers", "concept_list": ["grocers"], "type": "cluster", "node_size": 18, "label": "grocers"}, "suburb": {"concepts": "suburb", "concept_list": ["suburb"], "type": "cluster", "node_size": 18, "label": "suburb"}, "local identity": {"concepts": "local identity", "concept_list": ["local identity"], "type": "cluster", "node_size": 18, "label": "local identity"}, "public health": {"concepts": "public health", "concept_list": ["public health"], "type": "cluster", "node_size": 18, "label": "public health"}, "model": {"concepts": "model", "concept_list": ["model"], "type": "cluster", "node_size": 18, "label": "model"}, "chain restaurants": {"concepts": "chain restaurants", "concept_list": ["chain restaurants"], "type": "cluster", "node_size": 18, "label": "chain restaurants"}, "monitoring": {"concepts": "monitoring", "concept_list": ["monitoring"], "type": "cluster", "node_size": 18, "label": "monitoring"}, "penetration": {"concepts": "penetration", "concept_list": ["penetration"], "type": "cluster", "node_size": 18, "label": "penetration"}, "st. luke's new life center": {"concepts": "st. luke's new life center", "concept_list": ["st. luke's new life center"], "type": "cluster", "node_size": 18, "label": "st. luke's new life center"}, "formal economy": {"concepts": "formal economy", "concept_list": ["formal economy"], "type": "cluster", "node_size": 18, "label": "formal economy"}, "food bank of eastern michigan": {"concepts": "food bank of eastern michigan", "concept_list": ["food bank of eastern michigan"], "type": "cluster", "node_size": 18, "label": "food bank of eastern michigan"}, "grant funded project": {"concepts": "grant funded project", "concept_list": ["grant funded project"], "type": "cluster", "node_size": 18, "label": "grant funded project"}, "invisible barriers": {"concepts": "invisible barriers", "concept_list": ["invisible barriers"], "type": "cluster", "node_size": 18, "label": "invisible barriers"}, "market location": {"concepts": "market location", "concept_list": ["market location"], "type": "cluster", "node_size": 18, "label": "market location"}, "consumer demand": {"concepts": "consumer demand", "concept_list": ["consumer demand"], "type": "cluster", "node_size": 18, "label": "consumer demand"}, "protein availability": {"concepts": "protein availability", "concept_list": ["protein availability"], "type": "cluster", "node_size": 18, "label": "protein availability"}, "food types": {"concepts": "food types", "concept_list": ["food types"], "type": "cluster", "node_size": 18, "label": "food types"}, "store closures": {"concepts": "store closures", "concept_list": ["store closures"], "type": "cluster", "node_size": 18, "label": "store closures"}, "meal providers": {"concepts": "meal providers", "concept_list": ["meal providers"], "type": "cluster", "node_size": 18, "label": "meal providers"}, "succession planning": {"concepts": "succession planning", "concept_list": ["succession planning"], "type": "cluster", "node_size": 18, "label": "succession planning"}, "restaurant group": {"concepts": "restaurant group", "concept_list": ["restaurant group"], "type": "cluster", "node_size": 18, "label": "restaurant group"}, "access point": {"concepts": "access point", "concept_list": ["access point"], "type": "cluster", "node_size": 18, "label": "access point"}, "tradition": {"concepts": "tradition", "concept_list": ["tradition"], "type": "cluster", "node_size": 18, "label": "tradition"}, "store types": {"concepts": "store types", "concept_list": ["store types"], "type": "cluster", "node_size": 18, "label": "store types"}, "michigan made foods": {"concepts": "michigan made foods", "concept_list": ["michigan made foods"], "type": "cluster", "node_size": 18, "label": "michigan made foods"}, "food availability": {"concepts": "food availability", "concept_list": ["food availability"], "type": "cluster", "node_size": 18, "label": "food availability"}, "programs": {"concepts": "programs", "concept_list": ["programs"], "type": "cluster", "node_size": 18, "label": "programs"}, "history": {"concepts": "history", "concept_list": ["history"], "type": "cluster", "node_size": 18, "label": "history"}, "common good": {"concepts": "common good", "concept_list": ["common good"], "type": "cluster", "node_size": 18, "label": "common good"}, "price point": {"concepts": "price point", "concept_list": ["price point"], "type": "cluster", "node_size": 18, "label": "price point"}, "regulars": {"concepts": "regulars", "concept_list": ["regulars"], "type": "cluster", "node_size": 18, "label": "regulars"}, "foss avenue baptist church": {"concepts": "foss avenue baptist church", "concept_list": ["foss avenue baptist church"], "type": "cluster", "node_size": 18, "label": "foss avenue baptist church"}, "chain landscape": {"concepts": "chain landscape", "concept_list": ["chain landscape"], "type": "cluster", "node_size": 18, "label": "chain landscape"}, "refrigeration": {"concepts": "refrigeration", "concept_list": ["refrigeration"], "type": "cluster", "node_size": 18, "label": "refrigeration"}, "food court": {"concepts": "food court", "concept_list": ["food court"], "type": "cluster", "node_size": 18, "label": "food court"}, "snap eligible": {"concepts": "snap eligible", "concept_list": ["snap eligible"], "type": "cluster", "node_size": 18, "label": "snap eligible"}, "aldi": {"concepts": "aldi", "concept_list": ["aldi"], "type": "cluster", "node_size": 18, "label": "aldi"}, "kiosks": {"concepts": "kiosks", "concept_list": ["kiosks"], "type": "cluster", "node_size": 18, "label": "kiosks"}, "community": {"concepts": "community", "concept_list": ["community"], "type": "cluster", "node_size": 18, "label": "community"}, "michigan products": {"concepts": "michigan products", "concept_list": ["michigan products"], "type": "cluster", "node_size": 18, "label": "michigan products"}, "formula": {"concepts": "formula", "concept_list": ["formula"], "type": "cluster", "node_size": 18, "label": "formula"}, "retail use": {"concepts": "retail use", "concept_list": ["retail use"], "type": "cluster", "node_size": 18, "label": "retail use"}, "respect": {"concepts": "respect", "concept_list": ["respect"], "type": "cluster", "node_size": 18, "label": "respect"}, "regional chains": {"concepts": "regional chains", "concept_list": ["regional chains"], "type": "cluster", "node_size": 18, "label": "regional chains"}, "food quality": {"concepts": "food quality", "concept_list": ["food quality"], "type": "cluster", "node_size": 18, "label": "food quality"}, "refrigerated case": {"concepts": "refrigerated case", "concept_list": ["refrigerated case"], "type": "cluster", "node_size": 18, "label": "refrigerated case"}, "social interaction": {"concepts": "social interaction", "concept_list": ["social interaction"], "type": "cluster", "node_size": 18, "label": "social interaction"}};
+        const conceptData = {};
+        const interClusterEdges = [["access barriers", "selection", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["kroger", "cooler space", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["canned food", "staple items", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["grant", "market management", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["grant", "regulars", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["nutrition programs", "grocers", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["food access", "fast food", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["stocking", "incubation space", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["stocking", "flint residents", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["choices", "food access", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["convenience stores", "supply challenges", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["baked goods", "local restaurants", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["value", "model", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["value", "penetration", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["flint food system", "social connection", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["flint food system", "consumer demand", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["household", "hamady stores", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["cooler", "produce", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["adaptation", "customer experience", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["local foods", "food system", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["local foods", "retail use", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["local foods", "refrigerated case", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["connection strengths", "small stores", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["convenience factors", "succession", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["connection strength", "community connections", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["first ring suburb", "produce", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["market experience", "grocery stores", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["protein", "stocking", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["protein", "kroger", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["local grocer", "canned food", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["community mix", "ownership", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["community mix", "staff", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["community mix", "leverage points", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["market access", "protein availability", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["customer satisfaction", "pharmacies", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["access points", "food bank of eastern michigan", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["incubation space", "retail sector", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["water crisis", "shelf stable food", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food sector", "dignity", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["coop houses", "business growth", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["coop houses", "convenience factors", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["personality", "graduation", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["personality", "celebration meals", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["weekends", "michigan lottery", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food pantry", "kiosks", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food pantry", "model", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["food pantry", "invisible barriers", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food pantry", "aldi", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["corner stores", "technology", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["abundance", "catering", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["abundance", "technology", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["staff", "traffic patterns", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["customer experience", "beer", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["availability", "protein", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["racial profiling", "under-recognized", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["business growth", "price point", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["business growth", "fresh food", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["big city challenge", "food businesses", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["big city challenge", "convenience factors", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["market success", "beirut restaurant", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["leverage points", "regular customers", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["succession", "market location", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["food producers", "license", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["leading indicator", "food sector", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["eastern michigan", "common good", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["faith communities", "ownership", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["pantry clients", "safety", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["distributors", "farmers markets", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["church meals", "weekends", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food presence", "market diversity", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["double up food bucks", "market access", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["store owner", "grant program", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["economic data", "independent grocers", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["volunteers", "refrigerated case", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["freezer", "model", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["dairy", "cooler space", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["customer engagement", "emergency sector", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["transportation link", "selection", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food system", "nutrition programs", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["convenience", "dairy", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["convenience", "regional chains", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["stock maintenance", "store owner", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["stock maintenance", "food quality", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["parking", "reluctance", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["community connections", "michigan made foods", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["community connections", "food availability", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["produce", "commercial use", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["trade area", "quality", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["local restaurant", "business growth", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["local restaurant", "history", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["problem solving", "grant program", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["single household", "congregate meals", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["single household", "affordability", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["single household", "michigan made foods", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["entrepreneurs", "retail use", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["entrepreneurs", "sector", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["growers", "small church", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["walking distance", "fresh vegetables", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["reluctance", "programs", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["grant program", "small stores", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["flint", "convenience", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["vendors", "small stores", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["congregation", "supplemental nutrition programs", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["store owners", "penetration", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["church life", "ready to eat food", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["flint residents", "protein availability", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["michigan lottery", "choice", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["evaluation", "snap eligible", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["evaluation", "nutrition programs", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["packaged meals", "food quantity", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["business capacity", "cooler space", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["freezer space", "formula", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["crossover outreach", "succession planning", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["independent grocers", "refrigeration", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["frozen products", "leading indicator", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["congregate meals", "protein availability", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["suburb", "farmers market", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["suburb", "food types", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["suburb", "flint", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["local identity", "shelf stable food", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["public health", "investment", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["public health", "product eligibility", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["chain restaurants", "freezer equipment", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["st. luke's new life center", "resource utilization", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["st. luke's new life center", "under-recognized", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["food bank of eastern michigan", "affordability", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["grant funded project", "monitoring", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["consumer demand", "store closures", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food types", "social interaction", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["store closures", "dairy products", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["meal providers", "shelf stable products", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["meal providers", "canned food", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["restaurant group", "cooked product", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["access point", "safety", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["store types", "flint community", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food availability", "protein", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["price point", "fresh food", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["foss avenue baptist church", "connection strengths", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["chain landscape", "formal economy", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food court", "small stores", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["kiosks", "retail types", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["community", "tradition", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["michigan products", "salads", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["respect", "market management", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food quality", "selection", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["food quality", "dominance", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["social interaction", "food sector", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

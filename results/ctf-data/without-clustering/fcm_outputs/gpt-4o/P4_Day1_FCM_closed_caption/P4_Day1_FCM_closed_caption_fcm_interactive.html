@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"registers": {"concepts": "registers", "concept_list": ["registers"], "type": "cluster", "node_size": 18, "label": "registers"}, "insights": {"concepts": "insights", "concept_list": ["insights"], "type": "cluster", "node_size": 18, "label": "insights"}, "sensitive information": {"concepts": "sensitive information", "concept_list": ["sensitive information"], "type": "cluster", "node_size": 18, "label": "sensitive information"}, "functions": {"concepts": "functions", "concept_list": ["functions"], "type": "cluster", "node_size": 18, "label": "functions"}, "encryption algorithms": {"concepts": "encryption algorithms", "concept_list": ["encryption algorithms"], "type": "cluster", "node_size": 18, "label": "encryption algorithms"}, "interaction with code": {"concepts": "interaction with code", "concept_list": ["interaction with code"], "type": "cluster", "node_size": 18, "label": "interaction with code"}, "libraries": {"concepts": "libraries", "concept_list": ["libraries"], "type": "cluster", "node_size": 18, "label": "libraries"}, "vulnerability": {"concepts": "vulnerability", "concept_list": ["vulnerability"], "type": "cluster", "node_size": 18, "label": "vulnerability"}, "decisions": {"concepts": "decisions", "concept_list": ["decisions"], "type": "cluster", "node_size": 18, "label": "decisions"}, "cryptography challenge": {"concepts": "cryptography challenge", "concept_list": ["cryptography challenge"], "type": "cluster", "node_size": 18, "label": "cryptography challenge"}, "o-tool": {"concepts": "o-tool", "concept_list": ["o-tool"], "type": "cluster", "node_size": 18, "label": "o-tool"}, "data": {"concepts": "data", "concept_list": ["data"], "type": "cluster", "node_size": 18, "label": "data"}, "making assumptions": {"concepts": "making assumptions", "concept_list": ["making assumptions"], "type": "cluster", "node_size": 18, "label": "making assumptions"}, "crafting": {"concepts": "crafting", "concept_list": ["crafting"], "type": "cluster", "node_size": 18, "label": "crafting"}, "assembly": {"concepts": "assembly", "concept_list": ["assembly"], "type": "cluster", "node_size": 18, "label": "assembly"}, "file signatures": {"concepts": "file signatures", "concept_list": ["file signatures"], "type": "cluster", "node_size": 18, "label": "file signatures"}, "challenge code": {"concepts": "challenge code", "concept_list": ["challenge code"], "type": "cluster", "node_size": 18, "label": "challenge code"}, "heap": {"concepts": "heap", "concept_list": ["heap"], "type": "cluster", "node_size": 18, "label": "heap"}, "perception of progress": {"concepts": "perception of progress", "concept_list": ["perception of progress"], "type": "cluster", "node_size": 18, "label": "perception of progress"}, "usefulness": {"concepts": "usefulness", "concept_list": ["usefulness"], "type": "cluster", "node_size": 18, "label": "usefulness"}, "binary exploitation": {"concepts": "binary exploitation", "concept_list": ["binary exploitation"], "type": "cluster", "node_size": 18, "label": "binary exploitation"}, "exploit": {"concepts": "exploit", "concept_list": ["exploit"], "type": "cluster", "node_size": 18, "label": "exploit"}, "scripting": {"concepts": "scripting", "concept_list": ["scripting"], "type": "cluster", "node_size": 18, "label": "scripting"}, "output": {"concepts": "output", "concept_list": ["output"], "type": "cluster", "node_size": 18, "label": "output"}, "fuzzer": {"concepts": "fuzzer", "concept_list": ["fuzzer"], "type": "cluster", "node_size": 18, "label": "fuzzer"}, "misinterpreting": {"concepts": "misinterpreting", "concept_list": ["misinterpreting"], "type": "cluster", "node_size": 18, "label": "misinterpreting"}, "pwntools": {"concepts": "pwntools", "concept_list": ["pwntools"], "type": "cluster", "node_size": 18, "label": "pwntools"}, "privileged permissions": {"concepts": "privileged permissions", "concept_list": ["privileged permissions"], "type": "cluster", "node_size": 18, "label": "privileged permissions"}, "input values": {"concepts": "input values", "concept_list": ["input values"], "type": "cluster", "node_size": 18, "label": "input values"}, "hex dumping": {"concepts": "hex dumping", "concept_list": ["hex dumping"], "type": "cluster", "node_size": 18, "label": "hex dumping"}, "computer software": {"concepts": "computer software", "concept_list": ["computer software"], "type": "cluster", "node_size": 18, "label": "computer software"}, "program": {"concepts": "program", "concept_list": ["program"], "type": "cluster", "node_size": 18, "label": "program"}, "full understanding": {"concepts": "full understanding", "concept_list": ["full understanding"], "type": "cluster", "node_size": 18, "label": "full understanding"}, "fuzzers": {"concepts": "fuzzers", "concept_list": ["fuzzers"], "type": "cluster", "node_size": 18, "label": "fuzzers"}, "failure": {"concepts": "failure", "concept_list": ["failure"], "type": "cluster", "node_size": 18, "label": "failure"}, "distractions": {"concepts": "distractions", "concept_list": ["distractions"], "type": "cluster", "node_size": 18, "label": "distractions"}, "encoding": {"concepts": "encoding", "concept_list": ["encoding"], "type": "cluster", "node_size": 18, "label": "encoding"}, "environment": {"concepts": "environment", "concept_list": ["environment"], "type": "cluster", "node_size": 18, "label": "environment"}, "security measures": {"concepts": "security measures", "concept_list": ["security measures"], "type": "cluster", "node_size": 18, "label": "security measures"}, "forensics": {"concepts": "forensics", "concept_list": ["forensics"], "type": "cluster", "node_size": 18, "label": "forensics"}, "semi-structured approach": {"concepts": "semi-structured approach", "concept_list": ["semi-structured approach"], "type": "cluster", "node_size": 18, "label": "semi-structured approach"}, "success condition": {"concepts": "success condition", "concept_list": ["success condition"], "type": "cluster", "node_size": 18, "label": "success condition"}, "ctfs": {"concepts": "ctfs", "concept_list": ["ctfs"], "type": "cluster", "node_size": 18, "label": "ctfs"}, "operating system": {"concepts": "operating system", "concept_list": ["operating system"], "type": "cluster", "node_size": 18, "label": "operating system"}, "security": {"concepts": "security", "concept_list": ["security"], "type": "cluster", "node_size": 18, "label": "security"}, "symbols": {"concepts": "symbols", "concept_list": ["symbols"], "type": "cluster", "node_size": 18, "label": "symbols"}, "misused functions": {"concepts": "misused functions", "concept_list": ["misused functions"], "type": "cluster", "node_size": 18, "label": "misused functions"}, "malloc": {"concepts": "malloc", "concept_list": ["malloc"], "type": "cluster", "node_size": 18, "label": "malloc"}, "patterns": {"concepts": "patterns", "concept_list": ["patterns"], "type": "cluster", "node_size": 18, "label": "patterns"}, "success factors": {"concepts": "success factors", "concept_list": ["success factors"], "type": "cluster", "node_size": 18, "label": "success factors"}, "tool": {"concepts": "tool", "concept_list": ["tool"], "type": "cluster", "node_size": 18, "label": "tool"}, "ctf category": {"concepts": "ctf category", "concept_list": ["ctf category"], "type": "cluster", "node_size": 18, "label": "ctf category"}, "crypto": {"concepts": "crypto", "concept_list": ["crypto"], "type": "cluster", "node_size": 18, "label": "crypto"}, "get request": {"concepts": "get request", "concept_list": ["get request"], "type": "cluster", "node_size": 18, "label": "get request"}, "stack protections": {"concepts": "stack protections", "concept_list": ["stack protections"], "type": "cluster", "node_size": 18, "label": "stack protections"}, "statements": {"concepts": "statements", "concept_list": ["statements"], "type": "cluster", "node_size": 18, "label": "statements"}, "check sec": {"concepts": "check sec", "concept_list": ["check sec"], "type": "cluster", "node_size": 18, "label": "check sec"}, "discovered vulnerability": {"concepts": "discovered vulnerability", "concept_list": ["discovered vulnerability"], "type": "cluster", "node_size": 18, "label": "discovered vulnerability"}, "hex values": {"concepts": "hex values", "concept_list": ["hex values"], "type": "cluster", "node_size": 18, "label": "hex values"}, "step three": {"concepts": "step three", "concept_list": ["step three"], "type": "cluster", "node_size": 18, "label": "step three"}, "cryptographic libraries": {"concepts": "cryptographic libraries", "concept_list": ["cryptographic libraries"], "type": "cluster", "node_size": 18, "label": "cryptographic libraries"}, "wrong path": {"concepts": "wrong path", "concept_list": ["wrong path"], "type": "cluster", "node_size": 18, "label": "wrong path"}, "success": {"concepts": "success", "concept_list": ["success"], "type": "cluster", "node_size": 18, "label": "success"}, "remote server": {"concepts": "remote server", "concept_list": ["remote server"], "type": "cluster", "node_size": 18, "label": "remote server"}, "standard input": {"concepts": "standard input", "concept_list": ["standard input"], "type": "cluster", "node_size": 18, "label": "standard input"}, "crashing program": {"concepts": "crashing program", "concept_list": ["crashing program"], "type": "cluster", "node_size": 18, "label": "crashing program"}, "byte values": {"concepts": "byte values", "concept_list": ["byte values"], "type": "cluster", "node_size": 18, "label": "byte values"}, "useful.": {"concepts": "useful.", "concept_list": ["useful."], "type": "cluster", "node_size": 18, "label": "useful."}, "file extensions": {"concepts": "file extensions", "concept_list": ["file extensions"], "type": "cluster", "node_size": 18, "label": "file extensions"}, "vulnerability type.": {"concepts": "vulnerability type.", "concept_list": ["vulnerability type."], "type": "cluster", "node_size": 18, "label": "vulnerability type."}, "iterative process": {"concepts": "iterative process", "concept_list": ["iterative process"], "type": "cluster", "node_size": 18, "label": "iterative process"}, "useful": {"concepts": "useful", "concept_list": ["useful"], "type": "cluster", "node_size": 18, "label": "useful"}, "discover": {"concepts": "discover", "concept_list": ["discover"], "type": "cluster", "node_size": 18, "label": "discover"}, "debuggers": {"concepts": "debuggers", "concept_list": ["debuggers"], "type": "cluster", "node_size": 18, "label": "debuggers"}, "surprises": {"concepts": "surprises", "concept_list": ["surprises"], "type": "cluster", "node_size": 18, "label": "surprises"}, "binary": {"concepts": "binary", "concept_list": ["binary"], "type": "cluster", "node_size": 18, "label": "binary"}, "response": {"concepts": "response", "concept_list": ["response"], "type": "cluster", "node_size": 18, "label": "response"}, "obfuscate": {"concepts": "obfuscate", "concept_list": ["obfuscate"], "type": "cluster", "node_size": 18, "label": "obfuscate"}, "input": {"concepts": "input", "concept_list": ["input"], "type": "cluster", "node_size": 18, "label": "input"}, "unexpected behavior": {"concepts": "unexpected behavior", "concept_list": ["unexpected behavior"], "type": "cluster", "node_size": 18, "label": "unexpected behavior"}, "craftsmanship": {"concepts": "craftsmanship", "concept_list": ["craftsmanship"], "type": "cluster", "node_size": 18, "label": "craftsmanship"}, "jumping to conclusions": {"concepts": "jumping to conclusions", "concept_list": ["jumping to conclusions"], "type": "cluster", "node_size": 18, "label": "jumping to conclusions"}, "mac devices": {"concepts": "mac devices", "concept_list": ["mac devices"], "type": "cluster", "node_size": 18, "label": "mac devices"}, "experience": {"concepts": "experience", "concept_list": ["experience"], "type": "cluster", "node_size": 18, "label": "experience"}, "feedback": {"concepts": "feedback", "concept_list": ["feedback"], "type": "cluster", "node_size": 18, "label": "feedback"}, "measures": {"concepts": "measures", "concept_list": ["measures"], "type": "cluster", "node_size": 18, "label": "measures"}, "open mind": {"concepts": "open mind", "concept_list": ["open mind"], "type": "cluster", "node_size": 18, "label": "open mind"}, "base64": {"concepts": "base64", "concept_list": ["base64"], "type": "cluster", "node_size": 18, "label": "base64"}, "reversible operations": {"concepts": "reversible operations", "concept_list": ["reversible operations"], "type": "cluster", "node_size": 18, "label": "reversible operations"}, "complex system": {"concepts": "complex system", "concept_list": ["complex system"], "type": "cluster", "node_size": 18, "label": "complex system"}, "burp suite": {"concepts": "burp suite", "concept_list": ["burp suite"], "type": "cluster", "node_size": 18, "label": "burp suite"}, "inconclusive results": {"concepts": "inconclusive results", "concept_list": ["inconclusive results"], "type": "cluster", "node_size": 18, "label": "inconclusive results"}, "informative": {"concepts": "informative", "concept_list": ["informative"], "type": "cluster", "node_size": 18, "label": "informative"}, "step four": {"concepts": "step four", "concept_list": ["step four"], "type": "cluster", "node_size": 18, "label": "step four"}, "challenge": {"concepts": "challenge", "concept_list": ["challenge"], "type": "cluster", "node_size": 18, "label": "challenge"}, "file": {"concepts": "file", "concept_list": ["file"], "type": "cluster", "node_size": 18, "label": "file"}, "64-bit": {"concepts": "64-bit", "concept_list": ["64-bit"], "type": "cluster", "node_size": 18, "label": "64-bit"}, "decompile": {"concepts": "decompile", "concept_list": ["decompile"], "type": "cluster", "node_size": 18, "label": "decompile"}, "reversing challenge": {"concepts": "reversing challenge", "concept_list": ["reversing challenge"], "type": "cluster", "node_size": 18, "label": "reversing challenge"}, "goal-based task analysis": {"concepts": "goal-based task analysis", "concept_list": ["goal-based task analysis"], "type": "cluster", "node_size": 18, "label": "goal-based task analysis"}, "informative google results": {"concepts": "informative google results", "concept_list": ["informative google results"], "type": "cluster", "node_size": 18, "label": "informative google results"}, "impersonating cookie": {"concepts": "impersonating cookie", "concept_list": ["impersonating cookie"], "type": "cluster", "node_size": 18, "label": "impersonating cookie"}, "javascript": {"concepts": "javascript", "concept_list": ["javascript"], "type": "cluster", "node_size": 18, "label": "javascript"}, "mathematical operation": {"concepts": "mathematical operation", "concept_list": ["mathematical operation"], "type": "cluster", "node_size": 18, "label": "mathematical operation"}, "angle": {"concepts": "angle", "concept_list": ["angle"], "type": "cluster", "node_size": 18, "label": "angle"}, "vulnerable": {"concepts": "vulnerable", "concept_list": ["vulnerable"], "type": "cluster", "node_size": 18, "label": "vulnerable"}, "determination": {"concepts": "determination", "concept_list": ["determination"], "type": "cluster", "node_size": 18, "label": "determination"}, "understanding": {"concepts": "understanding", "concept_list": ["understanding"], "type": "cluster", "node_size": 18, "label": "understanding"}, "technical factors": {"concepts": "technical factors", "concept_list": ["technical factors"], "type": "cluster", "node_size": 18, "label": "technical factors"}, "user input": {"concepts": "user input", "concept_list": ["user input"], "type": "cluster", "node_size": 18, "label": "user input"}, "time waster": {"concepts": "time waster", "concept_list": ["time waster"], "type": "cluster", "node_size": 18, "label": "time waster"}, "deep understanding": {"concepts": "deep understanding", "concept_list": ["deep understanding"], "type": "cluster", "node_size": 18, "label": "deep understanding"}, "crash": {"concepts": "crash", "concept_list": ["crash"], "type": "cluster", "node_size": 18, "label": "crash"}, "tool errors": {"concepts": "tool errors", "concept_list": ["tool errors"], "type": "cluster", "node_size": 18, "label": "tool errors"}, "frequency analysis": {"concepts": "frequency analysis", "concept_list": ["frequency analysis"], "type": "cluster", "node_size": 18, "label": "frequency analysis"}, "wireshark packet": {"concepts": "wireshark packet", "concept_list": ["wireshark packet"], "type": "cluster", "node_size": 18, "label": "wireshark packet"}, "nodes": {"concepts": "nodes", "concept_list": ["nodes"], "type": "cluster", "node_size": 18, "label": "nodes"}, "process": {"concepts": "process", "concept_list": ["process"], "type": "cluster", "node_size": 18, "label": "process"}, "past experience": {"concepts": "past experience", "concept_list": ["past experience"], "type": "cluster", "node_size": 18, "label": "past experience"}, "binary data": {"concepts": "binary data", "concept_list": ["binary data"], "type": "cluster", "node_size": 18, "label": "binary data"}, "fresh start": {"concepts": "fresh start", "concept_list": ["fresh start"], "type": "cluster", "node_size": 18, "label": "fresh start"}, "vulnerabilities": {"concepts": "vulnerabilities", "concept_list": ["vulnerabilities"], "type": "cluster", "node_size": 18, "label": "vulnerabilities"}, "assumptions": {"concepts": "assumptions", "concept_list": ["assumptions"], "type": "cluster", "node_size": 18, "label": "assumptions"}, "skepticism": {"concepts": "skepticism", "concept_list": ["skepticism"], "type": "cluster", "node_size": 18, "label": "skepticism"}, "product understanding": {"concepts": "product understanding", "concept_list": ["product understanding"], "type": "cluster", "node_size": 18, "label": "product understanding"}, "re-examine": {"concepts": "re-examine", "concept_list": ["re-examine"], "type": "cluster", "node_size": 18, "label": "re-examine"}, "stack canary": {"concepts": "stack canary", "concept_list": ["stack canary"], "type": "cluster", "node_size": 18, "label": "stack canary"}, "examination": {"concepts": "examination", "concept_list": ["examination"], "type": "cluster", "node_size": 18, "label": "examination"}, "interaction": {"concepts": "interaction", "concept_list": ["interaction"], "type": "cluster", "node_size": 18, "label": "interaction"}, "challenge condition": {"concepts": "challenge condition", "concept_list": ["challenge condition"], "type": "cluster", "node_size": 18, "label": "challenge condition"}, "insight": {"concepts": "insight", "concept_list": ["insight"], "type": "cluster", "node_size": 18, "label": "insight"}, "decompilers": {"concepts": "decompilers", "concept_list": ["decompilers"], "type": "cluster", "node_size": 18, "label": "decompilers"}, "32-bit": {"concepts": "32-bit", "concept_list": ["32-bit"], "type": "cluster", "node_size": 18, "label": "32-bit"}, "iterative step": {"concepts": "iterative step", "concept_list": ["iterative step"], "type": "cluster", "node_size": 18, "label": "iterative step"}, "identification of patterns": {"concepts": "identification of patterns", "concept_list": ["identification of patterns"], "type": "cluster", "node_size": 18, "label": "identification of patterns"}, "web-based ctf": {"concepts": "web-based ctf", "concept_list": ["web-based ctf"], "type": "cluster", "node_size": 18, "label": "web-based ctf"}, "heap exploitation": {"concepts": "heap exploitation", "concept_list": ["heap exploitation"], "type": "cluster", "node_size": 18, "label": "heap exploitation"}, "examining code": {"concepts": "examining code", "concept_list": ["examining code"], "type": "cluster", "node_size": 18, "label": "examining code"}, "crypto challenge": {"concepts": "crypto challenge", "concept_list": ["crypto challenge"], "type": "cluster", "node_size": 18, "label": "crypto challenge"}, "memory": {"concepts": "memory", "concept_list": ["memory"], "type": "cluster", "node_size": 18, "label": "memory"}, "pattern": {"concepts": "pattern", "concept_list": ["pattern"], "type": "cluster", "node_size": 18, "label": "pattern"}, "non-executable stack": {"concepts": "non-executable stack", "concept_list": ["non-executable stack"], "type": "cluster", "node_size": 18, "label": "non-executable stack"}, "script": {"concepts": "script", "concept_list": ["script"], "type": "cluster", "node_size": 18, "label": "script"}, "reading code": {"concepts": "reading code", "concept_list": ["reading code"], "type": "cluster", "node_size": 18, "label": "reading code"}, "challenges": {"concepts": "challenges", "concept_list": ["challenges"], "type": "cluster", "node_size": 18, "label": "challenges"}, "matrix file": {"concepts": "matrix file", "concept_list": ["matrix file"], "type": "cluster", "node_size": 18, "label": "matrix file"}, "bypass security": {"concepts": "bypass security", "concept_list": ["bypass security"], "type": "cluster", "node_size": 18, "label": "bypass security"}, "positive arrows": {"concepts": "positive arrows", "concept_list": ["positive arrows"], "type": "cluster", "node_size": 18, "label": "positive arrows"}, "mentions": {"concepts": "mentions", "concept_list": ["mentions"], "type": "cluster", "node_size": 18, "label": "mentions"}, "google results": {"concepts": "google results", "concept_list": ["google results"], "type": "cluster", "node_size": 18, "label": "google results"}, "languages": {"concepts": "languages", "concept_list": ["languages"], "type": "cluster", "node_size": 18, "label": "languages"}, "packet": {"concepts": "packet", "concept_list": ["packet"], "type": "cluster", "node_size": 18, "label": "packet"}, "github": {"concepts": "github", "concept_list": ["github"], "type": "cluster", "node_size": 18, "label": "github"}, "misleading belief": {"concepts": "misleading belief", "concept_list": ["misleading belief"], "type": "cluster", "node_size": 18, "label": "misleading belief"}, "ciphertext": {"concepts": "ciphertext", "concept_list": ["ciphertext"], "type": "cluster", "node_size": 18, "label": "ciphertext"}, "plain text": {"concepts": "plain text", "concept_list": ["plain text"], "type": "cluster", "node_size": 18, "label": "plain text"}, "reading": {"concepts": "reading", "concept_list": ["reading"], "type": "cluster", "node_size": 18, "label": "reading"}, "beliefs": {"concepts": "beliefs", "concept_list": ["beliefs"], "type": "cluster", "node_size": 18, "label": "beliefs"}, "running binary": {"concepts": "running binary", "concept_list": ["running binary"], "type": "cluster", "node_size": 18, "label": "running binary"}, "ctf description": {"concepts": "ctf description", "concept_list": ["ctf description"], "type": "cluster", "node_size": 18, "label": "ctf description"}, "library call": {"concepts": "library call", "concept_list": ["library call"], "type": "cluster", "node_size": 18, "label": "library call"}, "pwn challenges": {"concepts": "pwn challenges", "concept_list": ["pwn challenges"], "type": "cluster", "node_size": 18, "label": "pwn challenges"}, "source code": {"concepts": "source code", "concept_list": ["source code"], "type": "cluster", "node_size": 18, "label": "source code"}, "code": {"concepts": "code", "concept_list": ["code"], "type": "cluster", "node_size": 18, "label": "code"}, "black box": {"concepts": "black box", "concept_list": ["black box"], "type": "cluster", "node_size": 18, "label": "black box"}, "vulnerable functions": {"concepts": "vulnerable functions", "concept_list": ["vulnerable functions"], "type": "cluster", "node_size": 18, "label": "vulnerable functions"}, "proof of concepts": {"concepts": "proof of concepts", "concept_list": ["proof of concepts"], "type": "cluster", "node_size": 18, "label": "proof of concepts"}, "previous experience": {"concepts": "previous experience", "concept_list": ["previous experience"], "type": "cluster", "node_size": 18, "label": "previous experience"}, "flag": {"concepts": "flag", "concept_list": ["flag"], "type": "cluster", "node_size": 18, "label": "flag"}};
+        const conceptData = {};
+        const interClusterEdges = [["insights", "byte values", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["sensitive information", "useful", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["sensitive information", "previous experience", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["functions", "memory", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["functions", "stack protections", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["encryption algorithms", "cryptography challenge", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["interaction with code", "step three", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["vulnerability", "encryption algorithms", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["vulnerability", "non-executable stack", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["decisions", "insights", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["o-tool", "discovered vulnerability", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["data", "misused functions", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["crafting", "input values", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["assembly", "crashing program", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["challenge code", "identification of patterns", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["heap", "technical factors", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["usefulness", "program", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["binary exploitation", "code", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["binary exploitation", "success factors", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["binary exploitation", "black box", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["exploit", "stack canary", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["output", "proof of concepts", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["misinterpreting", "re-examine", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["misinterpreting", "mathematical operation", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["misinterpreting", "beliefs", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["pwntools", "insight", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["hex dumping", "input", {"weight": 1.0, "confidence": 0.7666666666666666, "type": "inter_cluster", "style": "solid"}], ["hex dumping", "response", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["computer software", "code", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["fuzzers", "registers", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["fuzzers", "stack protections", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["failure", "bypass security", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["distractions", "library call", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["encoding", "languages", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["encoding", "challenge condition", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["environment", "scripting", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["environment", "reading code", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["security measures", "misinterpreting", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["semi-structured approach", "tool", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["ctfs", "operating system", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["ctfs", "failure", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["security", "surprises", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["malloc", "angle", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["patterns", "perception of progress", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["tool", "library call", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["ctf category", "decompile", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["ctf category", "iterative process", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["crypto", "determination", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["get request", "reading code", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["get request", "decisions", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["check sec", "making assumptions", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["discovered vulnerability", "vulnerability type.", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["hex values", "craftsmanship", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["cryptographic libraries", "craftsmanship", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["wrong path", "script", {"weight": -1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["wrong path", "usefulness", {"weight": -1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["success", "pwn challenges", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["remote server", "decisions", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["standard input", "data", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["crashing program", "vulnerability type.", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["byte values", "vulnerable", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["byte values", "forensics", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["useful.", "response", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["file extensions", "privileged permissions", {"weight": -0.5, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["iterative process", "step four", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["iterative process", "crash", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["discover", "misused functions", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["discover", "vulnerable functions", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["debuggers", "libraries", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["surprises", "flag", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["binary", "full understanding", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["obfuscate", "plain text", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["input", "challenges", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["unexpected behavior", "user input", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["jumping to conclusions", "usefulness", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["mac devices", "running binary", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["base64", "reversing challenge", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["reversible operations", "previous experience", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["complex system", "semi-structured approach", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["burp suite", "insight", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["inconclusive results", "symbols", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["informative", "feedback", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["informative", "success", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["challenge", "forensics", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["file", "nodes", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["64-bit", "script", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["decompile", "hex values", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["goal-based task analysis", "success condition", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["impersonating cookie", "product understanding", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["impersonating cookie", "web-based ctf", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["javascript", "success factors", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["vulnerable", "pwn challenges", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["vulnerable", "misleading belief", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["understanding", "informative google results", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["time waster", "crafting", {"weight": -1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["frequency analysis", "forensics", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["wireshark packet", "time waster", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["process", "pwntools", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["past experience", "exploit", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["past experience", "success condition", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["past experience", "heap exploitation", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["past experience", "vulnerable", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["past experience", "fresh start", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["binary data", "byte values", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["fresh start", "identification of patterns", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["vulnerabilities", "surprises", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["assumptions", "registers", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["skepticism", "symbols", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["product understanding", "pwn challenges", {"weight": 0.5, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["re-examine", "standard input", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["stack canary", "reversing challenge", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["stack canary", "interaction", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["stack canary", "tool errors", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["examination", "bypass security", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["insight", "measures", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["decompilers", "open mind", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["32-bit", "iterative step", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["iterative step", "statements", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["web-based ctf", "iterative step", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["web-based ctf", "ctf description", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["examining code", "stack protections", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["crypto challenge", "fuzzer", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["memory", "packet", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["pattern", "mathematical operation", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["reading code", "ctfs", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["reading code", "interaction", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["challenges", "iterative process", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["challenges", "open mind", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["positive arrows", "matrix file", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["mentions", "file signatures", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["google results", "vulnerability", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["google results", "plain text", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["github", "challenges", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["ciphertext", "encoding", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["reading", "insight", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["running binary", "craftsmanship", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["running binary", "challenge code", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["ctf description", "technical factors", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["library call", "measures", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["source code", "useful", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["code", "understanding", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["code", "experience", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["black box", "deep understanding", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["proof of concepts", "binary exploitation", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["previous experience", "github", {"weight": 1.0, "confidence": 0.7333333333333334, "type": "inter_cluster", "style": "solid"}], ["previous experience", "challenge condition", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

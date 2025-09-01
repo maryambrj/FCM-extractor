@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"scott hickman": {"concepts": "scott hickman", "concept_list": ["scott hickman"], "type": "cluster", "node_size": 18, "label": "scott hickman"}, "economic impact": {"concepts": "economic impact", "concept_list": ["economic impact"], "type": "cluster", "node_size": 18, "label": "economic impact"}, "outreach": {"concepts": "outreach", "concept_list": ["outreach"], "type": "cluster", "node_size": 18, "label": "outreach"}, "community": {"concepts": "community", "concept_list": ["community"], "type": "cluster", "node_size": 18, "label": "community"}, "marine protected areas": {"concepts": "marine protected areas", "concept_list": ["marine protected areas"], "type": "cluster", "node_size": 18, "label": "marine protected areas"}, "wind modeling": {"concepts": "wind modeling", "concept_list": ["wind modeling"], "type": "cluster", "node_size": 18, "label": "wind modeling"}, "public perception": {"concepts": "public perception", "concept_list": ["public perception"], "type": "cluster", "node_size": 18, "label": "public perception"}, "stocks": {"concepts": "stocks", "concept_list": ["stocks"], "type": "cluster", "node_size": 18, "label": "stocks"}, "elementary schools": {"concepts": "elementary schools", "concept_list": ["elementary schools"], "type": "cluster", "node_size": 18, "label": "elementary schools"}, "fishermen": {"concepts": "fishermen", "concept_list": ["fishermen"], "type": "cluster", "node_size": 18, "label": "fishermen"}, "recycling": {"concepts": "recycling", "concept_list": ["recycling"], "type": "cluster", "node_size": 18, "label": "recycling"}, "snowball": {"concepts": "snowball", "concept_list": ["snowball"], "type": "cluster", "node_size": 18, "label": "snowball"}, "general public": {"concepts": "general public", "concept_list": ["general public"], "type": "cluster", "node_size": 18, "label": "general public"}, "public": {"concepts": "public", "concept_list": ["public"], "type": "cluster", "node_size": 18, "label": "public"}, "teacher resources": {"concepts": "teacher resources", "concept_list": ["teacher resources"], "type": "cluster", "node_size": 18, "label": "teacher resources"}, "for-profit groups": {"concepts": "for-profit groups", "concept_list": ["for-profit groups"], "type": "cluster", "node_size": 18, "label": "for-profit groups"}, "monopile platforms": {"concepts": "monopile platforms", "concept_list": ["monopile platforms"], "type": "cluster", "node_size": 18, "label": "monopile platforms"}, "mapping portal": {"concepts": "mapping portal", "concept_list": ["mapping portal"], "type": "cluster", "node_size": 18, "label": "mapping portal"}, "expertise": {"concepts": "expertise", "concept_list": ["expertise"], "type": "cluster", "node_size": 18, "label": "expertise"}, "ecosystem biodiversity": {"concepts": "ecosystem biodiversity", "concept_list": ["ecosystem biodiversity"], "type": "cluster", "node_size": 18, "label": "ecosystem biodiversity"}, "scientific reporting": {"concepts": "scientific reporting", "concept_list": ["scientific reporting"], "type": "cluster", "node_size": 18, "label": "scientific reporting"}, "entities": {"concepts": "entities", "concept_list": ["entities"], "type": "cluster", "node_size": 18, "label": "entities"}, "shrimp trawling industry": {"concepts": "shrimp trawling industry", "concept_list": ["shrimp trawling industry"], "type": "cluster", "node_size": 18, "label": "shrimp trawling industry"}, "fisherman.": {"concepts": "fisherman.", "concept_list": ["fisherman."], "type": "cluster", "node_size": 18, "label": "fisherman."}, "education": {"concepts": "education", "concept_list": ["education"], "type": "cluster", "node_size": 18, "label": "education"}, "fishing exclusion": {"concepts": "fishing exclusion", "concept_list": ["fishing exclusion"], "type": "cluster", "node_size": 18, "label": "fishing exclusion"}, "npa": {"concepts": "npa", "concept_list": ["npa"], "type": "cluster", "node_size": 18, "label": "npa"}, "anti-structure": {"concepts": "anti-structure", "concept_list": ["anti-structure"], "type": "cluster", "node_size": 18, "label": "anti-structure"}, "communities": {"concepts": "communities", "concept_list": ["communities"], "type": "cluster", "node_size": 18, "label": "communities"}, "operators": {"concepts": "operators", "concept_list": ["operators"], "type": "cluster", "node_size": 18, "label": "operators"}, "criteria": {"concepts": "criteria", "concept_list": ["criteria"], "type": "cluster", "node_size": 18, "label": "criteria"}, "transparency": {"concepts": "transparency", "concept_list": ["transparency"], "type": "cluster", "node_size": 18, "label": "transparency"}, "offshore development": {"concepts": "offshore development", "concept_list": ["offshore development"], "type": "cluster", "node_size": 18, "label": "offshore development"}, "migratory patterns": {"concepts": "migratory patterns", "concept_list": ["migratory patterns"], "type": "cluster", "node_size": 18, "label": "migratory patterns"}, "community members": {"concepts": "community members", "concept_list": ["community members"], "type": "cluster", "node_size": 18, "label": "community members"}, "exclusion zones": {"concepts": "exclusion zones", "concept_list": ["exclusion zones"], "type": "cluster", "node_size": 18, "label": "exclusion zones"}, "end of life": {"concepts": "end of life", "concept_list": ["end of life"], "type": "cluster", "node_size": 18, "label": "end of life"}, "commercial hook and line": {"concepts": "commercial hook and line", "concept_list": ["commercial hook and line"], "type": "cluster", "node_size": 18, "label": "commercial hook and line"}, "marine science": {"concepts": "marine science", "concept_list": ["marine science"], "type": "cluster", "node_size": 18, "label": "marine science"}, "ecosystem services.": {"concepts": "ecosystem services.", "concept_list": ["ecosystem services."], "type": "cluster", "node_size": 18, "label": "ecosystem services."}, "regulations": {"concepts": "regulations", "concept_list": ["regulations"], "type": "cluster", "node_size": 18, "label": "regulations"}, "job impact": {"concepts": "job impact", "concept_list": ["job impact"], "type": "cluster", "node_size": 18, "label": "job impact"}, "heavy lift vessels": {"concepts": "heavy lift vessels", "concept_list": ["heavy lift vessels"], "type": "cluster", "node_size": 18, "label": "heavy lift vessels"}, "charter": {"concepts": "charter", "concept_list": ["charter"], "type": "cluster", "node_size": 18, "label": "charter"}, "fisherman": {"concepts": "fisherman", "concept_list": ["fisherman"], "type": "cluster", "node_size": 18, "label": "fisherman"}, "trawlers": {"concepts": "trawlers", "concept_list": ["trawlers"], "type": "cluster", "node_size": 18, "label": "trawlers"}, "habitat creation": {"concepts": "habitat creation", "concept_list": ["habitat creation"], "type": "cluster", "node_size": 18, "label": "habitat creation"}, "open access data": {"concepts": "open access data", "concept_list": ["open access data"], "type": "cluster", "node_size": 18, "label": "open access data"}, "fish movement": {"concepts": "fish movement", "concept_list": ["fish movement"], "type": "cluster", "node_size": 18, "label": "fish movement"}, "stakeholder conflict": {"concepts": "stakeholder conflict", "concept_list": ["stakeholder conflict"], "type": "cluster", "node_size": 18, "label": "stakeholder conflict"}, "independent review": {"concepts": "independent review", "concept_list": ["independent review"], "type": "cluster", "node_size": 18, "label": "independent review"}, "developers": {"concepts": "developers", "concept_list": ["developers"], "type": "cluster", "node_size": 18, "label": "developers"}, "wind industry": {"concepts": "wind industry", "concept_list": ["wind industry"], "type": "cluster", "node_size": 18, "label": "wind industry"}, "infrastructure": {"concepts": "infrastructure", "concept_list": ["infrastructure"], "type": "cluster", "node_size": 18, "label": "infrastructure"}, "scientists": {"concepts": "scientists", "concept_list": ["scientists"], "type": "cluster", "node_size": 18, "label": "scientists"}, "research": {"concepts": "research", "concept_list": ["research"], "type": "cluster", "node_size": 18, "label": "research"}, "ocean data": {"concepts": "ocean data", "concept_list": ["ocean data"], "type": "cluster", "node_size": 18, "label": "ocean data"}, "communication": {"concepts": "communication", "concept_list": ["communication"], "type": "cluster", "node_size": 18, "label": "communication"}, "mapping tools": {"concepts": "mapping tools", "concept_list": ["mapping tools"], "type": "cluster", "node_size": 18, "label": "mapping tools"}, "governmental agencies": {"concepts": "governmental agencies", "concept_list": ["governmental agencies"], "type": "cluster", "node_size": 18, "label": "governmental agencies"}, "habitat potential": {"concepts": "habitat potential", "concept_list": ["habitat potential"], "type": "cluster", "node_size": 18, "label": "habitat potential"}, "hydro acoustic survey": {"concepts": "hydro acoustic survey", "concept_list": ["hydro acoustic survey"], "type": "cluster", "node_size": 18, "label": "hydro acoustic survey"}, "commercial": {"concepts": "commercial", "concept_list": ["commercial"], "type": "cluster", "node_size": 18, "label": "commercial"}, "habitat": {"concepts": "habitat", "concept_list": ["habitat"], "type": "cluster", "node_size": 18, "label": "habitat"}, "nonprofit groups": {"concepts": "nonprofit groups", "concept_list": ["nonprofit groups"], "type": "cluster", "node_size": 18, "label": "nonprofit groups"}, "community engagement": {"concepts": "community engagement", "concept_list": ["community engagement"], "type": "cluster", "node_size": 18, "label": "community engagement"}, "educational videos": {"concepts": "educational videos", "concept_list": ["educational videos"], "type": "cluster", "node_size": 18, "label": "educational videos"}, "elementary school": {"concepts": "elementary school", "concept_list": ["elementary school"], "type": "cluster", "node_size": 18, "label": "elementary school"}, "fisheries": {"concepts": "fisheries", "concept_list": ["fisheries"], "type": "cluster", "node_size": 18, "label": "fisheries"}, "logistical point": {"concepts": "logistical point", "concept_list": ["logistical point"], "type": "cluster", "node_size": 18, "label": "logistical point"}, "decommissioning": {"concepts": "decommissioning", "concept_list": ["decommissioning"], "type": "cluster", "node_size": 18, "label": "decommissioning"}, "management": {"concepts": "management", "concept_list": ["management"], "type": "cluster", "node_size": 18, "label": "management"}, "gis": {"concepts": "gis", "concept_list": ["gis"], "type": "cluster", "node_size": 18, "label": "gis"}, "rov surveys": {"concepts": "rov surveys", "concept_list": ["rov surveys"], "type": "cluster", "node_size": 18, "label": "rov surveys"}, "cost associated": {"concepts": "cost associated", "concept_list": ["cost associated"], "type": "cluster", "node_size": 18, "label": "cost associated"}, "permitting": {"concepts": "permitting", "concept_list": ["permitting"], "type": "cluster", "node_size": 18, "label": "permitting"}, "science integration": {"concepts": "science integration", "concept_list": ["science integration"], "type": "cluster", "node_size": 18, "label": "science integration"}, "offshore wind": {"concepts": "offshore wind", "concept_list": ["offshore wind"], "type": "cluster", "node_size": 18, "label": "offshore wind"}, "temperature increase": {"concepts": "temperature increase", "concept_list": ["temperature increase"], "type": "cluster", "node_size": 18, "label": "temperature increase"}, "construction phase": {"concepts": "construction phase", "concept_list": ["construction phase"], "type": "cluster", "node_size": 18, "label": "construction phase"}, "predictive modeling": {"concepts": "predictive modeling", "concept_list": ["predictive modeling"], "type": "cluster", "node_size": 18, "label": "predictive modeling"}, "louisiana": {"concepts": "louisiana", "concept_list": ["louisiana"], "type": "cluster", "node_size": 18, "label": "louisiana"}, "wind development": {"concepts": "wind development", "concept_list": ["wind development"], "type": "cluster", "node_size": 18, "label": "wind development"}, "larval connectivity": {"concepts": "larval connectivity", "concept_list": ["larval connectivity"], "type": "cluster", "node_size": 18, "label": "larval connectivity"}, "oil companies": {"concepts": "oil companies", "concept_list": ["oil companies"], "type": "cluster", "node_size": 18, "label": "oil companies"}, "oil industry": {"concepts": "oil industry", "concept_list": ["oil industry"], "type": "cluster", "node_size": 18, "label": "oil industry"}, "stakeholders": {"concepts": "stakeholders", "concept_list": ["stakeholders"], "type": "cluster", "node_size": 18, "label": "stakeholders"}, "installation": {"concepts": "installation", "concept_list": ["installation"], "type": "cluster", "node_size": 18, "label": "installation"}, "telemetry movement": {"concepts": "telemetry movement", "concept_list": ["telemetry movement"], "type": "cluster", "node_size": 18, "label": "telemetry movement"}, "data management": {"concepts": "data management", "concept_list": ["data management"], "type": "cluster", "node_size": 18, "label": "data management"}, "user groups": {"concepts": "user groups", "concept_list": ["user groups"], "type": "cluster", "node_size": 18, "label": "user groups"}, "management perspective": {"concepts": "management perspective", "concept_list": ["management perspective"], "type": "cluster", "node_size": 18, "label": "management perspective"}, "recruitment": {"concepts": "recruitment", "concept_list": ["recruitment"], "type": "cluster", "node_size": 18, "label": "recruitment"}, "ecosystem services": {"concepts": "ecosystem services", "concept_list": ["ecosystem services"], "type": "cluster", "node_size": 18, "label": "ecosystem services"}, "awareness": {"concepts": "awareness", "concept_list": ["awareness"], "type": "cluster", "node_size": 18, "label": "awareness"}, "offshore infrastructure": {"concepts": "offshore infrastructure", "concept_list": ["offshore infrastructure"], "type": "cluster", "node_size": 18, "label": "offshore infrastructure"}, "regulatory agencies": {"concepts": "regulatory agencies", "concept_list": ["regulatory agencies"], "type": "cluster", "node_size": 18, "label": "regulatory agencies"}, "college involvement": {"concepts": "college involvement", "concept_list": ["college involvement"], "type": "cluster", "node_size": 18, "label": "college involvement"}, "california": {"concepts": "california", "concept_list": ["california"], "type": "cluster", "node_size": 18, "label": "california"}, "google form": {"concepts": "google form", "concept_list": ["google form"], "type": "cluster", "node_size": 18, "label": "google form"}, "grid": {"concepts": "grid", "concept_list": ["grid"], "type": "cluster", "node_size": 18, "label": "grid"}, "assessments": {"concepts": "assessments", "concept_list": ["assessments"], "type": "cluster", "node_size": 18, "label": "assessments"}, "coalition": {"concepts": "coalition", "concept_list": ["coalition"], "type": "cluster", "node_size": 18, "label": "coalition"}, "recreational charter fisherman": {"concepts": "recreational charter fisherman", "concept_list": ["recreational charter fisherman"], "type": "cluster", "node_size": 18, "label": "recreational charter fisherman"}, "rigs to reef": {"concepts": "rigs to reef", "concept_list": ["rigs to reef"], "type": "cluster", "node_size": 18, "label": "rigs to reef"}, "air charter fisherman": {"concepts": "air charter fisherman", "concept_list": ["air charter fisherman"], "type": "cluster", "node_size": 18, "label": "air charter fisherman"}, "artificial reefs": {"concepts": "artificial reefs", "concept_list": ["artificial reefs"], "type": "cluster", "node_size": 18, "label": "artificial reefs"}, "benthic communities": {"concepts": "benthic communities", "concept_list": ["benthic communities"], "type": "cluster", "node_size": 18, "label": "benthic communities"}, "platforms": {"concepts": "platforms", "concept_list": ["platforms"], "type": "cluster", "node_size": 18, "label": "platforms"}, "accessible data": {"concepts": "accessible data", "concept_list": ["accessible data"], "type": "cluster", "node_size": 18, "label": "accessible data"}, "ecosystem scale effects": {"concepts": "ecosystem scale effects", "concept_list": ["ecosystem scale effects"], "type": "cluster", "node_size": 18, "label": "ecosystem scale effects"}, "interviews": {"concepts": "interviews", "concept_list": ["interviews"], "type": "cluster", "node_size": 18, "label": "interviews"}, "artificial structure": {"concepts": "artificial structure", "concept_list": ["artificial structure"], "type": "cluster", "node_size": 18, "label": "artificial structure"}, "natural reefs": {"concepts": "natural reefs", "concept_list": ["natural reefs"], "type": "cluster", "node_size": 18, "label": "natural reefs"}, "biodiversity": {"concepts": "biodiversity", "concept_list": ["biodiversity"], "type": "cluster", "node_size": 18, "label": "biodiversity"}, "job displacement": {"concepts": "job displacement", "concept_list": ["job displacement"], "type": "cluster", "node_size": 18, "label": "job displacement"}, "pro structure": {"concepts": "pro structure", "concept_list": ["pro structure"], "type": "cluster", "node_size": 18, "label": "pro structure"}, "learning objectives": {"concepts": "learning objectives", "concept_list": ["learning objectives"], "type": "cluster", "node_size": 18, "label": "learning objectives"}, "underwater cameras": {"concepts": "underwater cameras", "concept_list": ["underwater cameras"], "type": "cluster", "node_size": 18, "label": "underwater cameras"}, "social media perspective": {"concepts": "social media perspective", "concept_list": ["social media perspective"], "type": "cluster", "node_size": 18, "label": "social media perspective"}, "negative impacts": {"concepts": "negative impacts", "concept_list": ["negative impacts"], "type": "cluster", "node_size": 18, "label": "negative impacts"}, "data collection": {"concepts": "data collection", "concept_list": ["data collection"], "type": "cluster", "node_size": 18, "label": "data collection"}, "offshore winning": {"concepts": "offshore winning", "concept_list": ["offshore winning"], "type": "cluster", "node_size": 18, "label": "offshore winning"}, "gulf of mexico": {"concepts": "gulf of mexico", "concept_list": ["gulf of mexico"], "type": "cluster", "node_size": 18, "label": "gulf of mexico"}, "workforce": {"concepts": "workforce", "concept_list": ["workforce"], "type": "cluster", "node_size": 18, "label": "workforce"}, "data sets": {"concepts": "data sets", "concept_list": ["data sets"], "type": "cluster", "node_size": 18, "label": "data sets"}, "long-term monitoring": {"concepts": "long-term monitoring", "concept_list": ["long-term monitoring"], "type": "cluster", "node_size": 18, "label": "long-term monitoring"}, "regulators": {"concepts": "regulators", "concept_list": ["regulators"], "type": "cluster", "node_size": 18, "label": "regulators"}, "oil platforms": {"concepts": "oil platforms", "concept_list": ["oil platforms"], "type": "cluster", "node_size": 18, "label": "oil platforms"}, "multiple agencies": {"concepts": "multiple agencies", "concept_list": ["multiple agencies"], "type": "cluster", "node_size": 18, "label": "multiple agencies"}, "coastal communities": {"concepts": "coastal communities", "concept_list": ["coastal communities"], "type": "cluster", "node_size": 18, "label": "coastal communities"}, "platform ecology": {"concepts": "platform ecology", "concept_list": ["platform ecology"], "type": "cluster", "node_size": 18, "label": "platform ecology"}};
+        const conceptData = {};
+        const interClusterEdges = [["scott hickman", "charter", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["community", "habitat potential", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["public perception", "rigs to reef", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["stocks", "science integration", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["stocks", "user groups", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["elementary schools", "public perception", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["elementary schools", "community members", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["fishermen", "expertise", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["fishermen", "offshore infrastructure", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["recycling", "offshore infrastructure", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["snowball", "coastal communities", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["general public", "monopile platforms", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["public", "wind modeling", {"weight": 1.0, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["public", "regulators", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["teacher resources", "offshore winning", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["for-profit groups", "elementary school", {"weight": 1.0, "confidence": 0.525, "type": "inter_cluster", "style": "solid"}], ["mapping portal", "shrimp trawling industry", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["scientific reporting", "regulations", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["scientific reporting", "larval connectivity", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["scientific reporting", "interviews", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["entities", "predictive modeling", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["fisherman.", "fishing exclusion", {"weight": -1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["fisherman.", "oil companies", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["fisherman.", "research", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["anti-structure", "trawlers", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["operators", "scott hickman", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["operators", "wind modeling", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["transparency", "coastal communities", {"weight": 1.0, "confidence": 0.7749999999999999, "type": "inter_cluster", "style": "solid"}], ["transparency", "telemetry movement", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["transparency", "wind modeling", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["offshore development", "ecosystem biodiversity", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["migratory patterns", "social media perspective", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["migratory patterns", "public perception", {"weight": -0.3333333333333333, "confidence": 0.18333333333333335, "type": "inter_cluster", "style": "solid"}], ["community members", "commercial hook and line", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["community members", "construction phase", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["exclusion zones", "management perspective", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["end of life", "general public", {"weight": 1.0, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["commercial hook and line", "negative impacts", {"weight": -0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["commercial hook and line", "assessments", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["marine science", "fisheries", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["ecosystem services.", "rov surveys", {"weight": 1.0, "confidence": 0.7000000000000001, "type": "inter_cluster", "style": "solid"}], ["regulations", "teacher resources", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["job impact", "communication", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["heavy lift vessels", "communities", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["heavy lift vessels", "oil companies", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["fisherman", "monopile platforms", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["trawlers", "marine protected areas", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["habitat creation", "long-term monitoring", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["open access data", "stakeholder conflict", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["open access data", "ecosystem services.", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["fish movement", "npa", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["stakeholder conflict", "recruitment", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["independent review", "data management", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["independent review", "data sets", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["developers", "wind development", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["developers", "communication", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["research", "accessible data", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["ocean data", "ecosystem services", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["ocean data", "recruitment", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["communication", "underwater cameras", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["mapping tools", "communication", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["governmental agencies", "offshore winning", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["habitat potential", "grid", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["hydro acoustic survey", "data sets", {"weight": 1.0, "confidence": 0.8375, "type": "inter_cluster", "style": "solid"}], ["commercial", "coalition", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["commercial", "louisiana", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["habitat", "decommissioning", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["nonprofit groups", "multiple agencies", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["nonprofit groups", "research", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["community engagement", "management perspective", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["community engagement", "communities", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["educational videos", "decommissioning", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["fisheries", "oil platforms", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["fisheries", "educational videos", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["logistical point", "gis", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["decommissioning", "offshore winning", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["decommissioning", "data management", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["management", "commercial hook and line", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["gis", "fisherman.", {"weight": 1.0, "confidence": 0.6166666666666667, "type": "inter_cluster", "style": "solid"}], ["gis", "community", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["rov surveys", "fishermen", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["rov surveys", "habitat potential", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["cost associated", "nonprofit groups", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["permitting", "assessments", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["science integration", "platform ecology", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["science integration", "regulations", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["science integration", "platforms", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["science integration", "ecosystem services", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["offshore wind", "wind industry", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["offshore wind", "college involvement", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["temperature increase", "natural reefs", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["predictive modeling", "platform ecology", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["larval connectivity", "fisherman.", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["oil companies", "fisheries", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["oil companies", "fish movement", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["oil industry", "oil platforms", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["oil industry", "educational videos", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["stakeholders", "negative impacts", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["installation", "offshore wind", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["data management", "stakeholder conflict", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["data management", "coastal communities", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["management perspective", "benthic communities", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["management perspective", "data collection", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["management perspective", "wind modeling", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["recruitment", "infrastructure", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["recruitment", "regulatory agencies", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["recruitment", "gulf of mexico", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["ecosystem services", "stocks", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["awareness", "commercial", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["regulatory agencies", "artificial reefs", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["regulatory agencies", "criteria", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["california", "educational videos", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["google form", "learning objectives", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["grid", "scientists", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["coalition", "independent review", {"weight": 1.0, "confidence": 0.7833333333333333, "type": "inter_cluster", "style": "solid"}], ["coalition", "for-profit groups", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["recreational charter fisherman", "educational videos", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["recreational charter fisherman", "regulators", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["recreational charter fisherman", "public perception", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["recreational charter fisherman", "decommissioning", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["rigs to reef", "governmental agencies", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["benthic communities", "economic impact", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["platforms", "communities", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["accessible data", "platforms", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["ecosystem scale effects", "rov surveys", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["interviews", "platform ecology", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["artificial structure", "fisheries", {"weight": 1.0, "confidence": 0.7749999999999999, "type": "inter_cluster", "style": "solid"}], ["artificial structure", "college involvement", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["biodiversity", "job impact", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["job displacement", "mapping tools", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["pro structure", "scott hickman", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["pro structure", "cost associated", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["pro structure", "education", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["pro structure", "entities", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["pro structure", "anti-structure", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["learning objectives", "google form", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["underwater cameras", "fish movement", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["underwater cameras", "air charter fisherman", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["social media perspective", "accessible data", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["social media perspective", "entities", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["social media perspective", "ecosystem biodiversity", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["negative impacts", "npa", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["data collection", "fisheries", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["data collection", "stakeholders", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["data collection", "ecosystem services", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["offshore winning", "scientific reporting", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["gulf of mexico", "workforce", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["gulf of mexico", "multiple agencies", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["data sets", "ecosystem scale effects", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["data sets", "outreach", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["data sets", "platforms", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["long-term monitoring", "elementary school", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["long-term monitoring", "construction phase", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["regulators", "job displacement", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["oil platforms", "stakeholders", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["oil platforms", "oil industry", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["oil platforms", "management", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["coastal communities", "stakeholders", {"weight": 1.0, "confidence": 0.6999999999999998, "type": "inter_cluster", "style": "solid"}], ["coastal communities", "user groups", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["platform ecology", "shrimp trawling industry", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["platform ecology", "offshore wind", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

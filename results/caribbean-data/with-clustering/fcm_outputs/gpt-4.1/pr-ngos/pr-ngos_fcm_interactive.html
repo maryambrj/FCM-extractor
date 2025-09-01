@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"poaching": {"concepts": "poaching", "concept_list": ["poaching"], "type": "cluster", "node_size": 18, "label": "poaching"}, "oversight board": {"concepts": "oversight board", "concept_list": ["oversight board"], "type": "cluster", "node_size": 18, "label": "oversight board"}, "Public Meeting Outcomes": {"concepts": "decision-makers, science-based decisions", "concept_list": ["decision-makers", "science-based decisions"], "type": "cluster", "node_size": 21, "label": "Public Meeting Outcomes"}, "Business Succession": {"concepts": "meeting outcomes, public hearings, public pier", "concept_list": ["meeting outcomes", "public hearings", "public pier"], "type": "cluster", "node_size": 24, "label": "Business Succession"}, "Spawning Protection": {"concepts": "tourism dependency, tourists, fisher forums", "concept_list": ["tourism dependency", "tourists", "fisher forums"], "type": "cluster", "node_size": 24, "label": "Spawning Protection"}, "Science-Based Decisions": {"concepts": "spawning site, catch and release", "concept_list": ["spawning site", "catch and release"], "type": "cluster", "node_size": 21, "label": "Science-Based Decisions"}, "Community Resource Dynamics": {"concepts": "macho culture, participatory decision-making, habitat loss, job opportunities, sharks, livelihood dependency, community engagement, decision making, natural resource management, air ambulance, non-profit, participatory legitimacy, decompression sickness, power dynamics, compliance motivation, advocacy, dner, african dust, advocacy strategies, swordfish catch, resource sustainability, juvenile conch, spawning periods, tension, shark finning, occupational identity, natural resources, information sharing, engagement, meetings, infrastructure impact, occupational dedication, video advocacy, user conflicts, decision transparency, non-profit sector, cfmc, resource legitimacy, decision making process, tourism businesses, occupational inheritance, public meetings, livelihood, hospital, conservation efforts, pr climate change council, industry value, foreign investments, knowledge transfer", "concept_list": ["macho culture", "participatory decision-making", "habitat loss", "job opportunities", "sharks", "livelihood dependency", "community engagement", "decision making", "natural resource management", "air ambulance", "non-profit", "participatory legitimacy", "decompression sickness", "power dynamics", "compliance motivation", "advocacy", "dner", "african dust", "advocacy strategies", "swordfish catch", "resource sustainability", "juvenile conch", "spawning periods", "tension", "shark finning", "occupational identity", "natural resources", "information sharing", "engagement", "meetings", "infrastructure impact", "occupational dedication", "video advocacy", "user conflicts", "decision transparency", "non-profit sector", "cfmc", "resource legitimacy", "decision making process", "tourism businesses", "occupational inheritance", "public meetings", "livelihood", "hospital", "conservation efforts", "pr climate change council", "industry value", "foreign investments", "knowledge transfer"], "type": "cluster", "node_size": 162, "label": "Community Resource Dynamics"}, "Management Structures": {"concepts": "management legitimacy, management authority, organizational efforts, adaptive management, management practices, management actions, bureaucracy, organizational roles, organizational management, organizational affiliation", "concept_list": ["management legitimacy", "management authority", "organizational efforts", "adaptive management", "management practices", "management actions", "bureaucracy", "organizational roles", "organizational management", "organizational affiliation"], "type": "cluster", "node_size": 45, "label": "Management Structures"}, "Participatory Governance": {"concepts": "participatory governance, resource stewardship, participatory management, participatory action, resource vulnerability, resource equity, resource governance, governance structures", "concept_list": ["participatory governance", "resource stewardship", "participatory management", "participatory action", "resource vulnerability", "resource equity", "resource governance", "governance structures"], "type": "cluster", "node_size": 39, "label": "Participatory Governance"}, "Trust and Misinformation": {"concepts": "misinformation, system trust, institutional trust, trust, opposition, agreements, distrust, arguments, politics", "concept_list": ["misinformation", "system trust", "institutional trust", "trust", "opposition", "agreements", "distrust", "arguments", "politics"], "type": "cluster", "node_size": 42, "label": "Trust and Misinformation"}, "Economic and Social Factors": {"concepts": "activity center, doctors, economy, implementation, monitoring, formal process, the bends, science, trash, clean ups, study outcomes, social capital, ngo, discourse, dependency, data reporting, economic dependency, nassau grouper, charter boats, income source, divers, us congress, awareness, anchoring, bajo de sico, pr government, long liners, scientists, perspectives, us virgin islands, income, researchers, navy, communication barriers, health issues, conservation, study impact, parguera, business inheritance, intergenerational knowledge", "concept_list": ["activity center", "doctors", "economy", "implementation", "monitoring", "formal process", "the bends", "science", "trash", "clean ups", "study outcomes", "social capital", "ngo", "discourse", "dependency", "data reporting", "economic dependency", "nassau grouper", "charter boats", "income source", "divers", "us congress", "awareness", "anchoring", "bajo de sico", "pr government", "long liners", "scientists", "perspectives", "us virgin islands", "income", "researchers", "navy", "communication barriers", "health issues", "conservation", "study impact", "parguera", "business inheritance", "intergenerational knowledge"], "type": "cluster", "node_size": 135, "label": "Economic and Social Factors"}, "Marine Protection": {"concepts": "coast guard, marine resources, marine protection, ocean acidification, pelagic species, water surges, sea level rise, storms, coast erosion, federal waters, marine policy, sea turtles, coastal defenses, climate change, water temperature, marine resources protection, deep water, deep water snappers, coastal communities, coastal erosion, marine conservation", "concept_list": ["coast guard", "marine resources", "marine protection", "ocean acidification", "pelagic species", "water surges", "sea level rise", "storms", "coast erosion", "federal waters", "marine policy", "sea turtles", "coastal defenses", "climate change", "water temperature", "marine resources protection", "deep water", "deep water snappers", "coastal communities", "coastal erosion", "marine conservation"], "type": "cluster", "node_size": 78, "label": "Marine Protection"}, "Policy Governance": {"concepts": "local mayor, policy, policy implementation, policy improvement, policy challenges, government pressure, policy legitimacy, government intervention, public input, federal government, fiscal crisis, public policy, local government, policy outcomes, policy effectiveness, territorial government, public policy advocacy, local people", "concept_list": ["local mayor", "policy", "policy implementation", "policy improvement", "policy challenges", "government pressure", "policy legitimacy", "government intervention", "public input", "federal government", "fiscal crisis", "public policy", "local government", "policy outcomes", "policy effectiveness", "territorial government", "public policy advocacy", "local people"], "type": "cluster", "node_size": 69, "label": "Policy Governance"}, "Resource Conflicts": {"concepts": "conflict resolution, resource control, resource competition, resource prioritization, fairness perception, resource dependency, resource users, management fairness, resource access, resource monitoring, resource conflicts, conflicts, resource exploitation, resource allocation, resource management, resource protection, conflict management", "concept_list": ["conflict resolution", "resource control", "resource competition", "resource prioritization", "fairness perception", "resource dependency", "resource users", "management fairness", "resource access", "resource monitoring", "resource conflicts", "conflicts", "resource exploitation", "resource allocation", "resource management", "resource protection", "conflict management"], "type": "cluster", "node_size": 66, "label": "Resource Conflicts"}, "Social Groups": {"concepts": "social dynamics, pressure groups, social organization, collective action, intergroup relations, user groups, group divisions", "concept_list": ["social dynamics", "pressure groups", "social organization", "collective action", "intergroup relations", "user groups", "group divisions"], "type": "cluster", "node_size": 36, "label": "Social Groups"}, "Fishery Management": {"concepts": "fishery managers, fisheries, commercial fishermen, sustainable fishery, caribbean fishery management council, puerto rican fisheries, fishery ecosystem plan, fishers, recreational fishermen, commercial fishers, fishery management", "concept_list": ["fishery managers", "fisheries", "commercial fishermen", "sustainable fishery", "caribbean fishery management council", "puerto rican fisheries", "fishery ecosystem plan", "fishers", "recreational fishermen", "commercial fishers", "fishery management"], "type": "cluster", "node_size": 48, "label": "Fishery Management"}, "Regulatory Enforcement": {"concepts": "regulation violation, enforcement officers, regulatory enforcement, legal compliance, law enforcement, enforcement mechanisms, regulations, regulatory compliance, compliance issues, compliance, police, regulatory clarity, law compliance, enforcement, shark regulations, regulatory understanding, illegal activities, enforcement strategy, regulatory frameworks, jurisdictional boundaries, enforcement legitimacy, enforcement gaps, laws", "concept_list": ["regulation violation", "enforcement officers", "regulatory enforcement", "legal compliance", "law enforcement", "enforcement mechanisms", "regulations", "regulatory compliance", "compliance issues", "compliance", "police", "regulatory clarity", "law compliance", "enforcement", "shark regulations", "regulatory understanding", "illegal activities", "enforcement strategy", "regulatory frameworks", "jurisdictional boundaries", "enforcement legitimacy", "enforcement gaps", "laws"], "type": "cluster", "node_size": 84, "label": "Regulatory Enforcement"}, "Licensing Requirements": {"concepts": "diving license, license funding, licensing requirements, licensing, part time license, full time license", "concept_list": ["diving license", "license funding", "licensing requirements", "licensing", "part time license", "full time license"], "type": "cluster", "node_size": 33, "label": "Licensing Requirements"}, "Fishing Practices": {"concepts": "fishing zones, fishing regulations, sustainable fishing, recreational fishing, recreational sector, illegal fishing, fishing communities, fishing industry", "concept_list": ["fishing zones", "fishing regulations", "sustainable fishing", "recreational fishing", "recreational sector", "illegal fishing", "fishing communities", "fishing industry"], "type": "cluster", "node_size": 39, "label": "Fishing Practices"}, "Stakeholder Engagement": {"concepts": "stakeholder groups, stakeholder, stakeholder influence, stakeholder group, stakeholder collaboration, stakeholder participation, stakeholder relationships, stakeholder representation, stakeholder communication, stakeholder engagement", "concept_list": ["stakeholder groups", "stakeholder", "stakeholder influence", "stakeholder group", "stakeholder collaboration", "stakeholder participation", "stakeholder relationships", "stakeholder representation", "stakeholder communication", "stakeholder engagement"], "type": "cluster", "node_size": 45, "label": "Stakeholder Engagement"}, "Coral Ecosystems": {"concepts": "coral bleaching, coral life, black corals, corals, coral reefs, reef fish", "concept_list": ["coral bleaching", "coral life", "black corals", "corals", "coral reefs", "reef fish"], "type": "cluster", "node_size": 33, "label": "Coral Ecosystems"}, "Land Pollution": {"concepts": "pollution, land-based pollution, land based pollution", "concept_list": ["pollution", "land-based pollution", "land based pollution"], "type": "cluster", "node_size": 24, "label": "Land Pollution"}, "Environmental Concerns": {"concepts": "environmental impact, environmental concerns", "concept_list": ["environmental impact", "environmental concerns"], "type": "cluster", "node_size": 21, "label": "Environmental Concerns"}, "Environmental Justice": {"concepts": "environmental justice, environmental policy", "concept_list": ["environmental justice", "environmental policy"], "type": "cluster", "node_size": 21, "label": "Environmental Justice"}, "Education": {"concepts": "education, educational efforts, formal education, education level", "concept_list": ["education", "educational efforts", "formal education", "education level"], "type": "cluster", "node_size": 27, "label": "Education"}, "Children & Schools": {"concepts": "children, schools", "concept_list": ["children", "schools"], "type": "cluster", "node_size": 21, "label": "Children & Schools"}, "Diving Enforcement": {"concepts": "diving practices, poacher identification", "concept_list": ["diving practices", "poacher identification"], "type": "cluster", "node_size": 21, "label": "Diving Enforcement"}, "Advisor Roles": {"concepts": "technical advisors, advisory roles, advisor involvement", "concept_list": ["technical advisors", "advisory roles", "advisor involvement"], "type": "cluster", "node_size": 24, "label": "Advisor Roles"}, "Funding Allocation": {"concepts": "funding, funding allocation", "concept_list": ["funding", "funding allocation"], "type": "cluster", "node_size": 21, "label": "Funding Allocation"}, "Community Collaboration": {"concepts": "community collaboration, community strength, community action, community resilience", "concept_list": ["community collaboration", "community strength", "community action", "community resilience"], "type": "cluster", "node_size": 27, "label": "Community Collaboration"}, "Problem Solving": {"concepts": "problem resolution, community problems", "concept_list": ["problem resolution", "community problems"], "type": "cluster", "node_size": 21, "label": "Problem Solving"}};
+        const conceptData = {};
+        const interClusterEdges = [["poaching", "Regulatory Enforcement", {"weight": 0.5, "confidence": 0.8250000000000001, "type": "inter_cluster", "style": "solid"}], ["oversight board", "Stakeholder Engagement", {"weight": -0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["Public Meeting Outcomes", "poaching", {"weight": -0.75, "confidence": 0.48749999999999993, "type": "inter_cluster", "style": "solid"}], ["Business Succession", "poaching", {"weight": -0.3333333333333333, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Spawning Protection", "Children & Schools", {"weight": -0.75, "confidence": 0.45, "type": "inter_cluster", "style": "solid"}], ["Science-Based Decisions", "Fishing Practices", {"weight": 0.8, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Science-Based Decisions", "Education", {"weight": 0.6666666666666666, "confidence": 0.3666666666666667, "type": "inter_cluster", "style": "solid"}], ["Science-Based Decisions", "Environmental Justice", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Community Resource Dynamics", "Policy Governance", {"weight": 0.75, "confidence": 0.5249999999999999, "type": "inter_cluster", "style": "solid"}], ["Community Resource Dynamics", "Regulatory Enforcement", {"weight": 0.6666666666666666, "confidence": 0.48333333333333334, "type": "inter_cluster", "style": "solid"}], ["Community Resource Dynamics", "Funding Allocation", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Community Resource Dynamics", "Advisor Roles", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Community Resource Dynamics", "Problem Solving", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Participatory Governance", "Stakeholder Engagement", {"weight": 0.75, "confidence": 0.6375, "type": "inter_cluster", "style": "solid"}], ["Participatory Governance", "Advisor Roles", {"weight": 0.5, "confidence": 0.6125, "type": "inter_cluster", "style": "solid"}], ["Participatory Governance", "Problem Solving", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Trust and Misinformation", "Diving Enforcement", {"weight": -1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["Economic and Social Factors", "Marine Protection", {"weight": 1.0, "confidence": 0.6875, "type": "inter_cluster", "style": "solid"}], ["Economic and Social Factors", "Fishery Management", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["Economic and Social Factors", "Education", {"weight": 0.6666666666666666, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["Marine Protection", "Community Collaboration", {"weight": -0.5, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["Policy Governance", "Education", {"weight": 0.75, "confidence": 0.5125, "type": "inter_cluster", "style": "solid"}], ["Policy Governance", "Environmental Concerns", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Resource Conflicts", "Licensing Requirements", {"weight": 1.0, "confidence": 0.6125, "type": "inter_cluster", "style": "solid"}], ["Resource Conflicts", "Community Resource Dynamics", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Social Groups", "Problem Solving", {"weight": -0.5, "confidence": 0.8125, "type": "inter_cluster", "style": "solid"}], ["Social Groups", "Funding Allocation", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Regulatory Enforcement", "Fishing Practices", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Licensing Requirements", "Funding Allocation", {"weight": 1.0, "confidence": 0.7400000000000001, "type": "inter_cluster", "style": "solid"}], ["Fishing Practices", "Licensing Requirements", {"weight": 0.5, "confidence": 0.325, "type": "inter_cluster", "style": "solid"}], ["Stakeholder Engagement", "Science-Based Decisions", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["Coral Ecosystems", "Public Meeting Outcomes", {"weight": 0.5, "confidence": 0.8250000000000001, "type": "inter_cluster", "style": "solid"}], ["Land Pollution", "Public Meeting Outcomes", {"weight": 1.0, "confidence": 0.5833333333333334, "type": "inter_cluster", "style": "solid"}], ["Education", "Land Pollution", {"weight": -0.75, "confidence": 0.6125, "type": "inter_cluster", "style": "solid"}], ["Education", "Fishery Management", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Diving Enforcement", "Fishing Practices", {"weight": 0.3333333333333333, "confidence": 0.6833333333333332, "type": "inter_cluster", "style": "solid"}], ["Diving Enforcement", "Regulatory Enforcement", {"weight": 0.75, "confidence": 0.5625, "type": "inter_cluster", "style": "solid"}], ["Advisor Roles", "Community Collaboration", {"weight": 0.8, "confidence": 0.48, "type": "inter_cluster", "style": "solid"}], ["Advisor Roles", "Management Structures", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Funding Allocation", "Participatory Governance", {"weight": 1.0, "confidence": 0.7666666666666666, "type": "inter_cluster", "style": "solid"}], ["Funding Allocation", "Management Structures", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Community Collaboration", "Environmental Justice", {"weight": 1.0, "confidence": 0.6874999999999999, "type": "inter_cluster", "style": "solid"}], ["Community Collaboration", "Funding Allocation", {"weight": 1.0, "confidence": 0.6666666666666666, "type": "inter_cluster", "style": "solid"}], ["Community Collaboration", "Licensing Requirements", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Problem Solving", "Community Resource Dynamics", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {"Public Meeting Outcomes": [], "Business Succession": [], "Spawning Protection": [], "Science-Based Decisions": [], "Community Resource Dynamics": [], "Management Structures": [], "Participatory Governance": [], "Trust and Misinformation": [], "Economic and Social Factors": [], "Marine Protection": [], "Policy Governance": [], "Resource Conflicts": [], "Social Groups": [], "Fishery Management": [], "Regulatory Enforcement": [], "Licensing Requirements": [], "Fishing Practices": [], "Stakeholder Engagement": [], "Coral Ecosystems": [], "Land Pollution": [], "Environmental Concerns": [], "Environmental Justice": [], "Education": [], "Children & Schools": [], "Diving Enforcement": [], "Advisor Roles": [], "Funding Allocation": [], "Community Collaboration": [], "Problem Solving": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

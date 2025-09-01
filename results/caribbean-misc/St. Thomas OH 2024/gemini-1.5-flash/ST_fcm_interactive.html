@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"disaster relief": {"concepts": "disaster relief", "concept_list": ["disaster relief"], "type": "cluster", "node_size": 18, "label": "disaster relief"}, "hurricanes": {"concepts": "hurricanes", "concept_list": ["hurricanes"], "type": "cluster", "node_size": 18, "label": "hurricanes"}, "information value": {"concepts": "information value", "concept_list": ["information value"], "type": "cluster", "node_size": 18, "label": "information value"}, "st. barts": {"concepts": "st. barts", "concept_list": ["st. barts"], "type": "cluster", "node_size": 18, "label": "st. barts"}, "organizational leadership": {"concepts": "organizational leadership", "concept_list": ["organizational leadership"], "type": "cluster", "node_size": 18, "label": "organizational leadership"}, "limited healthcare access": {"concepts": "limited healthcare access", "concept_list": ["limited healthcare access"], "type": "cluster", "node_size": 18, "label": "limited healthcare access"}, "communication planning": {"concepts": "communication planning", "concept_list": ["communication planning"], "type": "cluster", "node_size": 18, "label": "communication planning"}, "government disconnect": {"concepts": "government disconnect", "concept_list": ["government disconnect"], "type": "cluster", "node_size": 18, "label": "government disconnect"}, "noaa": {"concepts": "noaa", "concept_list": ["noaa"], "type": "cluster", "node_size": 18, "label": "noaa"}, "environmental catastrophe": {"concepts": "environmental catastrophe", "concept_list": ["environmental catastrophe"], "type": "cluster", "node_size": 18, "label": "environmental catastrophe"}, "scientific studies": {"concepts": "scientific studies", "concept_list": ["scientific studies"], "type": "cluster", "node_size": 18, "label": "scientific studies"}, "government regulation": {"concepts": "government regulation", "concept_list": ["government regulation"], "type": "cluster", "node_size": 18, "label": "government regulation"}, "cultural impact": {"concepts": "cultural impact", "concept_list": ["cultural impact"], "type": "cluster", "node_size": 18, "label": "cultural impact"}, "trap fishing": {"concepts": "trap fishing", "concept_list": ["trap fishing"], "type": "cluster", "node_size": 18, "label": "trap fishing"}, "recreational fishing": {"concepts": "recreational fishing", "concept_list": ["recreational fishing"], "type": "cluster", "node_size": 18, "label": "recreational fishing"}, "fishing": {"concepts": "fishing", "concept_list": ["fishing"], "type": "cluster", "node_size": 18, "label": "fishing"}, "marine advisory": {"concepts": "marine advisory", "concept_list": ["marine advisory"], "type": "cluster", "node_size": 18, "label": "marine advisory"}, "caribbean fisheries": {"concepts": "caribbean fisheries", "concept_list": ["caribbean fisheries"], "type": "cluster", "node_size": 18, "label": "caribbean fisheries"}, "ocean conservation": {"concepts": "ocean conservation", "concept_list": ["ocean conservation"], "type": "cluster", "node_size": 18, "label": "ocean conservation"}, "cultural norms": {"concepts": "cultural norms", "concept_list": ["cultural norms"], "type": "cluster", "node_size": 18, "label": "cultural norms"}, "stakeholder respect": {"concepts": "stakeholder respect", "concept_list": ["stakeholder respect"], "type": "cluster", "node_size": 18, "label": "stakeholder respect"}, "sustainability": {"concepts": "sustainability", "concept_list": ["sustainability"], "type": "cluster", "node_size": 18, "label": "sustainability"}, "team building": {"concepts": "team building", "concept_list": ["team building"], "type": "cluster", "node_size": 18, "label": "team building"}, "retirement": {"concepts": "retirement", "concept_list": ["retirement"], "type": "cluster", "node_size": 18, "label": "retirement"}, "fishermen's livelihoods": {"concepts": "fishermen's livelihoods", "concept_list": ["fishermen's livelihoods"], "type": "cluster", "node_size": 18, "label": "fishermen's livelihoods"}, "fishing community": {"concepts": "fishing community", "concept_list": ["fishing community"], "type": "cluster", "node_size": 18, "label": "fishing community"}, "cultural change": {"concepts": "cultural change", "concept_list": ["cultural change"], "type": "cluster", "node_size": 18, "label": "cultural change"}, "community advocacy": {"concepts": "community advocacy", "concept_list": ["community advocacy"], "type": "cluster", "node_size": 18, "label": "community advocacy"}, "fisheries management": {"concepts": "fisheries management", "concept_list": ["fisheries management"], "type": "cluster", "node_size": 18, "label": "fisheries management"}, "time constraints": {"concepts": "time constraints", "concept_list": ["time constraints"], "type": "cluster", "node_size": 18, "label": "time constraints"}, "social clubs": {"concepts": "social clubs", "concept_list": ["social clubs"], "type": "cluster", "node_size": 18, "label": "social clubs"}, "women's roles": {"concepts": "women's roles", "concept_list": ["women's roles"], "type": "cluster", "node_size": 18, "label": "women's roles"}, "island-wide designation": {"concepts": "island-wide designation", "concept_list": ["island-wide designation"], "type": "cluster", "node_size": 18, "label": "island-wide designation"}, "philanthropy": {"concepts": "philanthropy", "concept_list": ["philanthropy"], "type": "cluster", "node_size": 18, "label": "philanthropy"}, "community trust": {"concepts": "community trust", "concept_list": ["community trust"], "type": "cluster", "node_size": 18, "label": "community trust"}, "coastal development": {"concepts": "coastal development", "concept_list": ["coastal development"], "type": "cluster", "node_size": 18, "label": "coastal development"}, "mental health": {"concepts": "mental health", "concept_list": ["mental health"], "type": "cluster", "node_size": 18, "label": "mental health"}, "local fishermen": {"concepts": "local fishermen", "concept_list": ["local fishermen"], "type": "cluster", "node_size": 18, "label": "local fishermen"}, "imposter syndrome": {"concepts": "imposter syndrome", "concept_list": ["imposter syndrome"], "type": "cluster", "node_size": 18, "label": "imposter syndrome"}, "government aid": {"concepts": "government aid", "concept_list": ["government aid"], "type": "cluster", "node_size": 18, "label": "government aid"}, "community support": {"concepts": "community support", "concept_list": ["community support"], "type": "cluster", "node_size": 18, "label": "community support"}, "interpersonal relationships": {"concepts": "interpersonal relationships", "concept_list": ["interpersonal relationships"], "type": "cluster", "node_size": 18, "label": "interpersonal relationships"}, "fishermen's association": {"concepts": "fishermen's association", "concept_list": ["fishermen's association"], "type": "cluster", "node_size": 18, "label": "fishermen's association"}, "organizational behavior": {"concepts": "organizational behavior", "concept_list": ["organizational behavior"], "type": "cluster", "node_size": 18, "label": "organizational behavior"}, "night fishery": {"concepts": "night fishery", "concept_list": ["night fishery"], "type": "cluster", "node_size": 18, "label": "night fishery"}, "educational programs": {"concepts": "educational programs", "concept_list": ["educational programs"], "type": "cluster", "node_size": 18, "label": "educational programs"}, "lifetime achievement": {"concepts": "lifetime achievement", "concept_list": ["lifetime achievement"], "type": "cluster", "node_size": 18, "label": "lifetime achievement"}, "organizational collaboration": {"concepts": "organizational collaboration", "concept_list": ["organizational collaboration"], "type": "cluster", "node_size": 18, "label": "organizational collaboration"}, "land ownership": {"concepts": "land ownership", "concept_list": ["land ownership"], "type": "cluster", "node_size": 18, "label": "land ownership"}, "coral disease": {"concepts": "coral disease", "concept_list": ["coral disease"], "type": "cluster", "node_size": 18, "label": "coral disease"}, "government funding": {"concepts": "government funding", "concept_list": ["government funding"], "type": "cluster", "node_size": 18, "label": "government funding"}, "marine ecosystems": {"concepts": "marine ecosystems", "concept_list": ["marine ecosystems"], "type": "cluster", "node_size": 18, "label": "marine ecosystems"}, "sargassum": {"concepts": "sargassum", "concept_list": ["sargassum"], "type": "cluster", "node_size": 18, "label": "sargassum"}, "gardening": {"concepts": "gardening", "concept_list": ["gardening"], "type": "cluster", "node_size": 18, "label": "gardening"}, "economic factors": {"concepts": "economic factors", "concept_list": ["economic factors"], "type": "cluster", "node_size": 18, "label": "economic factors"}, "natural disasters": {"concepts": "natural disasters", "concept_list": ["natural disasters"], "type": "cluster", "node_size": 18, "label": "natural disasters"}, "federal funding": {"concepts": "federal funding", "concept_list": ["federal funding"], "type": "cluster", "node_size": 18, "label": "federal funding"}, "environmental protection": {"concepts": "environmental protection", "concept_list": ["environmental protection"], "type": "cluster", "node_size": 18, "label": "environmental protection"}, "fish and wildlife": {"concepts": "fish and wildlife", "concept_list": ["fish and wildlife"], "type": "cluster", "node_size": 18, "label": "fish and wildlife"}, "regulatory challenges": {"concepts": "regulatory challenges", "concept_list": ["regulatory challenges"], "type": "cluster", "node_size": 18, "label": "regulatory challenges"}, "covid-19 impact": {"concepts": "covid-19 impact", "concept_list": ["covid-19 impact"], "type": "cluster", "node_size": 18, "label": "covid-19 impact"}, "environmental change": {"concepts": "environmental change", "concept_list": ["environmental change"], "type": "cluster", "node_size": 18, "label": "environmental change"}, "social benefits": {"concepts": "social benefits", "concept_list": ["social benefits"], "type": "cluster", "node_size": 18, "label": "social benefits"}, "community involvement": {"concepts": "community involvement", "concept_list": ["community involvement"], "type": "cluster", "node_size": 18, "label": "community involvement"}, "water temperature": {"concepts": "water temperature", "concept_list": ["water temperature"], "type": "cluster", "node_size": 18, "label": "water temperature"}, "fishery collapse": {"concepts": "fishery collapse", "concept_list": ["fishery collapse"], "type": "cluster", "node_size": 18, "label": "fishery collapse"}, "sustainable fishing": {"concepts": "sustainable fishing", "concept_list": ["sustainable fishing"], "type": "cluster", "node_size": 18, "label": "sustainable fishing"}, "tsa": {"concepts": "tsa", "concept_list": ["tsa"], "type": "cluster", "node_size": 18, "label": "tsa"}, "ecosystem health": {"concepts": "ecosystem health", "concept_list": ["ecosystem health"], "type": "cluster", "node_size": 18, "label": "ecosystem health"}, "career progression": {"concepts": "career progression", "concept_list": ["career progression"], "type": "cluster", "node_size": 18, "label": "career progression"}, "fishing practices": {"concepts": "fishing practices", "concept_list": ["fishing practices"], "type": "cluster", "node_size": 18, "label": "fishing practices"}, "conflict management": {"concepts": "conflict management", "concept_list": ["conflict management"], "type": "cluster", "node_size": 18, "label": "conflict management"}, "grant applications": {"concepts": "grant applications", "concept_list": ["grant applications"], "type": "cluster", "node_size": 18, "label": "grant applications"}, "regulations": {"concepts": "regulations", "concept_list": ["regulations"], "type": "cluster", "node_size": 18, "label": "regulations"}, "food security": {"concepts": "food security", "concept_list": ["food security"], "type": "cluster", "node_size": 18, "label": "food security"}, "community values": {"concepts": "community values", "concept_list": ["community values"], "type": "cluster", "node_size": 18, "label": "community values"}, "collaboration": {"concepts": "collaboration", "concept_list": ["collaboration"], "type": "cluster", "node_size": 18, "label": "collaboration"}, "family history": {"concepts": "family history", "concept_list": ["family history"], "type": "cluster", "node_size": 18, "label": "family history"}, "non-profit work": {"concepts": "non-profit work", "concept_list": ["non-profit work"], "type": "cluster", "node_size": 18, "label": "non-profit work"}, "coral health": {"concepts": "coral health", "concept_list": ["coral health"], "type": "cluster", "node_size": 18, "label": "coral health"}, "tourism impact": {"concepts": "tourism impact", "concept_list": ["tourism impact"], "type": "cluster", "node_size": 18, "label": "tourism impact"}, "fishing techniques": {"concepts": "fishing techniques", "concept_list": ["fishing techniques"], "type": "cluster", "node_size": 18, "label": "fishing techniques"}, "regulatory changes": {"concepts": "regulatory changes", "concept_list": ["regulatory changes"], "type": "cluster", "node_size": 18, "label": "regulatory changes"}, "water pollution": {"concepts": "water pollution", "concept_list": ["water pollution"], "type": "cluster", "node_size": 18, "label": "water pollution"}, "climate change": {"concepts": "climate change", "concept_list": ["climate change"], "type": "cluster", "node_size": 18, "label": "climate change"}, "information access": {"concepts": "information access", "concept_list": ["information access"], "type": "cluster", "node_size": 18, "label": "information access"}, "social equity": {"concepts": "social equity", "concept_list": ["social equity"], "type": "cluster", "node_size": 18, "label": "social equity"}, "conservation efforts": {"concepts": "conservation efforts", "concept_list": ["conservation efforts"], "type": "cluster", "node_size": 18, "label": "conservation efforts"}, "global warming": {"concepts": "global warming", "concept_list": ["global warming"], "type": "cluster", "node_size": 18, "label": "global warming"}, "social networks": {"concepts": "social networks", "concept_list": ["social networks"], "type": "cluster", "node_size": 18, "label": "social networks"}, "non-profit partnerships": {"concepts": "non-profit partnerships", "concept_list": ["non-profit partnerships"], "type": "cluster", "node_size": 18, "label": "non-profit partnerships"}, "gender roles": {"concepts": "gender roles", "concept_list": ["gender roles"], "type": "cluster", "node_size": 18, "label": "gender roles"}, "education": {"concepts": "education", "concept_list": ["education"], "type": "cluster", "node_size": 18, "label": "education"}, "hurricane maria": {"concepts": "hurricane maria", "concept_list": ["hurricane maria"], "type": "cluster", "node_size": 18, "label": "hurricane maria"}, "coastal conservation": {"concepts": "coastal conservation", "concept_list": ["coastal conservation"], "type": "cluster", "node_size": 18, "label": "coastal conservation"}, "regulatory barriers": {"concepts": "regulatory barriers", "concept_list": ["regulatory barriers"], "type": "cluster", "node_size": 18, "label": "regulatory barriers"}, "government support": {"concepts": "government support", "concept_list": ["government support"], "type": "cluster", "node_size": 18, "label": "government support"}, "fish abundance": {"concepts": "fish abundance", "concept_list": ["fish abundance"], "type": "cluster", "node_size": 18, "label": "fish abundance"}, "fish consumption": {"concepts": "fish consumption", "concept_list": ["fish consumption"], "type": "cluster", "node_size": 18, "label": "fish consumption"}, "data collection": {"concepts": "data collection", "concept_list": ["data collection"], "type": "cluster", "node_size": 18, "label": "data collection"}, "community": {"concepts": "community", "concept_list": ["community"], "type": "cluster", "node_size": 18, "label": "community"}, "generational fishing": {"concepts": "generational fishing", "concept_list": ["generational fishing"], "type": "cluster", "node_size": 18, "label": "generational fishing"}, "derelict boats": {"concepts": "derelict boats", "concept_list": ["derelict boats"], "type": "cluster", "node_size": 18, "label": "derelict boats"}, "community relations": {"concepts": "community relations", "concept_list": ["community relations"], "type": "cluster", "node_size": 18, "label": "community relations"}, "community resilience": {"concepts": "community resilience", "concept_list": ["community resilience"], "type": "cluster", "node_size": 18, "label": "community resilience"}, "tax compliance": {"concepts": "tax compliance", "concept_list": ["tax compliance"], "type": "cluster", "node_size": 18, "label": "tax compliance"}, "research methods": {"concepts": "research methods", "concept_list": ["research methods"], "type": "cluster", "node_size": 18, "label": "research methods"}, "beach access": {"concepts": "beach access", "concept_list": ["beach access"], "type": "cluster", "node_size": 18, "label": "beach access"}, "ocean currents": {"concepts": "ocean currents", "concept_list": ["ocean currents"], "type": "cluster", "node_size": 18, "label": "ocean currents"}, "fisherman's association": {"concepts": "fisherman's association", "concept_list": ["fisherman's association"], "type": "cluster", "node_size": 18, "label": "fisherman's association"}, "knowledge utilization": {"concepts": "knowledge utilization", "concept_list": ["knowledge utilization"], "type": "cluster", "node_size": 18, "label": "knowledge utilization"}, "fish traps": {"concepts": "fish traps", "concept_list": ["fish traps"], "type": "cluster", "node_size": 18, "label": "fish traps"}, "park ranger": {"concepts": "park ranger", "concept_list": ["park ranger"], "type": "cluster", "node_size": 18, "label": "park ranger"}, "hurricane damage": {"concepts": "hurricane damage", "concept_list": ["hurricane damage"], "type": "cluster", "node_size": 18, "label": "hurricane damage"}, "fish stocks": {"concepts": "fish stocks", "concept_list": ["fish stocks"], "type": "cluster", "node_size": 18, "label": "fish stocks"}, "trust": {"concepts": "trust", "concept_list": ["trust"], "type": "cluster", "node_size": 18, "label": "trust"}, "son's involvement": {"concepts": "son's involvement", "concept_list": ["son's involvement"], "type": "cluster", "node_size": 18, "label": "son's involvement"}, "seine fishing": {"concepts": "seine fishing", "concept_list": ["seine fishing"], "type": "cluster", "node_size": 18, "label": "seine fishing"}, "island economy": {"concepts": "island economy", "concept_list": ["island economy"], "type": "cluster", "node_size": 18, "label": "island economy"}, "shifting baselines": {"concepts": "shifting baselines", "concept_list": ["shifting baselines"], "type": "cluster", "node_size": 18, "label": "shifting baselines"}, "fish population decline": {"concepts": "fish population decline", "concept_list": ["fish population decline"], "type": "cluster", "node_size": 18, "label": "fish population decline"}, "intergenerational knowledge": {"concepts": "intergenerational knowledge", "concept_list": ["intergenerational knowledge"], "type": "cluster", "node_size": 18, "label": "intergenerational knowledge"}, "educational disparities": {"concepts": "educational disparities", "concept_list": ["educational disparities"], "type": "cluster", "node_size": 18, "label": "educational disparities"}, "fishermens' knowledge": {"concepts": "fishermens' knowledge", "concept_list": ["fishermens' knowledge"], "type": "cluster", "node_size": 18, "label": "fishermens' knowledge"}, "family dynamics": {"concepts": "family dynamics", "concept_list": ["family dynamics"], "type": "cluster", "node_size": 18, "label": "family dynamics"}, "generational change": {"concepts": "generational change", "concept_list": ["generational change"], "type": "cluster", "node_size": 18, "label": "generational change"}, "disaster recovery": {"concepts": "disaster recovery", "concept_list": ["disaster recovery"], "type": "cluster", "node_size": 18, "label": "disaster recovery"}, "environmental activism": {"concepts": "environmental activism", "concept_list": ["environmental activism"], "type": "cluster", "node_size": 18, "label": "environmental activism"}, "net fishing": {"concepts": "net fishing", "concept_list": ["net fishing"], "type": "cluster", "node_size": 18, "label": "net fishing"}, "community recovery": {"concepts": "community recovery", "concept_list": ["community recovery"], "type": "cluster", "node_size": 18, "label": "community recovery"}, "catch reports": {"concepts": "catch reports", "concept_list": ["catch reports"], "type": "cluster", "node_size": 18, "label": "catch reports"}, "yellowtail": {"concepts": "yellowtail", "concept_list": ["yellowtail"], "type": "cluster", "node_size": 18, "label": "yellowtail"}, "market-driven fishery": {"concepts": "market-driven fishery", "concept_list": ["market-driven fishery"], "type": "cluster", "node_size": 18, "label": "market-driven fishery"}, "fishing regulations": {"concepts": "fishing regulations", "concept_list": ["fishing regulations"], "type": "cluster", "node_size": 18, "label": "fishing regulations"}, "economic development": {"concepts": "economic development", "concept_list": ["economic development"], "type": "cluster", "node_size": 18, "label": "economic development"}, "park creation": {"concepts": "park creation", "concept_list": ["park creation"], "type": "cluster", "node_size": 18, "label": "park creation"}, "land management": {"concepts": "land management", "concept_list": ["land management"], "type": "cluster", "node_size": 18, "label": "land management"}, "oral history": {"concepts": "oral history", "concept_list": ["oral history"], "type": "cluster", "node_size": 18, "label": "oral history"}, "hurricane recovery": {"concepts": "hurricane recovery", "concept_list": ["hurricane recovery"], "type": "cluster", "node_size": 18, "label": "hurricane recovery"}, "equity/justice": {"concepts": "equity/justice", "concept_list": ["equity/justice"], "type": "cluster", "node_size": 18, "label": "equity/justice"}, "legacy": {"concepts": "legacy", "concept_list": ["legacy"], "type": "cluster", "node_size": 18, "label": "legacy"}, "cultural traditions": {"concepts": "cultural traditions", "concept_list": ["cultural traditions"], "type": "cluster", "node_size": 18, "label": "cultural traditions"}, "fisheries liaison": {"concepts": "fisheries liaison", "concept_list": ["fisheries liaison"], "type": "cluster", "node_size": 18, "label": "fisheries liaison"}, "island communities": {"concepts": "island communities", "concept_list": ["island communities"], "type": "cluster", "node_size": 18, "label": "island communities"}, "fishing industry": {"concepts": "fishing industry", "concept_list": ["fishing industry"], "type": "cluster", "node_size": 18, "label": "fishing industry"}, "bait fish": {"concepts": "bait fish", "concept_list": ["bait fish"], "type": "cluster", "node_size": 18, "label": "bait fish"}, "blue marlin tournament": {"concepts": "blue marlin tournament", "concept_list": ["blue marlin tournament"], "type": "cluster", "node_size": 18, "label": "blue marlin tournament"}, "resource sustainability": {"concepts": "resource sustainability", "concept_list": ["resource sustainability"], "type": "cluster", "node_size": 18, "label": "resource sustainability"}, "charter industry": {"concepts": "charter industry", "concept_list": ["charter industry"], "type": "cluster", "node_size": 18, "label": "charter industry"}, "wind power": {"concepts": "wind power", "concept_list": ["wind power"], "type": "cluster", "node_size": 18, "label": "wind power"}, "hurricane impacts": {"concepts": "hurricane impacts", "concept_list": ["hurricane impacts"], "type": "cluster", "node_size": 18, "label": "hurricane impacts"}, "community engagement": {"concepts": "community engagement", "concept_list": ["community engagement"], "type": "cluster", "node_size": 18, "label": "community engagement"}, "mental wellbeing": {"concepts": "mental wellbeing", "concept_list": ["mental wellbeing"], "type": "cluster", "node_size": 18, "label": "mental wellbeing"}, "fishing licenses": {"concepts": "fishing licenses", "concept_list": ["fishing licenses"], "type": "cluster", "node_size": 18, "label": "fishing licenses"}, "local farmers": {"concepts": "local farmers", "concept_list": ["local farmers"], "type": "cluster", "node_size": 18, "label": "local farmers"}, "land acquisition": {"concepts": "land acquisition", "concept_list": ["land acquisition"], "type": "cluster", "node_size": 18, "label": "land acquisition"}, "family business": {"concepts": "family business", "concept_list": ["family business"], "type": "cluster", "node_size": 18, "label": "family business"}, "communication": {"concepts": "communication", "concept_list": ["communication"], "type": "cluster", "node_size": 18, "label": "communication"}, "local fishing": {"concepts": "local fishing", "concept_list": ["local fishing"], "type": "cluster", "node_size": 18, "label": "local fishing"}, "island survival": {"concepts": "island survival", "concept_list": ["island survival"], "type": "cluster", "node_size": 18, "label": "island survival"}, "fisheries science": {"concepts": "fisheries science", "concept_list": ["fisheries science"], "type": "cluster", "node_size": 18, "label": "fisheries science"}, "lobster fishing": {"concepts": "lobster fishing", "concept_list": ["lobster fishing"], "type": "cluster", "node_size": 18, "label": "lobster fishing"}, "boat storage": {"concepts": "boat storage", "concept_list": ["boat storage"], "type": "cluster", "node_size": 18, "label": "boat storage"}, "traps": {"concepts": "traps", "concept_list": ["traps"], "type": "cluster", "node_size": 18, "label": "traps"}, "governance": {"concepts": "governance", "concept_list": ["governance"], "type": "cluster", "node_size": 18, "label": "governance"}, "resource management": {"concepts": "resource management", "concept_list": ["resource management"], "type": "cluster", "node_size": 18, "label": "resource management"}, "fishermen": {"concepts": "fishermen", "concept_list": ["fishermen"], "type": "cluster", "node_size": 18, "label": "fishermen"}, "sustainable fisheries": {"concepts": "sustainable fisheries", "concept_list": ["sustainable fisheries"], "type": "cluster", "node_size": 18, "label": "sustainable fisheries"}, "trust issues": {"concepts": "trust issues", "concept_list": ["trust issues"], "type": "cluster", "node_size": 18, "label": "trust issues"}, "runoff": {"concepts": "runoff", "concept_list": ["runoff"], "type": "cluster", "node_size": 18, "label": "runoff"}, "market prices": {"concepts": "market prices", "concept_list": ["market prices"], "type": "cluster", "node_size": 18, "label": "market prices"}};
+        const conceptData = {};
+        const interClusterEdges = [["disaster relief", "marine advisory", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["disaster relief", "fish stocks", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["disaster relief", "women's roles", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["hurricanes", "coastal conservation", {"weight": -1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["st. barts", "land ownership", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["organizational leadership", "organizational collaboration", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["organizational leadership", "social benefits", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["limited healthcare access", "economic factors", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["government disconnect", "conflict management", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["noaa", "beach access", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["noaa", "legacy", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["noaa", "family history", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["environmental catastrophe", "climate change", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["government regulation", "environmental activism", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["cultural impact", "community advocacy", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["trap fishing", "fish and wildlife", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["recreational fishing", "fishermen", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["fishing", "community resilience", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["fishing", "hurricane maria", {"weight": -1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["marine advisory", "non-profit partnerships", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["caribbean fisheries", "social benefits", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["ocean conservation", "government regulation", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["cultural norms", "trust", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["cultural norms", "wind power", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["stakeholder respect", "family business", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["retirement", "information value", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["fishermen's livelihoods", "fishing industry", {"weight": 1.0, "confidence": 1.0, "type": "inter_cluster", "style": "solid"}], ["fishermen's livelihoods", "night fishery", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["fishing community", "disaster recovery", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["community advocacy", "community resilience", {"weight": 1.0, "confidence": 0.875, "type": "inter_cluster", "style": "solid"}], ["time constraints", "environmental change", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["time constraints", "educational disparities", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["women's roles", "organizational leadership", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["women's roles", "social equity", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["island-wide designation", "generational fishing", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["philanthropy", "communication planning", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["community trust", "island survival", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["coastal development", "communication planning", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["coastal development", "seine fishing", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["local fishermen", "tourism impact", {"weight": 1.0, "confidence": 0.8666666666666667, "type": "inter_cluster", "style": "solid"}], ["government aid", "disaster relief", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["community support", "environmental protection", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["fishermen's association", "local farmers", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["fishermen's association", "noaa", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["organizational behavior", "local fishermen", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["night fishery", "hurricanes", {"weight": -1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["night fishery", "cultural norms", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["educational programs", "non-profit work", {"weight": 1.0, "confidence": 0.7374999999999999, "type": "inter_cluster", "style": "solid"}], ["educational programs", "governance", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["educational programs", "water pollution", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["lifetime achievement", "imposter syndrome", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["land ownership", "mental health", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["coral disease", "generational fishing", {"weight": -1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["coral disease", "social equity", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["government funding", "social equity", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["government funding", "fishing regulations", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["government funding", "oral history", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["government funding", "conflict management", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["marine ecosystems", "yellowtail", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["gardening", "fish population decline", {"weight": -1.0, "confidence": 0.575, "type": "inter_cluster", "style": "solid"}], ["federal funding", "fishing industry", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["fish and wildlife", "disaster relief", {"weight": 1.0, "confidence": 0.8500000000000001, "type": "inter_cluster", "style": "solid"}], ["regulatory challenges", "trap fishing", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["environmental change", "community advocacy", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["environmental change", "mental wellbeing", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["community involvement", "non-profit work", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["community involvement", "son's involvement", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["water temperature", "sustainability", {"weight": -1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["water temperature", "hurricane damage", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["fishery collapse", "sustainability", {"weight": -1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["sustainable fishing", "information value", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["tsa", "interpersonal relationships", {"weight": 0.5, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["ecosystem health", "fish abundance", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["ecosystem health", "knowledge utilization", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["career progression", "social clubs", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["fishing practices", "food security", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["conflict management", "regulations", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["conflict management", "tax compliance", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["grant applications", "community involvement", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["regulations", "land acquisition", {"weight": 1.0, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["regulations", "island survival", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food security", "stakeholder respect", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["community values", "communication planning", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["community values", "mental wellbeing", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["community values", "net fishing", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["family history", "caribbean fisheries", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["non-profit work", "educational programs", {"weight": 1.0, "confidence": 0.7875000000000001, "type": "inter_cluster", "style": "solid"}], ["non-profit work", "organizational collaboration", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["coral health", "land ownership", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["regulatory changes", "derelict boats", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["climate change", "community resilience", {"weight": -1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["conservation efforts", "ocean conservation", {"weight": 1.0, "confidence": 0.965, "type": "inter_cluster", "style": "solid"}], ["conservation efforts", "fishing techniques", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["global warming", "sustainable fisheries", {"weight": -1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["social networks", "collaboration", {"weight": 1.0, "confidence": 0.9166666666666666, "type": "inter_cluster", "style": "solid"}], ["non-profit partnerships", "federal funding", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["education", "fisheries management", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["coastal conservation", "fisheries management", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["government support", "social benefits", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["fish abundance", "interpersonal relationships", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["fish consumption", "information access", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["data collection", "community engagement", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["data collection", "covid-19 impact", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["generational fishing", "fisheries liaison", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["derelict boats", "environmental activism", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["community relations", "collaboration", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["community resilience", "stakeholder respect", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["community resilience", "coral health", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["tax compliance", "lifetime achievement", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["research methods", "trust issues", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["ocean currents", "resource sustainability", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["fish traps", "team building", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["park ranger", "knowledge utilization", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["fish stocks", "government disconnect", {"weight": -1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["fish stocks", "community trust", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["fish stocks", "organizational leadership", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["son's involvement", "grant applications", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["island economy", "sargassum", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["shifting baselines", "water temperature", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["shifting baselines", "community resilience", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["intergenerational knowledge", "scientific studies", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["intergenerational knowledge", "park ranger", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["educational disparities", "grant applications", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["fishermens' knowledge", "community", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["family dynamics", "federal funding", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["disaster recovery", "fishermens' knowledge", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["environmental activism", "imposter syndrome", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["community recovery", "natural disasters", {"weight": -1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["yellowtail", "cultural impact", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["market-driven fishery", "global warming", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["fishing regulations", "cultural change", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["economic development", "environmental catastrophe", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["park creation", "fish abundance", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["land management", "runoff", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["oral history", "government disconnect", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["hurricane recovery", "derelict boats", {"weight": -1.0, "confidence": 0.8166666666666668, "type": "inter_cluster", "style": "solid"}], ["hurricane recovery", "catch reports", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["hurricane recovery", "gender roles", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["equity/justice", "land acquisition", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["legacy", "community recovery", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["legacy", "natural disasters", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["legacy", "communication", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["cultural traditions", "governance", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["island communities", "hurricane recovery", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["island communities", "fisherman's association", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["island communities", "boat storage", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["bait fish", "generational change", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["bait fish", "resource management", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["bait fish", "local fishing", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["blue marlin tournament", "regulatory barriers", {"weight": -1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["blue marlin tournament", "scientific studies", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["charter industry", "information value", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["hurricane impacts", "conservation efforts", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["community engagement", "communication", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["community engagement", "mental wellbeing", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["fishing licenses", "regulatory barriers", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["local farmers", "coastal development", {"weight": -1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["land acquisition", "fish and wildlife", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["communication", "time constraints", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["fisheries science", "disaster relief", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["lobster fishing", "social clubs", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["boat storage", "government support", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["governance", "covid-19 impact", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["fishermen", "organizational behavior", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["fishermen", "tourism impact", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["sustainable fisheries", "knowledge utilization", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["runoff", "coastal development", {"weight": 1.0, "confidence": 0.98, "type": "inter_cluster", "style": "solid"}], ["runoff", "environmental activism", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["market prices", "lobster fishing", {"weight": 0.3333333333333333, "confidence": 0.7166666666666667, "type": "inter_cluster", "style": "solid"}], ["market prices", "traps", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

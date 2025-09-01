@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"fiscal requirements": {"concepts": "fiscal requirements", "concept_list": ["fiscal requirements"], "type": "cluster", "node_size": 18, "label": "fiscal requirements"}, "undocumented": {"concepts": "undocumented", "concept_list": ["undocumented"], "type": "cluster", "node_size": 18, "label": "undocumented"}, "prior knowledge": {"concepts": "prior knowledge", "concept_list": ["prior knowledge"], "type": "cluster", "node_size": 18, "label": "prior knowledge"}, "exploitation": {"concepts": "exploitation", "concept_list": ["exploitation"], "type": "cluster", "node_size": 18, "label": "exploitation"}, "protocols": {"concepts": "protocols", "concept_list": ["protocols"], "type": "cluster", "node_size": 18, "label": "protocols"}, "exploitation analysis": {"concepts": "exploitation analysis", "concept_list": ["exploitation analysis"], "type": "cluster", "node_size": 18, "label": "exploitation analysis"}, "functional interest": {"concepts": "functional interest", "concept_list": ["functional interest"], "type": "cluster", "node_size": 18, "label": "functional interest"}, "knowledge": {"concepts": "knowledge", "concept_list": ["knowledge"], "type": "cluster", "node_size": 18, "label": "knowledge"}, "protocol": {"concepts": "protocol", "concept_list": ["protocol"], "type": "cluster", "node_size": 18, "label": "protocol"}, "general knowledge": {"concepts": "general knowledge, beliefs", "concept_list": ["general knowledge", "beliefs"], "type": "cluster", "node_size": 21, "label": "general knowledge"}, "languages": {"concepts": "languages", "concept_list": ["languages"], "type": "cluster", "node_size": 18, "label": "languages"}, "repository of knowledge": {"concepts": "repository of knowledge", "concept_list": ["repository of knowledge"], "type": "cluster", "node_size": 18, "label": "repository of knowledge"}, "lack of documentation": {"concepts": "lack of documentation", "concept_list": ["lack of documentation"], "type": "cluster", "node_size": 18, "label": "lack of documentation"}, "exploit components": {"concepts": "exploit components", "concept_list": ["exploit components"], "type": "cluster", "node_size": 18, "label": "exploit components"}, "prior information": {"concepts": "prior information", "concept_list": ["prior information"], "type": "cluster", "node_size": 18, "label": "prior information"}, "physical tools": {"concepts": "physical tools", "concept_list": ["physical tools"], "type": "cluster", "node_size": 18, "label": "physical tools"}, "access goals": {"concepts": "access goals", "concept_list": ["access goals"], "type": "cluster", "node_size": 18, "label": "access goals"}, "primitives": {"concepts": "primitives", "concept_list": ["primitives"], "type": "cluster", "node_size": 18, "label": "primitives"}, "languages used": {"concepts": "languages used", "concept_list": ["languages used"], "type": "cluster", "node_size": 18, "label": "languages used"}, "Access Extent": {"concepts": "access, level of access", "concept_list": ["access", "level of access"], "type": "cluster", "node_size": 21, "label": "Access Extent"}, "Software Tools": {"concepts": "full exploitation, partial access", "concept_list": ["full exploitation", "partial access"], "type": "cluster", "node_size": 21, "label": "Software Tools"}, "Physical Interfaces": {"concepts": "tool software, reverse engineered, computer visualization tool, testing device, software, hardware, reverse engineering, software land, firmware", "concept_list": ["tool software", "reverse engineered", "computer visualization tool", "testing device", "software", "hardware", "reverse engineering", "software land", "firmware"], "type": "cluster", "node_size": 42, "label": "Physical Interfaces"}, "Data Documentation": {"concepts": "interfacing, physical interface, physical interfacing, physical requirements, standardized interfaces, pins, interface, connector", "concept_list": ["interfacing", "physical interface", "physical interfacing", "physical requirements", "standardized interfaces", "pins", "interface", "connector"], "type": "cluster", "node_size": 39, "label": "Data Documentation"}, "Access Levels": {"concepts": "data sheets, data collection stage, understandable, information acquisition, data availability, documentation, decode data, system understanding, task diagramming, file read, data protocol, data collection, readable, data sheet", "concept_list": ["data sheets", "data collection stage", "understandable", "information acquisition", "data availability", "documentation", "decode data", "system understanding", "task diagramming", "file read", "data protocol", "data collection", "readable", "data sheet"], "type": "cluster", "node_size": 57, "label": "Access Levels"}, "Security Measures": {"concepts": "privileged access, security measures, cyber attacks, additional security, obfuscation, layer of security, security mechanisms, encryption, identify security, security systems, security, protections, common protections, security perspective", "concept_list": ["privileged access", "security measures", "cyber attacks", "additional security", "obfuscation", "layer of security", "security mechanisms", "encryption", "identify security", "security systems", "security", "protections", "common protections", "security perspective"], "type": "cluster", "node_size": 57, "label": "Security Measures"}, "Functional Analysis": {"concepts": "matrix, power filtering, fuzzy cognitive map, directed graph, force function, functionality, decisions, strategies, non-functional interest, negative, output, factors, subcomponents, layout, libraries, schedules, difficulties, intuition, re, features, node, identification, key items, meaningful information, mislabeling, steps to success, challenges, iterative process, framework, distractions, software component, components, success, capabilities, target, successfully id, bespoke system, obtaining primitives, fcm exercise, functionality of interest, connection, overview, labels, impediments, environment, granularity, positive, subject matter expert", "concept_list": ["matrix", "power filtering", "fuzzy cognitive map", "directed graph", "force function", "functionality", "decisions", "strategies", "non-functional interest", "negative", "output", "factors", "subcomponents", "layout", "libraries", "schedules", "difficulties", "intuition", "re", "features", "node", "identification", "key items", "meaningful information", "mislabeling", "steps to success", "challenges", "iterative process", "framework", "distractions", "software component", "components", "success", "capabilities", "target", "successfully id", "bespoke system", "obtaining primitives", "fcm exercise", "functionality of interest", "connection", "overview", "labels", "impediments", "environment", "granularity", "positive", "subject matter expert"], "type": "cluster", "node_size": 159, "label": "Functional Analysis"}};
+        const conceptData = {};
+        const interClusterEdges = [["undocumented", "exploitation analysis", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["undocumented", "languages", {"weight": -0.8, "confidence": 0.51, "type": "inter_cluster", "style": "solid"}], ["undocumented", "knowledge", {"weight": -1.0, "confidence": 0.8000000000000002, "type": "inter_cluster", "style": "solid"}], ["prior knowledge", "protocol", {"weight": 1.0, "confidence": 0.72, "type": "inter_cluster", "style": "solid"}], ["prior knowledge", "access goals", {"weight": 0.8, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["prior knowledge", "protocols", {"weight": 1.0, "confidence": 0.7166666666666668, "type": "inter_cluster", "style": "solid"}], ["protocols", "prior knowledge", {"weight": 1.0, "confidence": 0.72, "type": "inter_cluster", "style": "solid"}], ["protocols", "Data Documentation", {"weight": 1.0, "confidence": 0.7375, "type": "inter_cluster", "style": "solid"}], ["protocols", "general knowledge", {"weight": 1.0, "confidence": 0.6999999999999998, "type": "inter_cluster", "style": "solid"}], ["protocols", "knowledge", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["protocols", "repository of knowledge", {"weight": 0.6666666666666666, "confidence": 0.4333333333333333, "type": "inter_cluster", "style": "solid"}], ["protocols", "prior information", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["exploitation analysis", "prior knowledge", {"weight": 1.0, "confidence": 0.77, "type": "inter_cluster", "style": "solid"}], ["exploitation analysis", "Security Measures", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["exploitation analysis", "Data Documentation", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["exploitation analysis", "lack of documentation", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["exploitation analysis", "Access Levels", {"weight": 1.0, "confidence": 0.7250000000000001, "type": "inter_cluster", "style": "solid"}], ["exploitation analysis", "Functional Analysis", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["functional interest", "Software Tools", {"weight": 1.0, "confidence": 0.7375, "type": "inter_cluster", "style": "solid"}], ["functional interest", "undocumented", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["knowledge", "prior information", {"weight": 1.0, "confidence": 0.8400000000000001, "type": "inter_cluster", "style": "solid"}], ["knowledge", "Physical Interfaces", {"weight": 1.0, "confidence": 0.7699999999999999, "type": "inter_cluster", "style": "solid"}], ["knowledge", "fiscal requirements", {"weight": 0.75, "confidence": 0.49999999999999994, "type": "inter_cluster", "style": "solid"}], ["protocol", "prior knowledge", {"weight": 1.0, "confidence": 0.72, "type": "inter_cluster", "style": "solid"}], ["general knowledge", "knowledge", {"weight": 1.0, "confidence": 0.86, "type": "inter_cluster", "style": "solid"}], ["general knowledge", "protocols", {"weight": 1.0, "confidence": 0.71, "type": "inter_cluster", "style": "solid"}], ["general knowledge", "repository of knowledge", {"weight": 1.0, "confidence": 0.8250000000000001, "type": "inter_cluster", "style": "solid"}], ["general knowledge", "undocumented", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["general knowledge", "Security Measures", {"weight": 1.0, "confidence": 0.7666666666666666, "type": "inter_cluster", "style": "solid"}], ["languages", "Security Measures", {"weight": 0.8, "confidence": 0.5599999999999999, "type": "inter_cluster", "style": "solid"}], ["languages", "exploitation", {"weight": 1.0, "confidence": 0.7000000000000001, "type": "inter_cluster", "style": "solid"}], ["languages", "Software Tools", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["repository of knowledge", "prior information", {"weight": 1.0, "confidence": 0.8300000000000001, "type": "inter_cluster", "style": "solid"}], ["repository of knowledge", "general knowledge", {"weight": 1.0, "confidence": 0.82, "type": "inter_cluster", "style": "solid"}], ["repository of knowledge", "Software Tools", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["lack of documentation", "general knowledge", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["lack of documentation", "exploit components", {"weight": -1.0, "confidence": 0.7750000000000001, "type": "inter_cluster", "style": "solid"}], ["lack of documentation", "Physical Interfaces", {"weight": -1.0, "confidence": 0.7666666666666666, "type": "inter_cluster", "style": "solid"}], ["exploit components", "protocol", {"weight": 1.0, "confidence": 0.7166666666666667, "type": "inter_cluster", "style": "solid"}], ["exploit components", "Functional Analysis", {"weight": 1.0, "confidence": 0.7000000000000001, "type": "inter_cluster", "style": "solid"}], ["prior information", "Security Measures", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["prior information", "languages used", {"weight": 0.75, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["prior information", "access goals", {"weight": 0.75, "confidence": 0.5375, "type": "inter_cluster", "style": "solid"}], ["physical tools", "general knowledge", {"weight": 1.0, "confidence": 0.6166666666666667, "type": "inter_cluster", "style": "solid"}], ["physical tools", "Physical Interfaces", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["access goals", "primitives", {"weight": 1.0, "confidence": 0.74, "type": "inter_cluster", "style": "solid"}], ["access goals", "exploitation analysis", {"weight": 1.0, "confidence": 0.7749999999999999, "type": "inter_cluster", "style": "solid"}], ["access goals", "Security Measures", {"weight": 1.0, "confidence": 0.7749999999999999, "type": "inter_cluster", "style": "solid"}], ["access goals", "lack of documentation", {"weight": -0.8, "confidence": 0.5599999999999999, "type": "inter_cluster", "style": "solid"}], ["access goals", "general knowledge", {"weight": 0.6666666666666666, "confidence": 0.48333333333333334, "type": "inter_cluster", "style": "solid"}], ["primitives", "Security Measures", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["languages used", "knowledge", {"weight": 0.8, "confidence": 0.54, "type": "inter_cluster", "style": "solid"}], ["languages used", "Access Extent", {"weight": 0.75, "confidence": 0.525, "type": "inter_cluster", "style": "solid"}], ["languages used", "lack of documentation", {"weight": -0.75, "confidence": 0.475, "type": "inter_cluster", "style": "solid"}], ["Software Tools", "Access Levels", {"weight": 1.0, "confidence": 0.74, "type": "inter_cluster", "style": "solid"}], ["Software Tools", "exploitation", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["Software Tools", "languages used", {"weight": 0.5, "confidence": 0.325, "type": "inter_cluster", "style": "solid"}], ["Physical Interfaces", "lack of documentation", {"weight": -1.0, "confidence": 0.74, "type": "inter_cluster", "style": "solid"}], ["Data Documentation", "Access Levels", {"weight": 1.0, "confidence": 0.7749999999999999, "type": "inter_cluster", "style": "solid"}], ["Data Documentation", "exploit components", {"weight": 1.0, "confidence": 0.7749999999999999, "type": "inter_cluster", "style": "solid"}], ["Functional Analysis", "exploit components", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {"general knowledge": [], "Access Extent": [], "Software Tools": [], "Physical Interfaces": [], "Data Documentation": [], "Access Levels": [], "Security Measures": [], "Functional Analysis": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

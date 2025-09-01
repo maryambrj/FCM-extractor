@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"north carolina": {"concepts": "north carolina", "concept_list": ["north carolina"], "type": "cluster", "node_size": 18, "label": "north carolina"}, "marine mammals": {"concepts": "marine mammals", "concept_list": ["marine mammals"], "type": "cluster", "node_size": 18, "label": "marine mammals"}, "behavior of fish": {"concepts": "behavior of fish", "concept_list": ["behavior of fish"], "type": "cluster", "node_size": 18, "label": "behavior of fish"}, "oceanographic conditions": {"concepts": "oceanographic conditions", "concept_list": ["oceanographic conditions"], "type": "cluster", "node_size": 18, "label": "oceanographic conditions"}, "fisheries population dynamics": {"concepts": "fisheries population dynamics", "concept_list": ["fisheries population dynamics"], "type": "cluster", "node_size": 18, "label": "fisheries population dynamics"}, "sampling design": {"concepts": "sampling design", "concept_list": ["sampling design"], "type": "cluster", "node_size": 18, "label": "sampling design"}, "commercial sector": {"concepts": "commercial sector", "concept_list": ["commercial sector"], "type": "cluster", "node_size": 18, "label": "commercial sector"}, "hard bottom.": {"concepts": "hard bottom.", "concept_list": ["hard bottom."], "type": "cluster", "node_size": 18, "label": "hard bottom."}, "bandit gear": {"concepts": "bandit gear", "concept_list": ["bandit gear"], "type": "cluster", "node_size": 18, "label": "bandit gear"}, "science centers": {"concepts": "science centers", "concept_list": ["science centers"], "type": "cluster", "node_size": 18, "label": "science centers"}, "water circulation": {"concepts": "water circulation", "concept_list": ["water circulation"], "type": "cluster", "node_size": 18, "label": "water circulation"}, "planktonic productivity": {"concepts": "planktonic productivity", "concept_list": ["planktonic productivity"], "type": "cluster", "node_size": 18, "label": "planktonic productivity"}, "wind infrastructure": {"concepts": "wind infrastructure", "concept_list": ["wind infrastructure"], "type": "cluster", "node_size": 18, "label": "wind infrastructure"}, "population distributions": {"concepts": "population distributions", "concept_list": ["population distributions"], "type": "cluster", "node_size": 18, "label": "population distributions"}, "management actions": {"concepts": "management actions", "concept_list": ["management actions"], "type": "cluster", "node_size": 18, "label": "management actions"}, "political weight": {"concepts": "political weight", "concept_list": ["political weight"], "type": "cluster", "node_size": 18, "label": "political weight"}, "environmental impact studies": {"concepts": "environmental impact studies", "concept_list": ["environmental impact studies"], "type": "cluster", "node_size": 18, "label": "environmental impact studies"}, "recreational fishers": {"concepts": "recreational fishers", "concept_list": ["recreational fishers"], "type": "cluster", "node_size": 18, "label": "recreational fishers"}, "scientific instrumentation": {"concepts": "scientific instrumentation", "concept_list": ["scientific instrumentation"], "type": "cluster", "node_size": 18, "label": "scientific instrumentation"}, "construction effects": {"concepts": "construction effects", "concept_list": ["construction effects"], "type": "cluster", "node_size": 18, "label": "construction effects"}, "oil and gas platforms": {"concepts": "oil and gas platforms", "concept_list": ["oil and gas platforms"], "type": "cluster", "node_size": 18, "label": "oil and gas platforms"}, "commercial fishers": {"concepts": "commercial fishers", "concept_list": ["commercial fishers"], "type": "cluster", "node_size": 18, "label": "commercial fishers"}, "methodology": {"concepts": "methodology", "concept_list": ["methodology"], "type": "cluster", "node_size": 18, "label": "methodology"}, "protected species": {"concepts": "protected species", "concept_list": ["protected species"], "type": "cluster", "node_size": 18, "label": "protected species"}, "strategies": {"concepts": "strategies", "concept_list": ["strategies"], "type": "cluster", "node_size": 18, "label": "strategies"}, "climate change": {"concepts": "climate change", "concept_list": ["climate change"], "type": "cluster", "node_size": 18, "label": "climate change"}, "unified coordinated manner": {"concepts": "unified coordinated manner", "concept_list": ["unified coordinated manner"], "type": "cluster", "node_size": 18, "label": "unified coordinated manner"}, "fishery independent service": {"concepts": "fishery independent service", "concept_list": ["fishery independent service"], "type": "cluster", "node_size": 18, "label": "fishery independent service"}, "gulf of mexico": {"concepts": "gulf of mexico", "concept_list": ["gulf of mexico"], "type": "cluster", "node_size": 18, "label": "gulf of mexico"}, "monitoring strategy": {"concepts": "monitoring strategy", "concept_list": ["monitoring strategy"], "type": "cluster", "node_size": 18, "label": "monitoring strategy"}, "fishery independent surveys": {"concepts": "fishery independent surveys", "concept_list": ["fishery independent surveys"], "type": "cluster", "node_size": 18, "label": "fishery independent surveys"}, "fishing habitat": {"concepts": "fishing habitat", "concept_list": ["fishing habitat"], "type": "cluster", "node_size": 18, "label": "fishing habitat"}, "wind platform": {"concepts": "wind platform", "concept_list": ["wind platform"], "type": "cluster", "node_size": 18, "label": "wind platform"}, "fish distribution": {"concepts": "fish distribution", "concept_list": ["fish distribution"], "type": "cluster", "node_size": 18, "label": "fish distribution"}, "permitting language": {"concepts": "permitting language", "concept_list": ["permitting language"], "type": "cluster", "node_size": 18, "label": "permitting language"}, "decommissioning": {"concepts": "decommissioning", "concept_list": ["decommissioning"], "type": "cluster", "node_size": 18, "label": "decommissioning"}, "long line surveys": {"concepts": "long line surveys", "concept_list": ["long line surveys"], "type": "cluster", "node_size": 18, "label": "long line surveys"}, "site fidelity": {"concepts": "site fidelity", "concept_list": ["site fidelity"], "type": "cluster", "node_size": 18, "label": "site fidelity"}, "cost structure": {"concepts": "cost structure", "concept_list": ["cost structure"], "type": "cluster", "node_size": 18, "label": "cost structure"}, "mud bottom": {"concepts": "mud bottom", "concept_list": ["mud bottom"], "type": "cluster", "node_size": 18, "label": "mud bottom"}, "circulation hydrodynamics": {"concepts": "circulation hydrodynamics", "concept_list": ["circulation hydrodynamics"], "type": "cluster", "node_size": 18, "label": "circulation hydrodynamics"}, "migratory patterns": {"concepts": "migratory patterns", "concept_list": ["migratory patterns"], "type": "cluster", "node_size": 18, "label": "migratory patterns"}, "survey planning": {"concepts": "survey planning", "concept_list": ["survey planning"], "type": "cluster", "node_size": 18, "label": "survey planning"}, "reef fish": {"concepts": "reef fish", "concept_list": ["reef fish"], "type": "cluster", "node_size": 18, "label": "reef fish"}, "hydrodynamics": {"concepts": "hydrodynamics", "concept_list": ["hydrodynamics"], "type": "cluster", "node_size": 18, "label": "hydrodynamics"}, "noise": {"concepts": "noise", "concept_list": ["noise"], "type": "cluster", "node_size": 18, "label": "noise"}, "trap surveys": {"concepts": "trap surveys", "concept_list": ["trap surveys"], "type": "cluster", "node_size": 18, "label": "trap surveys"}, "fish population dynamics": {"concepts": "fish population dynamics", "concept_list": ["fish population dynamics"], "type": "cluster", "node_size": 18, "label": "fish population dynamics"}, "red snapper": {"concepts": "red snapper", "concept_list": ["red snapper"], "type": "cluster", "node_size": 18, "label": "red snapper"}, "migratory corridors": {"concepts": "migratory corridors", "concept_list": ["migratory corridors"], "type": "cluster", "node_size": 18, "label": "migratory corridors"}, "human interaction": {"concepts": "human interaction", "concept_list": ["human interaction"], "type": "cluster", "node_size": 18, "label": "human interaction"}, "hard bottom": {"concepts": "hard bottom", "concept_list": ["hard bottom"], "type": "cluster", "node_size": 18, "label": "hard bottom"}, "gulf": {"concepts": "gulf", "concept_list": ["gulf"], "type": "cluster", "node_size": 18, "label": "gulf"}, "sediment suspension": {"concepts": "sediment suspension", "concept_list": ["sediment suspension"], "type": "cluster", "node_size": 18, "label": "sediment suspension"}, "fish life history": {"concepts": "fish life history", "concept_list": ["fish life history"], "type": "cluster", "node_size": 18, "label": "fish life history"}, "population parameters": {"concepts": "population parameters", "concept_list": ["population parameters"], "type": "cluster", "node_size": 18, "label": "population parameters"}, "oil and gas": {"concepts": "oil and gas", "concept_list": ["oil and gas"], "type": "cluster", "node_size": 18, "label": "oil and gas"}, "fish stocks": {"concepts": "fish stocks", "concept_list": ["fish stocks"], "type": "cluster", "node_size": 18, "label": "fish stocks"}, "pile driving": {"concepts": "pile driving", "concept_list": ["pile driving"], "type": "cluster", "node_size": 18, "label": "pile driving"}, "offshore wind construction": {"concepts": "offshore wind construction", "concept_list": ["offshore wind construction"], "type": "cluster", "node_size": 18, "label": "offshore wind construction"}, "natural reefs": {"concepts": "natural reefs", "concept_list": ["natural reefs"], "type": "cluster", "node_size": 18, "label": "natural reefs"}, "pelagic fish": {"concepts": "pelagic fish", "concept_list": ["pelagic fish"], "type": "cluster", "node_size": 18, "label": "pelagic fish"}, "range expansions": {"concepts": "range expansions", "concept_list": ["range expansions"], "type": "cluster", "node_size": 18, "label": "range expansions"}, "rocky reefs": {"concepts": "rocky reefs", "concept_list": ["rocky reefs"], "type": "cluster", "node_size": 18, "label": "rocky reefs"}, "oil and gas structures": {"concepts": "oil and gas structures", "concept_list": ["oil and gas structures"], "type": "cluster", "node_size": 18, "label": "oil and gas structures"}, "flexible design": {"concepts": "flexible design", "concept_list": ["flexible design"], "type": "cluster", "node_size": 18, "label": "flexible design"}, "long line": {"concepts": "long line", "concept_list": ["long line"], "type": "cluster", "node_size": 18, "label": "long line"}, "northeast": {"concepts": "northeast", "concept_list": ["northeast"], "type": "cluster", "node_size": 18, "label": "northeast"}, "commercial fishing": {"concepts": "commercial fishing", "concept_list": ["commercial fishing"], "type": "cluster", "node_size": 18, "label": "commercial fishing"}, "fish habitat": {"concepts": "fish habitat", "concept_list": ["fish habitat"], "type": "cluster", "node_size": 18, "label": "fish habitat"}, "shrimp fishery": {"concepts": "shrimp fishery", "concept_list": ["shrimp fishery"], "type": "cluster", "node_size": 18, "label": "shrimp fishery"}, "resource constrained environment": {"concepts": "resource constrained environment", "concept_list": ["resource constrained environment"], "type": "cluster", "node_size": 18, "label": "resource constrained environment"}, "artificial reefs": {"concepts": "artificial reefs", "concept_list": ["artificial reefs"], "type": "cluster", "node_size": 18, "label": "artificial reefs"}, "multi-gear surveys": {"concepts": "multi-gear surveys", "concept_list": ["multi-gear surveys"], "type": "cluster", "node_size": 18, "label": "multi-gear surveys"}, "public interaction": {"concepts": "public interaction", "concept_list": ["public interaction"], "type": "cluster", "node_size": 18, "label": "public interaction"}, "recreational fishing": {"concepts": "recreational fishing", "concept_list": ["recreational fishing"], "type": "cluster", "node_size": 18, "label": "recreational fishing"}, "ocean basin": {"concepts": "ocean basin", "concept_list": ["ocean basin"], "type": "cluster", "node_size": 18, "label": "ocean basin"}, "ecosystem": {"concepts": "ecosystem", "concept_list": ["ecosystem"], "type": "cluster", "node_size": 18, "label": "ecosystem"}, "survey mitigation": {"concepts": "survey mitigation", "concept_list": ["survey mitigation"], "type": "cluster", "node_size": 18, "label": "survey mitigation"}, "navigation": {"concepts": "navigation", "concept_list": ["navigation"], "type": "cluster", "node_size": 18, "label": "navigation"}, "sampling tool": {"concepts": "sampling tool", "concept_list": ["sampling tool"], "type": "cluster", "node_size": 18, "label": "sampling tool"}, "decommissioned platforms": {"concepts": "decommissioned platforms", "concept_list": ["decommissioned platforms"], "type": "cluster", "node_size": 18, "label": "decommissioned platforms"}, "communities of organisms": {"concepts": "communities of organisms", "concept_list": ["communities of organisms"], "type": "cluster", "node_size": 18, "label": "communities of organisms"}, "high profile structures": {"concepts": "high profile structures", "concept_list": ["high profile structures"], "type": "cluster", "node_size": 18, "label": "high profile structures"}, "spawning aggregations": {"concepts": "spawning aggregations", "concept_list": ["spawning aggregations"], "type": "cluster", "node_size": 18, "label": "spawning aggregations"}, "gulf habitats": {"concepts": "gulf habitats", "concept_list": ["gulf habitats"], "type": "cluster", "node_size": 18, "label": "gulf habitats"}, "bottom trawl surveys": {"concepts": "bottom trawl surveys", "concept_list": ["bottom trawl surveys"], "type": "cluster", "node_size": 18, "label": "bottom trawl surveys"}, "hypoxic dead zone": {"concepts": "hypoxic dead zone", "concept_list": ["hypoxic dead zone"], "type": "cluster", "node_size": 18, "label": "hypoxic dead zone"}, "political capital": {"concepts": "political capital", "concept_list": ["political capital"], "type": "cluster", "node_size": 18, "label": "political capital"}, "fish recruitment": {"concepts": "fish recruitment", "concept_list": ["fish recruitment"], "type": "cluster", "node_size": 18, "label": "fish recruitment"}, "estimation methods": {"concepts": "estimation methods", "concept_list": ["estimation methods"], "type": "cluster", "node_size": 18, "label": "estimation methods"}, "trophic webs": {"concepts": "trophic webs", "concept_list": ["trophic webs"], "type": "cluster", "node_size": 18, "label": "trophic webs"}};
+        const conceptData = {};
+        const interClusterEdges = [["north carolina", "cost structure", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["behavior of fish", "recreational fishers", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["behavior of fish", "protected species", {"weight": -0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["oceanographic conditions", "trophic webs", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["fisheries population dynamics", "migratory corridors", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["commercial sector", "fishery independent service", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["commercial sector", "fish population dynamics", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["commercial sector", "noise", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["hard bottom.", "bandit gear", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["bandit gear", "long line surveys", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["science centers", "water circulation", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["water circulation", "sampling design", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["planktonic productivity", "trophic webs", {"weight": 1.0, "confidence": 0.8333333333333334, "type": "inter_cluster", "style": "solid"}], ["planktonic productivity", "marine mammals", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["wind infrastructure", "gulf habitats", {"weight": 1.0, "confidence": 0.6666666666666666, "type": "inter_cluster", "style": "solid"}], ["wind infrastructure", "population parameters", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["wind infrastructure", "scientific instrumentation", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["wind infrastructure", "fish life history", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["wind infrastructure", "sediment suspension", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["wind infrastructure", "environmental impact studies", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["population distributions", "scientific instrumentation", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["population distributions", "gulf of mexico", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["management actions", "artificial reefs", {"weight": 1.0, "confidence": 0.7124999999999999, "type": "inter_cluster", "style": "solid"}], ["management actions", "natural reefs", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["political weight", "reef fish", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["environmental impact studies", "oil and gas platforms", {"weight": 1.0, "confidence": 0.7250000000000001, "type": "inter_cluster", "style": "solid"}], ["recreational fishers", "management actions", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["scientific instrumentation", "protected species", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["scientific instrumentation", "gulf habitats", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["construction effects", "pile driving", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["construction effects", "northeast", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["construction effects", "hydrodynamics", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["oil and gas platforms", "protected species", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["oil and gas platforms", "fish recruitment", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["oil and gas platforms", "natural reefs", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["oil and gas platforms", "red snapper", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["commercial fishers", "reef fish", {"weight": 1.0, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["methodology", "oil and gas", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["protected species", "high profile structures", {"weight": -1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["strategies", "communities of organisms", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["climate change", "water circulation", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["fishery independent service", "sampling design", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["fishery independent service", "commercial fishers", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["gulf of mexico", "unified coordinated manner", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["gulf of mexico", "trap surveys", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["fishing habitat", "water circulation", {"weight": -0.3333333333333333, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["fishing habitat", "migratory patterns", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["fish distribution", "environmental impact studies", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["fish distribution", "fish stocks", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["permitting language", "site fidelity", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["decommissioning", "site fidelity", {"weight": -1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["cost structure", "strategies", {"weight": 1.0, "confidence": 0.6666666666666666, "type": "inter_cluster", "style": "solid"}], ["cost structure", "commercial fishers", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["mud bottom", "environmental impact studies", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["mud bottom", "population parameters", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["circulation hydrodynamics", "red snapper", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["circulation hydrodynamics", "recreational fishing", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["survey planning", "ecosystem", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["survey planning", "survey mitigation", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["survey planning", "commercial sector", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["survey planning", "commercial fishing", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["reef fish", "climate change", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["migratory corridors", "spawning aggregations", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["migratory corridors", "fishery independent surveys", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["hard bottom", "fishery independent surveys", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["hard bottom", "recreational fishing", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["hard bottom", "gulf habitats", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["hard bottom", "pelagic fish", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["gulf", "decommissioned platforms", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["gulf", "offshore wind construction", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["gulf", "pelagic fish", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["fish life history", "hard bottom", {"weight": 1.0, "confidence": 0.7000000000000001, "type": "inter_cluster", "style": "solid"}], ["oil and gas", "spawning aggregations", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["oil and gas", "hydrodynamics", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["fish stocks", "oil and gas structures", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["fish stocks", "northeast", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["fish stocks", "water circulation", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["pile driving", "mud bottom", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["pile driving", "migratory patterns", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["pile driving", "fish stocks", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["offshore wind construction", "oceanographic conditions", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["offshore wind construction", "strategies", {"weight": 1.0, "confidence": 0.7333333333333334, "type": "inter_cluster", "style": "solid"}], ["pelagic fish", "wind platform", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["range expansions", "population parameters", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["oil and gas structures", "population distributions", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["oil and gas structures", "political weight", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["oil and gas structures", "fish life history", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["flexible design", "fish population dynamics", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["flexible design", "sampling tool", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["flexible design", "ocean basin", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["long line", "long line surveys", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["long line", "resource constrained environment", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["northeast", "scientific instrumentation", {"weight": 0.5, "confidence": 0.275, "type": "inter_cluster", "style": "solid"}], ["commercial fishing", "site fidelity", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["fish habitat", "political weight", {"weight": 0.5, "confidence": 0.325, "type": "inter_cluster", "style": "solid"}], ["fish habitat", "ocean basin", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["shrimp fishery", "recreational fishers", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["shrimp fishery", "sampling design", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["artificial reefs", "behavior of fish", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["artificial reefs", "fisheries population dynamics", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["artificial reefs", "planktonic productivity", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["multi-gear surveys", "water circulation", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["public interaction", "hydrodynamics", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["recreational fishing", "pelagic fish", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["ocean basin", "oceanographic conditions", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["ecosystem", "human interaction", {"weight": 1.0, "confidence": 0.6666666666666666, "type": "inter_cluster", "style": "solid"}], ["ecosystem", "sampling design", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["ecosystem", "fish life history", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["navigation", "bottom trawl surveys", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["navigation", "recreational fishing", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["navigation", "scientific instrumentation", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["decommissioned platforms", "long line surveys", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["decommissioned platforms", "management actions", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["decommissioned platforms", "fish stocks", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["communities of organisms", "rocky reefs", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["spawning aggregations", "fish life history", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["gulf habitats", "behavior of fish", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["gulf habitats", "sediment suspension", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["gulf habitats", "natural reefs", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["gulf habitats", "methodology", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["bottom trawl surveys", "estimation methods", {"weight": -1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["bottom trawl surveys", "circulation hydrodynamics", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["hypoxic dead zone", "commercial fishers", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["political capital", "commercial sector", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["political capital", "fisheries population dynamics", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["political capital", "fish life history", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["fish recruitment", "monitoring strategy", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["estimation methods", "oil and gas", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["trophic webs", "artificial reefs", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

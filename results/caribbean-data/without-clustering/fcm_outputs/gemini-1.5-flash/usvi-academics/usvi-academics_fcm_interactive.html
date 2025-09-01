@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"seagrass": {"concepts": "seagrass", "concept_list": ["seagrass"], "type": "cluster", "node_size": 18, "label": "seagrass"}, "coastal communities": {"concepts": "coastal communities", "concept_list": ["coastal communities"], "type": "cluster", "node_size": 18, "label": "coastal communities"}, "ecosystem effects": {"concepts": "ecosystem effects", "concept_list": ["ecosystem effects"], "type": "cluster", "node_size": 18, "label": "ecosystem effects"}, "overfishing": {"concepts": "overfishing", "concept_list": ["overfishing"], "type": "cluster", "node_size": 18, "label": "overfishing"}, "coral disease": {"concepts": "coral disease", "concept_list": ["coral disease"], "type": "cluster", "node_size": 18, "label": "coral disease"}, "stakeholders": {"concepts": "stakeholders", "concept_list": ["stakeholders"], "type": "cluster", "node_size": 18, "label": "stakeholders"}, "sargassum": {"concepts": "sargassum", "concept_list": ["sargassum"], "type": "cluster", "node_size": 18, "label": "sargassum"}, "fishing community": {"concepts": "fishing community", "concept_list": ["fishing community"], "type": "cluster", "node_size": 18, "label": "fishing community"}, "fisheries": {"concepts": "fisheries", "concept_list": ["fisheries"], "type": "cluster", "node_size": 18, "label": "fisheries"}, "fish reproduction": {"concepts": "fish reproduction", "concept_list": ["fish reproduction"], "type": "cluster", "node_size": 18, "label": "fish reproduction"}, "compliance": {"concepts": "compliance", "concept_list": ["compliance"], "type": "cluster", "node_size": 18, "label": "compliance"}, "trap reduction": {"concepts": "trap reduction", "concept_list": ["trap reduction"], "type": "cluster", "node_size": 18, "label": "trap reduction"}, "community collaboration": {"concepts": "community collaboration", "concept_list": ["community collaboration"], "type": "cluster", "node_size": 18, "label": "community collaboration"}, "reef degradation": {"concepts": "reef degradation", "concept_list": ["reef degradation"], "type": "cluster", "node_size": 18, "label": "reef degradation"}, "fisheries depletion": {"concepts": "fisheries depletion", "concept_list": ["fisheries depletion"], "type": "cluster", "node_size": 18, "label": "fisheries depletion"}, "fisher relations": {"concepts": "fisher relations", "concept_list": ["fisher relations"], "type": "cluster", "node_size": 18, "label": "fisher relations"}, "commercial fishing": {"concepts": "commercial fishing", "concept_list": ["commercial fishing"], "type": "cluster", "node_size": 18, "label": "commercial fishing"}, "invasive species": {"concepts": "invasive species", "concept_list": ["invasive species"], "type": "cluster", "node_size": 18, "label": "invasive species"}, "livelihoods": {"concepts": "livelihoods", "concept_list": ["livelihoods"], "type": "cluster", "node_size": 18, "label": "livelihoods"}, "local regulations": {"concepts": "local regulations", "concept_list": ["local regulations"], "type": "cluster", "node_size": 18, "label": "local regulations"}, "lionfish invasion": {"concepts": "lionfish invasion", "concept_list": ["lionfish invasion"], "type": "cluster", "node_size": 18, "label": "lionfish invasion"}, "resources": {"concepts": "resources", "concept_list": ["resources"], "type": "cluster", "node_size": 18, "label": "resources"}, "economic impact": {"concepts": "economic impact", "concept_list": ["economic impact"], "type": "cluster", "node_size": 18, "label": "economic impact"}, "fishermen conflicts": {"concepts": "fishermen conflicts", "concept_list": ["fishermen conflicts"], "type": "cluster", "node_size": 18, "label": "fishermen conflicts"}, "intergroup relations": {"concepts": "intergroup relations", "concept_list": ["intergroup relations"], "type": "cluster", "node_size": 18, "label": "intergroup relations"}, "fishermen": {"concepts": "fishermen", "concept_list": ["fishermen"], "type": "cluster", "node_size": 18, "label": "fishermen"}, "usvi": {"concepts": "usvi", "concept_list": ["usvi"], "type": "cluster", "node_size": 18, "label": "usvi"}, "fishermen's association": {"concepts": "fishermen's association", "concept_list": ["fishermen's association"], "type": "cluster", "node_size": 18, "label": "fishermen's association"}, "resource exploitation": {"concepts": "resource exploitation", "concept_list": ["resource exploitation"], "type": "cluster", "node_size": 18, "label": "resource exploitation"}, "habitat loss": {"concepts": "habitat loss", "concept_list": ["habitat loss"], "type": "cluster", "node_size": 18, "label": "habitat loss"}, "government relations": {"concepts": "government relations", "concept_list": ["government relations"], "type": "cluster", "node_size": 18, "label": "government relations"}, "funding": {"concepts": "funding", "concept_list": ["funding"], "type": "cluster", "node_size": 18, "label": "funding"}, "community sustainability": {"concepts": "community sustainability", "concept_list": ["community sustainability"], "type": "cluster", "node_size": 18, "label": "community sustainability"}, "bycatch reduction": {"concepts": "bycatch reduction", "concept_list": ["bycatch reduction"], "type": "cluster", "node_size": 18, "label": "bycatch reduction"}, "fishing dependence": {"concepts": "fishing dependence", "concept_list": ["fishing dependence"], "type": "cluster", "node_size": 18, "label": "fishing dependence"}, "cultural importance": {"concepts": "cultural importance", "concept_list": ["cultural importance"], "type": "cluster", "node_size": 18, "label": "cultural importance"}, "usvi fishers": {"concepts": "usvi fishers", "concept_list": ["usvi fishers"], "type": "cluster", "node_size": 18, "label": "usvi fishers"}, "climate change": {"concepts": "climate change", "concept_list": ["climate change"], "type": "cluster", "node_size": 18, "label": "climate change"}, "tourism": {"concepts": "tourism", "concept_list": ["tourism"], "type": "cluster", "node_size": 18, "label": "tourism"}, "fisheries management": {"concepts": "fisheries management", "concept_list": ["fisheries management"], "type": "cluster", "node_size": 18, "label": "fisheries management"}, "coastal development": {"concepts": "coastal development", "concept_list": ["coastal development"], "type": "cluster", "node_size": 18, "label": "coastal development"}, "federal regulations": {"concepts": "federal regulations", "concept_list": ["federal regulations"], "type": "cluster", "node_size": 18, "label": "federal regulations"}, "stakeholder conflict": {"concepts": "stakeholder conflict", "concept_list": ["stakeholder conflict"], "type": "cluster", "node_size": 18, "label": "stakeholder conflict"}, "fishing regulations": {"concepts": "fishing regulations", "concept_list": ["fishing regulations"], "type": "cluster", "node_size": 18, "label": "fishing regulations"}, "management": {"concepts": "management", "concept_list": ["management"], "type": "cluster", "node_size": 18, "label": "management"}, "fishery management": {"concepts": "fishery management", "concept_list": ["fishery management"], "type": "cluster", "node_size": 18, "label": "fishery management"}, "social cohesion": {"concepts": "social cohesion", "concept_list": ["social cohesion"], "type": "cluster", "node_size": 18, "label": "social cohesion"}, "fisher conflict": {"concepts": "fisher conflict", "concept_list": ["fisher conflict"], "type": "cluster", "node_size": 18, "label": "fisher conflict"}, "coral bleaching": {"concepts": "coral bleaching", "concept_list": ["coral bleaching"], "type": "cluster", "node_size": 18, "label": "coral bleaching"}, "government regulations": {"concepts": "government regulations", "concept_list": ["government regulations"], "type": "cluster", "node_size": 18, "label": "government regulations"}, "pollution": {"concepts": "pollution", "concept_list": ["pollution"], "type": "cluster", "node_size": 18, "label": "pollution"}, "conch": {"concepts": "conch", "concept_list": ["conch"], "type": "cluster", "node_size": 18, "label": "conch"}, "ecological harm": {"concepts": "ecological harm", "concept_list": ["ecological harm"], "type": "cluster", "node_size": 18, "label": "ecological harm"}, "fishers": {"concepts": "fishers", "concept_list": ["fishers"], "type": "cluster", "node_size": 18, "label": "fishers"}, "regulation": {"concepts": "regulation", "concept_list": ["regulation"], "type": "cluster", "node_size": 18, "label": "regulation"}, "regulations": {"concepts": "regulations", "concept_list": ["regulations"], "type": "cluster", "node_size": 18, "label": "regulations"}, "habitat change": {"concepts": "habitat change", "concept_list": ["habitat change"], "type": "cluster", "node_size": 18, "label": "habitat change"}, "subsistence fishing": {"concepts": "subsistence fishing", "concept_list": ["subsistence fishing"], "type": "cluster", "node_size": 18, "label": "subsistence fishing"}, "scientific research": {"concepts": "scientific research", "concept_list": ["scientific research"], "type": "cluster", "node_size": 18, "label": "scientific research"}, "usvi fisheries": {"concepts": "usvi fisheries", "concept_list": ["usvi fisheries"], "type": "cluster", "node_size": 18, "label": "usvi fisheries"}, "conflicts": {"concepts": "conflicts", "concept_list": ["conflicts"], "type": "cluster", "node_size": 18, "label": "conflicts"}, "relationships": {"concepts": "relationships", "concept_list": ["relationships"], "type": "cluster", "node_size": 18, "label": "relationships"}, "coral reefs": {"concepts": "coral reefs", "concept_list": ["coral reefs"], "type": "cluster", "node_size": 18, "label": "coral reefs"}, "marine reserves": {"concepts": "marine reserves", "concept_list": ["marine reserves"], "type": "cluster", "node_size": 18, "label": "marine reserves"}, "environmental protection": {"concepts": "environmental protection", "concept_list": ["environmental protection"], "type": "cluster", "node_size": 18, "label": "environmental protection"}, "data": {"concepts": "data", "concept_list": ["data"], "type": "cluster", "node_size": 18, "label": "data"}, "sea temperature": {"concepts": "sea temperature", "concept_list": ["sea temperature"], "type": "cluster", "node_size": 18, "label": "sea temperature"}, "data collection": {"concepts": "data collection", "concept_list": ["data collection"], "type": "cluster", "node_size": 18, "label": "data collection"}, "bycatch": {"concepts": "bycatch", "concept_list": ["bycatch"], "type": "cluster", "node_size": 18, "label": "bycatch"}, "enforcement": {"concepts": "enforcement", "concept_list": ["enforcement"], "type": "cluster", "node_size": 18, "label": "enforcement"}};
+        const conceptData = {};
+        const interClusterEdges = [["seagrass", "ecological harm", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["seagrass", "coral reefs", {"weight": -0.3333333333333333, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["seagrass", "local regulations", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["seagrass", "resources", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["seagrass", "sargassum", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["coastal communities", "sargassum", {"weight": -1.0, "confidence": 0.6625000000000001, "type": "inter_cluster", "style": "solid"}], ["coastal communities", "bycatch", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["ecosystem effects", "resources", {"weight": -1.0, "confidence": 0.8333333333333334, "type": "inter_cluster", "style": "solid"}], ["overfishing", "data", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["coral disease", "conch", {"weight": -1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["coral disease", "usvi", {"weight": -1.0, "confidence": 0.925, "type": "inter_cluster", "style": "solid"}], ["coral disease", "coastal communities", {"weight": -1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["coral disease", "funding", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["coral disease", "data collection", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["stakeholders", "sargassum", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["sargassum", "social cohesion", {"weight": -0.6666666666666666, "confidence": 0.35000000000000003, "type": "inter_cluster", "style": "solid"}], ["fishing community", "government regulations", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["fishing community", "data", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["fisheries", "fisher relations", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["fisheries", "commercial fishing", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["compliance", "economic impact", {"weight": 1.0, "confidence": 0.6874999999999999, "type": "inter_cluster", "style": "solid"}], ["compliance", "local regulations", {"weight": 1.0, "confidence": 0.8500000000000001, "type": "inter_cluster", "style": "solid"}], ["compliance", "bycatch reduction", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["trap reduction", "stakeholders", {"weight": 1.0, "confidence": 0.7125, "type": "inter_cluster", "style": "solid"}], ["trap reduction", "regulations", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["community collaboration", "fishery management", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["reef degradation", "management", {"weight": 0.3333333333333333, "confidence": 0.7833333333333332, "type": "inter_cluster", "style": "solid"}], ["reef degradation", "coastal development", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["fisheries depletion", "fishers", {"weight": -1.0, "confidence": 0.9375, "type": "inter_cluster", "style": "solid"}], ["fisheries depletion", "fishermen", {"weight": -1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["commercial fishing", "economic impact", {"weight": 1.0, "confidence": 0.9333333333333332, "type": "inter_cluster", "style": "solid"}], ["commercial fishing", "environmental protection", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["invasive species", "regulation", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["invasive species", "federal regulations", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["livelihoods", "commercial fishing", {"weight": 1.0, "confidence": 0.9333333333333332, "type": "inter_cluster", "style": "solid"}], ["livelihoods", "usvi fishers", {"weight": 1.0, "confidence": 0.9499999999999998, "type": "inter_cluster", "style": "solid"}], ["lionfish invasion", "bycatch reduction", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["lionfish invasion", "data collection", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["resources", "local regulations", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["economic impact", "tourism", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["fishermen conflicts", "bycatch reduction", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["fishermen conflicts", "compliance", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["fishermen", "federal regulations", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["resource exploitation", "local regulations", {"weight": -1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["resource exploitation", "conflicts", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["resource exploitation", "usvi fishers", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["resource exploitation", "scientific research", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["habitat loss", "climate change", {"weight": 1.0, "confidence": 0.8833333333333333, "type": "inter_cluster", "style": "solid"}], ["habitat loss", "fishery management", {"weight": -1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["habitat loss", "lionfish invasion", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["habitat loss", "scientific research", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["government relations", "coastal communities", {"weight": 1.0, "confidence": 0.6833333333333332, "type": "inter_cluster", "style": "solid"}], ["funding", "scientific research", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["community sustainability", "climate change", {"weight": -1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["community sustainability", "enforcement", {"weight": 1.0, "confidence": 0.7749999999999999, "type": "inter_cluster", "style": "solid"}], ["community sustainability", "fishing community", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["community sustainability", "compliance", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["bycatch reduction", "fisher conflict", {"weight": -1.0, "confidence": 0.7250000000000001, "type": "inter_cluster", "style": "solid"}], ["bycatch reduction", "resources", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["bycatch reduction", "fish reproduction", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["fishing dependence", "usvi fisheries", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["fishing dependence", "compliance", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["usvi fishers", "coastal communities", {"weight": 1.0, "confidence": 0.8250000000000001, "type": "inter_cluster", "style": "solid"}], ["usvi fishers", "habitat change", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["usvi fishers", "fishermen conflicts", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["usvi fishers", "data collection", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["climate change", "fisheries depletion", {"weight": 1.0, "confidence": 0.8299999999999998, "type": "inter_cluster", "style": "solid"}], ["climate change", "fisher relations", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["climate change", "invasive species", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["fisheries management", "regulations", {"weight": 1.0, "confidence": 0.9633333333333333, "type": "inter_cluster", "style": "solid"}], ["coastal development", "resources", {"weight": -1.0, "confidence": 0.7333333333333334, "type": "inter_cluster", "style": "solid"}], ["coastal development", "seagrass", {"weight": -1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["coastal development", "regulations", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["federal regulations", "ecological harm", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["fishing regulations", "conflicts", {"weight": 1.0, "confidence": 0.7666666666666666, "type": "inter_cluster", "style": "solid"}], ["fishing regulations", "regulation", {"weight": 1.0, "confidence": 1.0, "type": "inter_cluster", "style": "solid"}], ["fishing regulations", "fishing dependence", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["management", "stakeholders", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["fishery management", "scientific research", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["fishery management", "subsistence fishing", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["fishery management", "seagrass", {"weight": -0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["social cohesion", "management", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["fisher conflict", "trap reduction", {"weight": 0.3333333333333333, "confidence": 0.6333333333333333, "type": "inter_cluster", "style": "solid"}], ["fisher conflict", "coastal communities", {"weight": -1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["fisher conflict", "social cohesion", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["fisher conflict", "scientific research", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["coral bleaching", "habitat loss", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["government regulations", "cultural importance", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["pollution", "seagrass", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["conch", "habitat loss", {"weight": -1.0, "confidence": 0.875, "type": "inter_cluster", "style": "solid"}], ["conch", "government relations", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["ecological harm", "pollution", {"weight": 1.0, "confidence": 0.7833333333333333, "type": "inter_cluster", "style": "solid"}], ["fishers", "coral reefs", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["fishers", "economic impact", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["regulation", "usvi fishers", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["habitat change", "regulation", {"weight": 0.5, "confidence": 0.7249999999999999, "type": "inter_cluster", "style": "solid"}], ["habitat change", "fishery management", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["habitat change", "data collection", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["habitat change", "funding", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["subsistence fishing", "management", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["subsistence fishing", "local regulations", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["usvi fisheries", "conch", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["usvi fisheries", "federal regulations", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["usvi fisheries", "fish reproduction", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["relationships", "intergroup relations", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["relationships", "cultural importance", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["coral reefs", "seagrass", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["coral reefs", "subsistence fishing", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["coral reefs", "fishermen conflicts", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["marine reserves", "economic impact", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["marine reserves", "fishermen's association", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["marine reserves", "cultural importance", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["environmental protection", "data", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["environmental protection", "sargassum", {"weight": -1.0, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["environmental protection", "stakeholder conflict", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["data", "commercial fishing", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["data", "marine reserves", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["sea temperature", "coastal communities", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["bycatch", "bycatch reduction", {"weight": -1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["bycatch", "management", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["enforcement", "fishing community", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Batch evaluation script for FCM outputs.
-Finds all BD0* folders and runs evaluation for each one.
+Finds all folders and runs evaluation for each one.
 """
 
 import os
@@ -9,26 +9,61 @@ import subprocess
 import sys
 from pathlib import Path
 
-def find_bd_folders(fcm_outputs_dir="../fcm_outputs"):
-    """Find all folders starting with BD0 in the fcm_outputs directory."""
-    fcm_path = Path(fcm_outputs_dir)
-    if not fcm_path.exists():
-        print(f"Error: FCM outputs directory not found: {fcm_path}")
+def find_folders(fcm_outputs_dir="fcm_outputs"):
+    """Find all folders in the fcm_outputs directory."""
+    # Try multiple possible paths
+    possible_paths = [
+        Path(fcm_outputs_dir),
+        Path("codes") / fcm_outputs_dir,
+        Path("../fcm_outputs"),
+        Path("fcm_outputs")
+    ]
+    
+    fcm_path = None
+    for path in possible_paths:
+        if path.exists():
+            fcm_path = path
+            break
+    
+    if fcm_path is None:
+        print(f"Error: FCM outputs directory not found. Tried: {[str(p) for p in possible_paths]}")
         return []
     
-    bd_folders = []
+    folders = []
     for folder in fcm_path.iterdir():
-        if folder.is_dir() and folder.name.startswith("BD0"):
-            bd_folders.append(folder.name)
+        if folder.is_dir():
+            folders.append(folder.name)
     
-    return sorted(bd_folders)
+    return sorted(folders)
 
-def run_evaluation(folder_name, ground_truth_dir="../ground_truth", fcm_outputs_dir="../fcm_outputs"):
-    """Run evaluation for a specific BD folder."""
+def run_evaluation(folder_name, ground_truth_dir="ground_truth", fcm_outputs_dir="fcm_outputs"):
+    """Run evaluation for a specific folder."""
     
-    # Construct paths
-    gt_path = f"{ground_truth_dir}/{folder_name}.csv"
-    gen_path = f"{fcm_outputs_dir}/{folder_name}/{folder_name}_fcm.json"
+    # Find the correct base paths
+    gt_base_paths = [Path(ground_truth_dir), Path("codes") / ground_truth_dir, Path("../ground-truth"), Path("ground-truth")]
+    fcm_base_paths = [Path(fcm_outputs_dir), Path("codes") / fcm_outputs_dir, Path("../fcm_outputs"), Path("fcm_outputs")]
+    
+    gt_base = None
+    for path in gt_base_paths:
+        if path.exists():
+            gt_base = path
+            break
+    
+    fcm_base = None
+    for path in fcm_base_paths:
+        if path.exists():
+            fcm_base = path
+            break
+    
+    if gt_base is None:
+        gt_path = f"{ground_truth_dir}/{folder_name}.csv"  # fallback
+    else:
+        gt_path = str(gt_base / f"{folder_name}.csv")
+        
+    if fcm_base is None:
+        gen_path = f"{fcm_outputs_dir}/{folder_name}/{folder_name}_fcm.json"  # fallback
+    else:
+        gen_path = str(fcm_base / folder_name / f"{folder_name}_fcm.json")
     
     # Check if files exist
     if not os.path.exists(gt_path):
@@ -88,21 +123,21 @@ def main():
     print("🔍 FCM Batch Evaluation Script")
     print("=" * 50)
     
-    # Find all BD folders
-    bd_folders = find_bd_folders()
+    # Find all folders
+    folders = find_folders()
     
-    if not bd_folders:
-        print("❌ No BD0* folders found in ../fcm_outputs/")
+    if not folders:
+        print("❌ No folders found in ../fcm_outputs/")
         return
     
-    print(f"📁 Found {len(bd_folders)} BD folders: {', '.join(bd_folders)}")
+    print(f"📁 Found {len(folders)} folders: {', '.join(folders)}")
     print()
     
     # Run evaluation for each folder
     successful = 0
     failed = 0
     
-    for folder in bd_folders:
+    for folder in folders:
         if run_evaluation(folder):
             successful += 1
         else:
@@ -114,7 +149,7 @@ def main():
     print("📈 EVALUATION SUMMARY")
     print(f"✅ Successful: {successful}")
     print(f"❌ Failed: {failed}")
-    print(f"📊 Total: {len(bd_folders)}")
+    print(f"📊 Total: {len(folders)}")
     
     if successful > 0:
         print(f"\n💡 Check the individual folders in ../fcm_outputs/ for detailed results")

@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"homeowners": {"concepts": "homeowners", "concept_list": ["homeowners"], "type": "cluster", "node_size": 18, "label": "homeowners"}, "lower income": {"concepts": "lower income", "concept_list": ["lower income"], "type": "cluster", "node_size": 18, "label": "lower income"}, "pallets": {"concepts": "pallets", "concept_list": ["pallets"], "type": "cluster", "node_size": 18, "label": "pallets"}, "sugar": {"concepts": "sugar", "concept_list": ["sugar"], "type": "cluster", "node_size": 18, "label": "sugar"}, "children": {"concepts": "children", "concept_list": ["children"], "type": "cluster", "node_size": 18, "label": "children"}, "catholic charities": {"concepts": "catholic charities", "concept_list": ["catholic charities"], "type": "cluster", "node_size": 18, "label": "catholic charities"}, "food system": {"concepts": "food system", "concept_list": ["food system"], "type": "cluster", "node_size": 18, "label": "food system"}, "meat": {"concepts": "meat", "concept_list": ["meat"], "type": "cluster", "node_size": 18, "label": "meat"}, "meijer's": {"concepts": "meijer's", "concept_list": ["meijer's"], "type": "cluster", "node_size": 18, "label": "meijer's"}, "convenience stores": {"concepts": "convenience stores", "concept_list": ["convenience stores"], "type": "cluster", "node_size": 18, "label": "convenience stores"}, "water": {"concepts": "water", "concept_list": ["water"], "type": "cluster", "node_size": 18, "label": "water"}, "increased funding": {"concepts": "increased funding", "concept_list": ["increased funding"], "type": "cluster", "node_size": 18, "label": "increased funding"}, "oranges": {"concepts": "oranges", "concept_list": ["oranges"], "type": "cluster", "node_size": 18, "label": "oranges"}, "kroger": {"concepts": "kroger", "concept_list": ["kroger"], "type": "cluster", "node_size": 18, "label": "kroger"}, "penske trucks": {"concepts": "penske trucks", "concept_list": ["penske trucks"], "type": "cluster", "node_size": 18, "label": "penske trucks"}, "boxes": {"concepts": "boxes", "concept_list": ["boxes"], "type": "cluster", "node_size": 18, "label": "boxes"}, "food bank.": {"concepts": "food bank.", "concept_list": ["food bank."], "type": "cluster", "node_size": 18, "label": "food bank."}, "family dollars": {"concepts": "family dollars", "concept_list": ["family dollars"], "type": "cluster", "node_size": 18, "label": "family dollars"}, "chain corner store": {"concepts": "chain corner store", "concept_list": ["chain corner store"], "type": "cluster", "node_size": 18, "label": "chain corner store"}, "joint": {"concepts": "joint", "concept_list": ["joint"], "type": "cluster", "node_size": 18, "label": "joint"}, "walk": {"concepts": "walk", "concept_list": ["walk"], "type": "cluster", "node_size": 18, "label": "walk"}, "store": {"concepts": "store", "concept_list": ["store"], "type": "cluster", "node_size": 18, "label": "store"}, "basic needs": {"concepts": "basic needs", "concept_list": ["basic needs"], "type": "cluster", "node_size": 18, "label": "basic needs"}, "chicken patties": {"concepts": "chicken patties", "concept_list": ["chicken patties"], "type": "cluster", "node_size": 18, "label": "chicken patties"}, "grocery store closures": {"concepts": "grocery store closures", "concept_list": ["grocery store closures"], "type": "cluster", "node_size": 18, "label": "grocery store closures"}, "car": {"concepts": "car", "concept_list": ["car"], "type": "cluster", "node_size": 18, "label": "car"}, "u-hauls": {"concepts": "u-hauls", "concept_list": ["u-hauls"], "type": "cluster", "node_size": 18, "label": "u-hauls"}, "corunna": {"concepts": "corunna", "concept_list": ["corunna"], "type": "cluster", "node_size": 18, "label": "corunna"}, "philadelphia": {"concepts": "philadelphia", "concept_list": ["philadelphia"], "type": "cluster", "node_size": 18, "label": "philadelphia"}, "walmart": {"concepts": "walmart", "concept_list": ["walmart"], "type": "cluster", "node_size": 18, "label": "walmart"}, "chain grocery store": {"concepts": "chain grocery store", "concept_list": ["chain grocery store"], "type": "cluster", "node_size": 18, "label": "chain grocery store"}, "downtown": {"concepts": "downtown", "concept_list": ["downtown"], "type": "cluster", "node_size": 18, "label": "downtown"}, "chain liquor stores": {"concepts": "chain liquor stores", "concept_list": ["chain liquor stores"], "type": "cluster", "node_size": 18, "label": "chain liquor stores"}, "produce": {"concepts": "produce", "concept_list": ["produce"], "type": "cluster", "node_size": 18, "label": "produce"}, "community": {"concepts": "community", "concept_list": ["community"], "type": "cluster", "node_size": 18, "label": "community"}, "families": {"concepts": "families", "concept_list": ["families"], "type": "cluster", "node_size": 18, "label": "families"}, "politics": {"concepts": "politics", "concept_list": ["politics"], "type": "cluster", "node_size": 18, "label": "politics"}, "urban flint": {"concepts": "urban flint", "concept_list": ["urban flint"], "type": "cluster", "node_size": 18, "label": "urban flint"}, "small farmers": {"concepts": "small farmers", "concept_list": ["small farmers"], "type": "cluster", "node_size": 18, "label": "small farmers"}, "tuesday mornings": {"concepts": "tuesday mornings", "concept_list": ["tuesday mornings"], "type": "cluster", "node_size": 18, "label": "tuesday mornings"}, "milk": {"concepts": "milk", "concept_list": ["milk"], "type": "cluster", "node_size": 18, "label": "milk"}, "partnerships": {"concepts": "partnerships", "concept_list": ["partnerships"], "type": "cluster", "node_size": 18, "label": "partnerships"}, "fresh vegetables": {"concepts": "fresh vegetables", "concept_list": ["fresh vegetables"], "type": "cluster", "node_size": 18, "label": "fresh vegetables"}, "united way": {"concepts": "united way", "concept_list": ["united way"], "type": "cluster", "node_size": 18, "label": "united way"}, "liquor store": {"concepts": "liquor store", "concept_list": ["liquor store"], "type": "cluster", "node_size": 18, "label": "liquor store"}, "sunoco": {"concepts": "sunoco", "concept_list": ["sunoco"], "type": "cluster", "node_size": 18, "label": "sunoco"}, "new community": {"concepts": "new community", "concept_list": ["new community"], "type": "cluster", "node_size": 18, "label": "new community"}, "farmers to families": {"concepts": "farmers to families", "concept_list": ["farmers to families"], "type": "cluster", "node_size": 18, "label": "farmers to families"}, "people": {"concepts": "people", "concept_list": ["people"], "type": "cluster", "node_size": 18, "label": "people"}, "mother": {"concepts": "mother", "concept_list": ["mother"], "type": "cluster", "node_size": 18, "label": "mother"}, "apples": {"concepts": "apples", "concept_list": ["apples"], "type": "cluster", "node_size": 18, "label": "apples"}, "covid": {"concepts": "covid", "concept_list": ["covid"], "type": "cluster", "node_size": 18, "label": "covid"}, "money": {"concepts": "money", "concept_list": ["money"], "type": "cluster", "node_size": 18, "label": "money"}, "rapid response": {"concepts": "rapid response", "concept_list": ["rapid response"], "type": "cluster", "node_size": 18, "label": "rapid response"}, "retail stores": {"concepts": "retail stores", "concept_list": ["retail stores"], "type": "cluster", "node_size": 18, "label": "retail stores"}, "base enlargement": {"concepts": "base enlargement", "concept_list": ["base enlargement"], "type": "cluster", "node_size": 18, "label": "base enlargement"}, "organization": {"concepts": "organization", "concept_list": ["organization"], "type": "cluster", "node_size": 18, "label": "organization"}, "sustainable income": {"concepts": "sustainable income", "concept_list": ["sustainable income"], "type": "cluster", "node_size": 18, "label": "sustainable income"}, "markets": {"concepts": "markets", "concept_list": ["markets"], "type": "cluster", "node_size": 18, "label": "markets"}, "houston": {"concepts": "houston", "concept_list": ["houston"], "type": "cluster", "node_size": 18, "label": "houston"}, "sustainability": {"concepts": "sustainability", "concept_list": ["sustainability"], "type": "cluster", "node_size": 18, "label": "sustainability"}, "neighborhoods": {"concepts": "neighborhoods", "concept_list": ["neighborhoods"], "type": "cluster", "node_size": 18, "label": "neighborhoods"}, "economic recovery": {"concepts": "economic recovery", "concept_list": ["economic recovery"], "type": "cluster", "node_size": 18, "label": "economic recovery"}, "marijuana facility": {"concepts": "marijuana facility", "concept_list": ["marijuana facility"], "type": "cluster", "node_size": 18, "label": "marijuana facility"}, "townhomes": {"concepts": "townhomes", "concept_list": ["townhomes"], "type": "cluster", "node_size": 18, "label": "townhomes"}, "walk-in cooler": {"concepts": "walk-in cooler", "concept_list": ["walk-in cooler"], "type": "cluster", "node_size": 18, "label": "walk-in cooler"}, "bus": {"concepts": "bus", "concept_list": ["bus"], "type": "cluster", "node_size": 18, "label": "bus"}, "grant money": {"concepts": "grant money", "concept_list": ["grant money"], "type": "cluster", "node_size": 18, "label": "grant money"}, "organizations": {"concepts": "organizations", "concept_list": ["organizations"], "type": "cluster", "node_size": 18, "label": "organizations"}, "corner store": {"concepts": "corner store", "concept_list": ["corner store"], "type": "cluster", "node_size": 18, "label": "corner store"}, "households": {"concepts": "households", "concept_list": ["households"], "type": "cluster", "node_size": 18, "label": "households"}, "grocery stores": {"concepts": "grocery stores", "concept_list": ["grocery stores"], "type": "cluster", "node_size": 18, "label": "grocery stores"}, "chain store": {"concepts": "chain store", "concept_list": ["chain store"], "type": "cluster", "node_size": 18, "label": "chain store"}, "olive garden": {"concepts": "olive garden", "concept_list": ["olive garden"], "type": "cluster", "node_size": 18, "label": "olive garden"}, "flint area": {"concepts": "flint area", "concept_list": ["flint area"], "type": "cluster", "node_size": 18, "label": "flint area"}, "emergency food": {"concepts": "emergency food", "concept_list": ["emergency food"], "type": "cluster", "node_size": 18, "label": "emergency food"}, "family owned corner store": {"concepts": "family owned corner store", "concept_list": ["family owned corner store"], "type": "cluster", "node_size": 18, "label": "family owned corner store"}, "community benefit": {"concepts": "community benefit", "concept_list": ["community benefit"], "type": "cluster", "node_size": 18, "label": "community benefit"}, "flint": {"concepts": "flint", "concept_list": ["flint"], "type": "cluster", "node_size": 18, "label": "flint"}, "mom and pop stores": {"concepts": "mom and pop stores", "concept_list": ["mom and pop stores"], "type": "cluster", "node_size": 18, "label": "mom and pop stores"}, "emergency sector": {"concepts": "emergency sector", "concept_list": ["emergency sector"], "type": "cluster", "node_size": 18, "label": "emergency sector"}, "transportation": {"concepts": "transportation", "concept_list": ["transportation"], "type": "cluster", "node_size": 18, "label": "transportation"}, "team": {"concepts": "team", "concept_list": ["team"], "type": "cluster", "node_size": 18, "label": "team"}, "funders": {"concepts": "funders", "concept_list": ["funders"], "type": "cluster", "node_size": 18, "label": "funders"}, "kettering university": {"concepts": "kettering university", "concept_list": ["kettering university"], "type": "cluster", "node_size": 18, "label": "kettering university"}, "chain grocery stores": {"concepts": "chain grocery stores", "concept_list": ["chain grocery stores"], "type": "cluster", "node_size": 18, "label": "chain grocery stores"}, "drugs": {"concepts": "drugs", "concept_list": ["drugs"], "type": "cluster", "node_size": 18, "label": "drugs"}, "food": {"concepts": "food", "concept_list": ["food"], "type": "cluster", "node_size": 18, "label": "food"}, "clientele": {"concepts": "clientele", "concept_list": ["clientele"], "type": "cluster", "node_size": 18, "label": "clientele"}, "food experience": {"concepts": "food experience", "concept_list": ["food experience"], "type": "cluster", "node_size": 18, "label": "food experience"}, "gallon of milk": {"concepts": "gallon of milk", "concept_list": ["gallon of milk"], "type": "cluster", "node_size": 18, "label": "gallon of milk"}, "parking place": {"concepts": "parking place", "concept_list": ["parking place"], "type": "cluster", "node_size": 18, "label": "parking place"}, "powers high school": {"concepts": "powers high school", "concept_list": ["powers high school"], "type": "cluster", "node_size": 18, "label": "powers high school"}, "pandemic": {"concepts": "pandemic", "concept_list": ["pandemic"], "type": "cluster", "node_size": 18, "label": "pandemic"}, "installation.": {"concepts": "installation.", "concept_list": ["installation."], "type": "cluster", "node_size": 18, "label": "installation."}, "farmers market": {"concepts": "farmers market", "concept_list": ["farmers market"], "type": "cluster", "node_size": 18, "label": "farmers market"}, "houses": {"concepts": "houses", "concept_list": ["houses"], "type": "cluster", "node_size": 18, "label": "houses"}, "501 c 3": {"concepts": "501 c 3", "concept_list": ["501 c 3"], "type": "cluster", "node_size": 18, "label": "501 c 3"}, "walk-in freezer": {"concepts": "walk-in freezer", "concept_list": ["walk-in freezer"], "type": "cluster", "node_size": 18, "label": "walk-in freezer"}, "family dollar": {"concepts": "family dollar", "concept_list": ["family dollar"], "type": "cluster", "node_size": 18, "label": "family dollar"}, "suburban areas": {"concepts": "suburban areas", "concept_list": ["suburban areas"], "type": "cluster", "node_size": 18, "label": "suburban areas"}, "family owned store": {"concepts": "family owned store", "concept_list": ["family owned store"], "type": "cluster", "node_size": 18, "label": "family owned store"}, "frozen foods": {"concepts": "frozen foods", "concept_list": ["frozen foods"], "type": "cluster", "node_size": 18, "label": "frozen foods"}, "section eight": {"concepts": "section eight", "concept_list": ["section eight"], "type": "cluster", "node_size": 18, "label": "section eight"}, "fresh produce": {"concepts": "fresh produce", "concept_list": ["fresh produce"], "type": "cluster", "node_size": 18, "label": "fresh produce"}, "remodeling": {"concepts": "remodeling", "concept_list": ["remodeling"], "type": "cluster", "node_size": 18, "label": "remodeling"}, "economy": {"concepts": "economy", "concept_list": ["economy"], "type": "cluster", "node_size": 18, "label": "economy"}, "nonprofit organizations": {"concepts": "nonprofit organizations", "concept_list": ["nonprofit organizations"], "type": "cluster", "node_size": 18, "label": "nonprofit organizations"}, "retail": {"concepts": "retail", "concept_list": ["retail"], "type": "cluster", "node_size": 18, "label": "retail"}, "dollar general": {"concepts": "dollar general", "concept_list": ["dollar general"], "type": "cluster", "node_size": 18, "label": "dollar general"}, "funding": {"concepts": "funding", "concept_list": ["funding"], "type": "cluster", "node_size": 18, "label": "funding"}, "growth": {"concepts": "growth", "concept_list": ["growth"], "type": "cluster", "node_size": 18, "label": "growth"}, "condos": {"concepts": "condos", "concept_list": ["condos"], "type": "cluster", "node_size": 18, "label": "condos"}, "neighbors": {"concepts": "neighbors", "concept_list": ["neighbors"], "type": "cluster", "node_size": 18, "label": "neighbors"}, "churches": {"concepts": "churches", "concept_list": ["churches"], "type": "cluster", "node_size": 18, "label": "churches"}, "parishtown ministries": {"concepts": "parishtown ministries", "concept_list": ["parishtown ministries"], "type": "cluster", "node_size": 18, "label": "parishtown ministries"}, "model": {"concepts": "model", "concept_list": ["model"], "type": "cluster", "node_size": 18, "label": "model"}};
+        const conceptData = {};
+        const interClusterEdges = [["homeowners", "family dollar", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["children", "catholic charities", {"weight": 0.5, "confidence": 0.375, "type": "inter_cluster", "style": "solid"}], ["catholic charities", "emergency sector", {"weight": 1.0, "confidence": 0.7749999999999999, "type": "inter_cluster", "style": "solid"}], ["food system", "frozen foods", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["convenience stores", "funding", {"weight": -0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["water", "community", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["kroger", "retail", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["penske trucks", "people", {"weight": 0.75, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["boxes", "chicken patties", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["boxes", "united way", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["family dollars", "mom and pop stores", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["chain corner store", "family dollars", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["walk", "family dollar", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["grocery store closures", "farmers to families", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["u-hauls", "walk", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["corunna", "neighbors", {"weight": 0.5, "confidence": 0.425, "type": "inter_cluster", "style": "solid"}], ["philadelphia", "downtown", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["walmart", "flint area", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["walmart", "markets", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["chain grocery store", "sustainability", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["chain liquor stores", "nonprofit organizations", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["produce", "growth", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["community", "marijuana facility", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["families", "basic needs", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["families", "lower income", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["politics", "people", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["politics", "increased funding", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["small farmers", "oranges", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["small farmers", "new community", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["tuesday mornings", "fresh produce", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["milk", "fresh vegetables", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["milk", "mother", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["milk", "liquor store", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["partnerships", "basic needs", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["partnerships", "store", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["fresh vegetables", "joint", {"weight": -0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["sunoco", "powers high school", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["covid", "food bank.", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["money", "meat", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["rapid response", "clientele", {"weight": 0.5, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["retail stores", "dollar general", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["retail stores", "chain grocery store", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["base enlargement", "funders", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["base enlargement", "money", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["organization", "section eight", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["houston", "car", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["sustainability", "walk-in cooler", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["neighborhoods", "food experience", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["marijuana facility", "car", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["walk-in cooler", "sustainable income", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["grant money", "chain grocery stores", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["organizations", "townhomes", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["organizations", "condos", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["organizations", "farmers market", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["corner store", "sugar", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["households", "food bank.", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["households", "frozen foods", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["grocery stores", "store", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["chain store", "convenience stores", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["olive garden", "apples", {"weight": 0.5, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["family owned corner store", "churches", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["community benefit", "food bank.", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["flint", "remodeling", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["flint", "team", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["mom and pop stores", "growth", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["mom and pop stores", "economic recovery", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["team", "pallets", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["kettering university", "food", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["drugs", "bus", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food experience", "model", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food experience", "organization", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["gallon of milk", "farmers to families", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["parking place", "urban flint", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["pandemic", "meijer's", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["installation.", "parishtown ministries", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["farmers market", "increased funding", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["houses", "grant money", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["houses", "model", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["houses", "walk", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["501 c 3", "sustainability", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["walk-in freezer", "emergency sector", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["family dollar", "money", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["suburban areas", "farmers market", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["family owned store", "basic needs", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["fresh produce", "produce", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["remodeling", "grocery store closures", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["economy", "transportation", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["dollar general", "emergency food", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["funding", "rapid response", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["neighbors", "farmers to families", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"participatory governance": {"concepts": "participatory governance", "concept_list": ["participatory governance"], "type": "cluster", "node_size": 18, "label": "participatory governance"}, "funding challenges": {"concepts": "funding challenges", "concept_list": ["funding challenges"], "type": "cluster", "node_size": 18, "label": "funding challenges"}, "nutritious food": {"concepts": "nutritious food", "concept_list": ["nutritious food"], "type": "cluster", "node_size": 18, "label": "nutritious food"}, "lead concentration": {"concepts": "lead concentration", "concept_list": ["lead concentration"], "type": "cluster", "node_size": 18, "label": "lead concentration"}, "supplemental nutrition programs": {"concepts": "supplemental nutrition programs", "concept_list": ["supplemental nutrition programs"], "type": "cluster", "node_size": 18, "label": "supplemental nutrition programs"}, "community resources": {"concepts": "community resources", "concept_list": ["community resources"], "type": "cluster", "node_size": 18, "label": "community resources"}, "poverty areas": {"concepts": "poverty areas", "concept_list": ["poverty areas"], "type": "cluster", "node_size": 18, "label": "poverty areas"}, "city of flint": {"concepts": "city of flint", "concept_list": ["city of flint"], "type": "cluster", "node_size": 18, "label": "city of flint"}, "healthy food": {"concepts": "healthy food", "concept_list": ["healthy food"], "type": "cluster", "node_size": 18, "label": "healthy food"}, "food system": {"concepts": "food system", "concept_list": ["food system"], "type": "cluster", "node_size": 18, "label": "food system"}, "socio economic status": {"concepts": "socio economic status", "concept_list": ["socio economic status"], "type": "cluster", "node_size": 18, "label": "socio economic status"}, "community organizing": {"concepts": "community organizing", "concept_list": ["community organizing"], "type": "cluster", "node_size": 18, "label": "community organizing"}, "economic empowerment": {"concepts": "economic empowerment", "concept_list": ["economic empowerment"], "type": "cluster", "node_size": 18, "label": "economic empowerment"}, "health literacy": {"concepts": "health literacy", "concept_list": ["health literacy"], "type": "cluster", "node_size": 18, "label": "health literacy"}, "community support": {"concepts": "community support", "concept_list": ["community support"], "type": "cluster", "node_size": 18, "label": "community support"}, "food system values": {"concepts": "food system values", "concept_list": ["food system values"], "type": "cluster", "node_size": 18, "label": "food system values"}, "black and brown children": {"concepts": "black and brown children", "concept_list": ["black and brown children"], "type": "cluster", "node_size": 18, "label": "black and brown children"}, "job creation": {"concepts": "job creation", "concept_list": ["job creation"], "type": "cluster", "node_size": 18, "label": "job creation"}, "economic inequality": {"concepts": "economic inequality", "concept_list": ["economic inequality"], "type": "cluster", "node_size": 18, "label": "economic inequality"}, "health disparities": {"concepts": "health disparities", "concept_list": ["health disparities"], "type": "cluster", "node_size": 18, "label": "health disparities"}, "funding allocation": {"concepts": "funding allocation", "concept_list": ["funding allocation"], "type": "cluster", "node_size": 18, "label": "funding allocation"}, "spirit": {"concepts": "spirit", "concept_list": ["spirit"], "type": "cluster", "node_size": 18, "label": "spirit"}, "food giveaways": {"concepts": "food giveaways", "concept_list": ["food giveaways"], "type": "cluster", "node_size": 18, "label": "food giveaways"}, "business principles": {"concepts": "business principles", "concept_list": ["business principles"], "type": "cluster", "node_size": 18, "label": "business principles"}, "community ownership": {"concepts": "community ownership", "concept_list": ["community ownership"], "type": "cluster", "node_size": 18, "label": "community ownership"}, "grocery store closures": {"concepts": "grocery store closures", "concept_list": ["grocery store closures"], "type": "cluster", "node_size": 18, "label": "grocery store closures"}, "community values": {"concepts": "community values", "concept_list": ["community values"], "type": "cluster", "node_size": 18, "label": "community values"}, "well resourced organizations": {"concepts": "well resourced organizations", "concept_list": ["well resourced organizations"], "type": "cluster", "node_size": 18, "label": "well resourced organizations"}, "cooperative ownership": {"concepts": "cooperative ownership", "concept_list": ["cooperative ownership"], "type": "cluster", "node_size": 18, "label": "cooperative ownership"}, "social support": {"concepts": "social support", "concept_list": ["social support"], "type": "cluster", "node_size": 18, "label": "social support"}, "social equity": {"concepts": "social equity", "concept_list": ["social equity"], "type": "cluster", "node_size": 18, "label": "social equity"}, "economic sustainability": {"concepts": "economic sustainability", "concept_list": ["economic sustainability"], "type": "cluster", "node_size": 18, "label": "economic sustainability"}, "economic inclusion": {"concepts": "economic inclusion", "concept_list": ["economic inclusion"], "type": "cluster", "node_size": 18, "label": "economic inclusion"}, "holy spirit": {"concepts": "holy spirit", "concept_list": ["holy spirit"], "type": "cluster", "node_size": 18, "label": "holy spirit"}, "nutrition access": {"concepts": "nutrition access", "concept_list": ["nutrition access"], "type": "cluster", "node_size": 18, "label": "nutrition access"}, "project funding": {"concepts": "project funding", "concept_list": ["project funding"], "type": "cluster", "node_size": 18, "label": "project funding"}, "change": {"concepts": "change", "concept_list": ["change"], "type": "cluster", "node_size": 18, "label": "change"}, "social cohesion": {"concepts": "social cohesion", "concept_list": ["social cohesion"], "type": "cluster", "node_size": 18, "label": "social cohesion"}, "chronic disease management": {"concepts": "chronic disease management", "concept_list": ["chronic disease management"], "type": "cluster", "node_size": 18, "label": "chronic disease management"}, "cooperative economics": {"concepts": "cooperative economics", "concept_list": ["cooperative economics"], "type": "cluster", "node_size": 18, "label": "cooperative economics"}, "retail closures": {"concepts": "retail closures", "concept_list": ["retail closures"], "type": "cluster", "node_size": 18, "label": "retail closures"}, "creator": {"concepts": "creator", "concept_list": ["creator"], "type": "cluster", "node_size": 18, "label": "creator"}, "nutrition education": {"concepts": "nutrition education", "concept_list": ["nutrition education"], "type": "cluster", "node_size": 18, "label": "nutrition education"}, "kujichagulia": {"concepts": "kujichagulia", "concept_list": ["kujichagulia"], "type": "cluster", "node_size": 18, "label": "kujichagulia"}, "compassion": {"concepts": "compassion", "concept_list": ["compassion"], "type": "cluster", "node_size": 18, "label": "compassion"}, "food cooperative": {"concepts": "food cooperative", "concept_list": ["food cooperative"], "type": "cluster", "node_size": 18, "label": "food cooperative"}, "grassroots level": {"concepts": "grassroots level", "concept_list": ["grassroots level"], "type": "cluster", "node_size": 18, "label": "grassroots level"}, "economic resilience": {"concepts": "economic resilience", "concept_list": ["economic resilience"], "type": "cluster", "node_size": 18, "label": "economic resilience"}, "water ponds closure": {"concepts": "water ponds closure", "concept_list": ["water ponds closure"], "type": "cluster", "node_size": 18, "label": "water ponds closure"}, "community development": {"concepts": "community development", "concept_list": ["community development"], "type": "cluster", "node_size": 18, "label": "community development"}, "public funding": {"concepts": "public funding", "concept_list": ["public funding"], "type": "cluster", "node_size": 18, "label": "public funding"}, "food culture": {"concepts": "food culture", "concept_list": ["food culture"], "type": "cluster", "node_size": 18, "label": "food culture"}, "education": {"concepts": "education", "concept_list": ["education"], "type": "cluster", "node_size": 18, "label": "education"}, "food system sectors": {"concepts": "food system sectors", "concept_list": ["food system sectors"], "type": "cluster", "node_size": 18, "label": "food system sectors"}, "community impact": {"concepts": "community impact", "concept_list": ["community impact"], "type": "cluster", "node_size": 18, "label": "community impact"}, "retail use": {"concepts": "retail use", "concept_list": ["retail use"], "type": "cluster", "node_size": 18, "label": "retail use"}, "public health": {"concepts": "public health", "concept_list": ["public health"], "type": "cluster", "node_size": 18, "label": "public health"}, "cultural values": {"concepts": "cultural values", "concept_list": ["cultural values"], "type": "cluster", "node_size": 18, "label": "cultural values"}, "economic participation": {"concepts": "economic participation", "concept_list": ["economic participation"], "type": "cluster", "node_size": 18, "label": "economic participation"}, "human being": {"concepts": "human being", "concept_list": ["human being"], "type": "cluster", "node_size": 18, "label": "human being"}, "food deserts": {"concepts": "food deserts", "concept_list": ["food deserts"], "type": "cluster", "node_size": 18, "label": "food deserts"}, "funding inequality": {"concepts": "funding inequality", "concept_list": ["funding inequality"], "type": "cluster", "node_size": 18, "label": "funding inequality"}, "healthy eating": {"concepts": "healthy eating", "concept_list": ["healthy eating"], "type": "cluster", "node_size": 18, "label": "healthy eating"}, "god": {"concepts": "god", "concept_list": ["god"], "type": "cluster", "node_size": 18, "label": "god"}, "resource distribution": {"concepts": "resource distribution", "concept_list": ["resource distribution"], "type": "cluster", "node_size": 18, "label": "resource distribution"}, "fast food": {"concepts": "fast food", "concept_list": ["fast food"], "type": "cluster", "node_size": 18, "label": "fast food"}, "food system inequity": {"concepts": "food system inequity", "concept_list": ["food system inequity"], "type": "cluster", "node_size": 18, "label": "food system inequity"}, "food access": {"concepts": "food access", "concept_list": ["food access"], "type": "cluster", "node_size": 18, "label": "food access"}, "project": {"concepts": "project", "concept_list": ["project"], "type": "cluster", "node_size": 18, "label": "project"}, "lifelong learning": {"concepts": "lifelong learning", "concept_list": ["lifelong learning"], "type": "cluster", "node_size": 18, "label": "lifelong learning"}, "community leadership": {"concepts": "community leadership", "concept_list": ["community leadership"], "type": "cluster", "node_size": 18, "label": "community leadership"}, "food apartheid": {"concepts": "food apartheid", "concept_list": ["food apartheid"], "type": "cluster", "node_size": 18, "label": "food apartheid"}, "farmers markets": {"concepts": "farmers markets", "concept_list": ["farmers markets"], "type": "cluster", "node_size": 18, "label": "farmers markets"}, "convenience stores": {"concepts": "convenience stores", "concept_list": ["convenience stores"], "type": "cluster", "node_size": 18, "label": "convenience stores"}, "collective resources": {"concepts": "collective resources", "concept_list": ["collective resources"], "type": "cluster", "node_size": 18, "label": "collective resources"}, "quality of life": {"concepts": "quality of life", "concept_list": ["quality of life"], "type": "cluster", "node_size": 18, "label": "quality of life"}, "collective good": {"concepts": "collective good", "concept_list": ["collective good"], "type": "cluster", "node_size": 18, "label": "collective good"}, "gospel ministry": {"concepts": "gospel ministry", "concept_list": ["gospel ministry"], "type": "cluster", "node_size": 18, "label": "gospel ministry"}, "lived experience": {"concepts": "lived experience", "concept_list": ["lived experience"], "type": "cluster", "node_size": 18, "label": "lived experience"}, "nutritious foods": {"concepts": "nutritious foods", "concept_list": ["nutritious foods"], "type": "cluster", "node_size": 18, "label": "nutritious foods"}, "community jobs": {"concepts": "community jobs", "concept_list": ["community jobs"], "type": "cluster", "node_size": 18, "label": "community jobs"}, "state of the art facilities": {"concepts": "state of the art facilities", "concept_list": ["state of the art facilities"], "type": "cluster", "node_size": 18, "label": "state of the art facilities"}, "healthy food access": {"concepts": "healthy food access", "concept_list": ["healthy food access"], "type": "cluster", "node_size": 18, "label": "healthy food access"}, "godliness": {"concepts": "godliness", "concept_list": ["godliness"], "type": "cluster", "node_size": 18, "label": "godliness"}, "social determinants": {"concepts": "social determinants", "concept_list": ["social determinants"], "type": "cluster", "node_size": 18, "label": "social determinants"}, "flint water crisis": {"concepts": "flint water crisis", "concept_list": ["flint water crisis"], "type": "cluster", "node_size": 18, "label": "flint water crisis"}, "urban food system": {"concepts": "urban food system", "concept_list": ["urban food system"], "type": "cluster", "node_size": 18, "label": "urban food system"}, "power": {"concepts": "power", "concept_list": ["power"], "type": "cluster", "node_size": 18, "label": "power"}, "economic disparity": {"concepts": "economic disparity", "concept_list": ["economic disparity"], "type": "cluster", "node_size": 18, "label": "economic disparity"}, "dividend allocation": {"concepts": "dividend allocation", "concept_list": ["dividend allocation"], "type": "cluster", "node_size": 18, "label": "dividend allocation"}, "health outcomes": {"concepts": "health outcomes", "concept_list": ["health outcomes"], "type": "cluster", "node_size": 18, "label": "health outcomes"}, "prayer support": {"concepts": "prayer support", "concept_list": ["prayer support"], "type": "cluster", "node_size": 18, "label": "prayer support"}, "local restaurants": {"concepts": "local restaurants", "concept_list": ["local restaurants"], "type": "cluster", "node_size": 18, "label": "local restaurants"}, "power brokers": {"concepts": "power brokers", "concept_list": ["power brokers"], "type": "cluster", "node_size": 18, "label": "power brokers"}, "state and local decisions": {"concepts": "state and local decisions", "concept_list": ["state and local decisions"], "type": "cluster", "node_size": 18, "label": "state and local decisions"}, "prayer": {"concepts": "prayer", "concept_list": ["prayer"], "type": "cluster", "node_size": 18, "label": "prayer"}, "brick and mortar development": {"concepts": "brick and mortar development", "concept_list": ["brick and mortar development"], "type": "cluster", "node_size": 18, "label": "brick and mortar development"}, "north flint food market": {"concepts": "north flint food market", "concept_list": ["north flint food market"], "type": "cluster", "node_size": 18, "label": "north flint food market"}, "blessing": {"concepts": "blessing", "concept_list": ["blessing"], "type": "cluster", "node_size": 18, "label": "blessing"}, "food sovereignty": {"concepts": "food sovereignty", "concept_list": ["food sovereignty"], "type": "cluster", "node_size": 18, "label": "food sovereignty"}, "self determination": {"concepts": "self determination", "concept_list": ["self determination"], "type": "cluster", "node_size": 18, "label": "self determination"}, "food systems": {"concepts": "food systems", "concept_list": ["food systems"], "type": "cluster", "node_size": 18, "label": "food systems"}, "black community": {"concepts": "black community", "concept_list": ["black community"], "type": "cluster", "node_size": 18, "label": "black community"}, "water crisis": {"concepts": "water crisis", "concept_list": ["water crisis"], "type": "cluster", "node_size": 18, "label": "water crisis"}, "workmanship": {"concepts": "workmanship", "concept_list": ["workmanship"], "type": "cluster", "node_size": 18, "label": "workmanship"}, "community health": {"concepts": "community health", "concept_list": ["community health"], "type": "cluster", "node_size": 18, "label": "community health"}, "faith support": {"concepts": "faith support", "concept_list": ["faith support"], "type": "cluster", "node_size": 18, "label": "faith support"}, "kwanzaa principle": {"concepts": "kwanzaa principle", "concept_list": ["kwanzaa principle"], "type": "cluster", "node_size": 18, "label": "kwanzaa principle"}, "community empowerment": {"concepts": "community empowerment", "concept_list": ["community empowerment"], "type": "cluster", "node_size": 18, "label": "community empowerment"}, "economic development": {"concepts": "economic development", "concept_list": ["economic development"], "type": "cluster", "node_size": 18, "label": "economic development"}, "provision": {"concepts": "provision", "concept_list": ["provision"], "type": "cluster", "node_size": 18, "label": "provision"}, "works": {"concepts": "works", "concept_list": ["works"], "type": "cluster", "node_size": 18, "label": "works"}, "resource mobilization": {"concepts": "resource mobilization", "concept_list": ["resource mobilization"], "type": "cluster", "node_size": 18, "label": "resource mobilization"}, "kwanzaa principles": {"concepts": "kwanzaa principles", "concept_list": ["kwanzaa principles"], "type": "cluster", "node_size": 18, "label": "kwanzaa principles"}, "ujamaa": {"concepts": "ujamaa", "concept_list": ["ujamaa"], "type": "cluster", "node_size": 18, "label": "ujamaa"}, "warrior": {"concepts": "warrior", "concept_list": ["warrior"], "type": "cluster", "node_size": 18, "label": "warrior"}, "feedback loops": {"concepts": "feedback loops", "concept_list": ["feedback loops"], "type": "cluster", "node_size": 18, "label": "feedback loops"}, "emotional impact": {"concepts": "emotional impact", "concept_list": ["emotional impact"], "type": "cluster", "node_size": 18, "label": "emotional impact"}, "opportunities": {"concepts": "opportunities", "concept_list": ["opportunities"], "type": "cluster", "node_size": 18, "label": "opportunities"}, "lead exposure": {"concepts": "lead exposure", "concept_list": ["lead exposure"], "type": "cluster", "node_size": 18, "label": "lead exposure"}, "urban poverty": {"concepts": "urban poverty", "concept_list": ["urban poverty"], "type": "cluster", "node_size": 18, "label": "urban poverty"}, "food": {"concepts": "food", "concept_list": ["food"], "type": "cluster", "node_size": 18, "label": "food"}, "faith": {"concepts": "faith", "concept_list": ["faith"], "type": "cluster", "node_size": 18, "label": "faith"}, "health promotion": {"concepts": "health promotion", "concept_list": ["health promotion"], "type": "cluster", "node_size": 18, "label": "health promotion"}, "social capital": {"concepts": "social capital", "concept_list": ["social capital"], "type": "cluster", "node_size": 18, "label": "social capital"}, "food justice": {"concepts": "food justice", "concept_list": ["food justice"], "type": "cluster", "node_size": 18, "label": "food justice"}, "social justice": {"concepts": "social justice", "concept_list": ["social justice"], "type": "cluster", "node_size": 18, "label": "social justice"}};
+        const conceptData = {};
+        const interClusterEdges = [["participatory governance", "community support", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["nutritious food", "community resources", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["supplemental nutrition programs", "health literacy", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["community resources", "urban poverty", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["community resources", "business principles", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["poverty areas", "food", {"weight": -1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["city of flint", "food system inequity", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food system", "collective good", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["food system", "emotional impact", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food system", "water crisis", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["socio economic status", "economic disparity", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["community organizing", "urban food system", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["community organizing", "food system values", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["economic empowerment", "chronic disease management", {"weight": 0.6666666666666666, "confidence": 0.43333333333333335, "type": "inter_cluster", "style": "solid"}], ["health literacy", "social support", {"weight": 0.6666666666666666, "confidence": 0.39999999999999997, "type": "inter_cluster", "style": "solid"}], ["community support", "social support", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["community support", "project", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["community support", "funding inequality", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food system values", "lifelong learning", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["black and brown children", "kwanzaa principles", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["job creation", "water crisis", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["economic inequality", "health promotion", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["economic inequality", "compassion", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["health disparities", "nutrition education", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["funding allocation", "collective resources", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["funding allocation", "convenience stores", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["funding allocation", "grassroots level", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["funding allocation", "emotional impact", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["business principles", "resource distribution", {"weight": 1.0, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["community ownership", "job creation", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["grocery store closures", "well resourced organizations", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["community values", "collective good", {"weight": 1.0, "confidence": 0.7749999999999999, "type": "inter_cluster", "style": "solid"}], ["community values", "cultural values", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["well resourced organizations", "food system values", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["cooperative ownership", "retail closures", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["social support", "provision", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["social equity", "supplemental nutrition programs", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["social equity", "works", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["social equity", "nutrition education", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["social equity", "convenience stores", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["economic sustainability", "food cooperative", {"weight": 1.0, "confidence": 0.7749999999999999, "type": "inter_cluster", "style": "solid"}], ["economic inclusion", "nutritious foods", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["holy spirit", "warrior", {"weight": 1.0, "confidence": 0.7166666666666667, "type": "inter_cluster", "style": "solid"}], ["holy spirit", "creator", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["nutrition access", "north flint food market", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["project funding", "lifelong learning", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["change", "emotional impact", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["social cohesion", "community health", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["social cohesion", "poverty areas", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["chronic disease management", "food apartheid", {"weight": -1.0, "confidence": 0.7124999999999999, "type": "inter_cluster", "style": "solid"}], ["chronic disease management", "funding challenges", {"weight": -1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["cooperative economics", "food access", {"weight": 1.0, "confidence": 0.9166666666666666, "type": "inter_cluster", "style": "solid"}], ["cooperative economics", "cultural values", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["retail closures", "community values", {"weight": -1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["retail closures", "grocery store closures", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["retail closures", "community ownership", {"weight": -1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["retail closures", "spirit", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["kujichagulia", "economic participation", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["kujichagulia", "urban food system", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["kujichagulia", "social determinants", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["grassroots level", "food system inequity", {"weight": -0.5, "confidence": 0.7625, "type": "inter_cluster", "style": "solid"}], ["community development", "prayer support", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["community development", "blessing", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["food culture", "compassion", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["community impact", "social support", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["retail use", "food", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["cultural values", "provision", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["cultural values", "lived experience", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["human being", "education", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food deserts", "food system sectors", {"weight": -1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["funding inequality", "public funding", {"weight": -1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["funding inequality", "flint water crisis", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["healthy eating", "economic sustainability", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["god", "warrior", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["resource distribution", "economic inclusion", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["resource distribution", "food system values", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food access", "fast food", {"weight": 1.0, "confidence": 0.6666666666666666, "type": "inter_cluster", "style": "solid"}], ["food access", "healthy food", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["food access", "emotional impact", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food access", "lead exposure", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["project", "retail use", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["lifelong learning", "economic inclusion", {"weight": 1.0, "confidence": 0.6999999999999998, "type": "inter_cluster", "style": "solid"}], ["community leadership", "grocery store closures", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["community leadership", "faith support", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["community leadership", "workmanship", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["food apartheid", "north flint food market", {"weight": -1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["farmers markets", "opportunities", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["collective resources", "economic participation", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["quality of life", "water ponds closure", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["lived experience", "prayer support", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["community jobs", "community organizing", {"weight": 1.0, "confidence": 0.6875, "type": "inter_cluster", "style": "solid"}], ["healthy food access", "resource distribution", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["healthy food access", "community impact", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["social determinants", "social support", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["social determinants", "community jobs", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["flint water crisis", "economic inclusion", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["urban food system", "community impact", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["power", "nutrition access", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["economic disparity", "urban poverty", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["economic disparity", "public health", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["dividend allocation", "community leadership", {"weight": 1.0, "confidence": 0.7166666666666667, "type": "inter_cluster", "style": "solid"}], ["health outcomes", "lead concentration", {"weight": -1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["local restaurants", "food system sectors", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["state and local decisions", "provision", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["brick and mortar development", "state of the art facilities", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["food sovereignty", "nutrition education", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["self determination", "prayer", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food systems", "funding challenges", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food systems", "lead exposure", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["black community", "power brokers", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["community health", "food giveaways", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["community health", "gospel ministry", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["kwanzaa principle", "economic inequality", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["community empowerment", "food cooperative", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["community empowerment", "cultural values", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["community empowerment", "socio economic status", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["economic development", "economic resilience", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["provision", "social support", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["works", "project", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["resource mobilization", "economic resilience", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["resource mobilization", "economic participation", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["ujamaa", "healthy food access", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["feedback loops", "food sovereignty", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["emotional impact", "blessing", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["lead exposure", "social justice", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["urban poverty", "poverty areas", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["food", "godliness", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food", "food deserts", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["faith", "human being", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["health promotion", "social capital", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["social capital", "power", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food justice", "job creation", {"weight": 0.75, "confidence": 0.575, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

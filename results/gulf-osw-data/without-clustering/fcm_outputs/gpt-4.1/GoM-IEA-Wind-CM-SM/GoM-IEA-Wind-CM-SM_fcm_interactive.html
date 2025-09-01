@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"regulatory structure": {"concepts": "regulatory structure", "concept_list": ["regulatory structure"], "type": "cluster", "node_size": 18, "label": "regulatory structure"}, "gulf of mexico region": {"concepts": "gulf of mexico region", "concept_list": ["gulf of mexico region"], "type": "cluster", "node_size": 18, "label": "gulf of mexico region"}, "geophysical data": {"concepts": "geophysical data", "concept_list": ["geophysical data"], "type": "cluster", "node_size": 18, "label": "geophysical data"}, "renewable energy": {"concepts": "renewable energy", "concept_list": ["renewable energy"], "type": "cluster", "node_size": 18, "label": "renewable energy"}, "environmental compliance": {"concepts": "environmental compliance", "concept_list": ["environmental compliance"], "type": "cluster", "node_size": 18, "label": "environmental compliance"}, "development": {"concepts": "development", "concept_list": ["development"], "type": "cluster", "node_size": 18, "label": "development"}, "regulatory": {"concepts": "regulatory", "concept_list": ["regulatory"], "type": "cluster", "node_size": 18, "label": "regulatory"}, "steel in the water": {"concepts": "steel in the water", "concept_list": ["steel in the water"], "type": "cluster", "node_size": 18, "label": "steel in the water"}, "vineyard wind": {"concepts": "vineyard wind", "concept_list": ["vineyard wind"], "type": "cluster", "node_size": 18, "label": "vineyard wind"}, "mitigations": {"concepts": "mitigations", "concept_list": ["mitigations"], "type": "cluster", "node_size": 18, "label": "mitigations"}, "g&g information": {"concepts": "g&g information", "concept_list": ["g&g information"], "type": "cluster", "node_size": 18, "label": "g&g information"}, "geography": {"concepts": "geography", "concept_list": ["geography"], "type": "cluster", "node_size": 18, "label": "geography"}, "technical elements": {"concepts": "technical elements", "concept_list": ["technical elements"], "type": "cluster", "node_size": 18, "label": "technical elements"}, "barges": {"concepts": "barges", "concept_list": ["barges"], "type": "cluster", "node_size": 18, "label": "barges"}, "site assessment": {"concepts": "site assessment", "concept_list": ["site assessment"], "type": "cluster", "node_size": 18, "label": "site assessment"}, "mitigation": {"concepts": "mitigation", "concept_list": ["mitigation"], "type": "cluster", "node_size": 18, "label": "mitigation"}, "mitigation measures": {"concepts": "mitigation measures", "concept_list": ["mitigation measures"], "type": "cluster", "node_size": 18, "label": "mitigation measures"}, "lease phase": {"concepts": "lease phase", "concept_list": ["lease phase"], "type": "cluster", "node_size": 18, "label": "lease phase"}, "well conductor pipe": {"concepts": "well conductor pipe", "concept_list": ["well conductor pipe"], "type": "cluster", "node_size": 18, "label": "well conductor pipe"}, "shallow water": {"concepts": "shallow water", "concept_list": ["shallow water"], "type": "cluster", "node_size": 18, "label": "shallow water"}, "topsides": {"concepts": "topsides", "concept_list": ["topsides"], "type": "cluster", "node_size": 18, "label": "topsides"}, "industry development": {"concepts": "industry development", "concept_list": ["industry development"], "type": "cluster", "node_size": 18, "label": "industry development"}, "permit": {"concepts": "permit", "concept_list": ["permit"], "type": "cluster", "node_size": 18, "label": "permit"}, "bessie": {"concepts": "bessie", "concept_list": ["bessie"], "type": "cluster", "node_size": 18, "label": "bessie"}, "vessel traffic": {"concepts": "vessel traffic", "concept_list": ["vessel traffic"], "type": "cluster", "node_size": 18, "label": "vessel traffic"}, "monopod": {"concepts": "monopod", "concept_list": ["monopod"], "type": "cluster", "node_size": 18, "label": "monopod"}, "project design envelope": {"concepts": "project design envelope", "concept_list": ["project design envelope"], "type": "cluster", "node_size": 18, "label": "project design envelope"}, "conventional activities": {"concepts": "conventional activities", "concept_list": ["conventional activities"], "type": "cluster", "node_size": 18, "label": "conventional activities"}, "critical habitat": {"concepts": "critical habitat", "concept_list": ["critical habitat"], "type": "cluster", "node_size": 18, "label": "critical habitat"}, "energy portfolios": {"concepts": "energy portfolios", "concept_list": ["energy portfolios"], "type": "cluster", "node_size": 18, "label": "energy portfolios"}, "nacelles": {"concepts": "nacelles", "concept_list": ["nacelles"], "type": "cluster", "node_size": 18, "label": "nacelles"}, "offshore wind": {"concepts": "offshore wind", "concept_list": ["offshore wind"], "type": "cluster", "node_size": 18, "label": "offshore wind"}, "installations": {"concepts": "installations", "concept_list": ["installations"], "type": "cluster", "node_size": 18, "label": "installations"}, "novelty": {"concepts": "novelty", "concept_list": ["novelty"], "type": "cluster", "node_size": 18, "label": "novelty"}, "wind energy": {"concepts": "wind energy", "concept_list": ["wind energy"], "type": "cluster", "node_size": 18, "label": "wind energy"}, "environmental impact": {"concepts": "environmental impact", "concept_list": ["environmental impact"], "type": "cluster", "node_size": 18, "label": "environmental impact"}, "energy demands": {"concepts": "energy demands", "concept_list": ["energy demands"], "type": "cluster", "node_size": 18, "label": "energy demands"}, "conflict resolution": {"concepts": "conflict resolution", "concept_list": ["conflict resolution"], "type": "cluster", "node_size": 18, "label": "conflict resolution"}, "pipelines": {"concepts": "pipelines", "concept_list": ["pipelines"], "type": "cluster", "node_size": 18, "label": "pipelines"}, "energy production": {"concepts": "energy production", "concept_list": ["energy production"], "type": "cluster", "node_size": 18, "label": "energy production"}, "geographical data": {"concepts": "geographical data", "concept_list": ["geographical data"], "type": "cluster", "node_size": 18, "label": "geographical data"}, "political climate": {"concepts": "political climate", "concept_list": ["political climate"], "type": "cluster", "node_size": 18, "label": "political climate"}, "supply chain": {"concepts": "supply chain", "concept_list": ["supply chain"], "type": "cluster", "node_size": 18, "label": "supply chain"}, "resource strain": {"concepts": "resource strain", "concept_list": ["resource strain"], "type": "cluster", "node_size": 18, "label": "resource strain"}, "monitoring plans": {"concepts": "monitoring plans", "concept_list": ["monitoring plans"], "type": "cluster", "node_size": 18, "label": "monitoring plans"}, "infrastructure": {"concepts": "infrastructure", "concept_list": ["infrastructure"], "type": "cluster", "node_size": 18, "label": "infrastructure"}, "stakeholder engagement": {"concepts": "stakeholder engagement", "concept_list": ["stakeholder engagement"], "type": "cluster", "node_size": 18, "label": "stakeholder engagement"}, "east coast": {"concepts": "east coast", "concept_list": ["east coast"], "type": "cluster", "node_size": 18, "label": "east coast"}, "environmental impact statement": {"concepts": "environmental impact statement", "concept_list": ["environmental impact statement"], "type": "cluster", "node_size": 18, "label": "environmental impact statement"}, "atlantic": {"concepts": "atlantic", "concept_list": ["atlantic"], "type": "cluster", "node_size": 18, "label": "atlantic"}, "carbon sequestration": {"concepts": "carbon sequestration", "concept_list": ["carbon sequestration"], "type": "cluster", "node_size": 18, "label": "carbon sequestration"}, "geologic features": {"concepts": "geologic features", "concept_list": ["geologic features"], "type": "cluster", "node_size": 18, "label": "geologic features"}, "atlantic seaboard": {"concepts": "atlantic seaboard", "concept_list": ["atlantic seaboard"], "type": "cluster", "node_size": 18, "label": "atlantic seaboard"}, "enforcement": {"concepts": "enforcement", "concept_list": ["enforcement"], "type": "cluster", "node_size": 18, "label": "enforcement"}, "wind farms": {"concepts": "wind farms", "concept_list": ["wind farms"], "type": "cluster", "node_size": 18, "label": "wind farms"}, "regulations": {"concepts": "regulations", "concept_list": ["regulations"], "type": "cluster", "node_size": 18, "label": "regulations"}, "wind energy assessments": {"concepts": "wind energy assessments", "concept_list": ["wind energy assessments"], "type": "cluster", "node_size": 18, "label": "wind energy assessments"}, "investment": {"concepts": "investment", "concept_list": ["investment"], "type": "cluster", "node_size": 18, "label": "investment"}, "passive acoustic monitoring": {"concepts": "passive acoustic monitoring", "concept_list": ["passive acoustic monitoring"], "type": "cluster", "node_size": 18, "label": "passive acoustic monitoring"}, "protected species": {"concepts": "protected species", "concept_list": ["protected species"], "type": "cluster", "node_size": 18, "label": "protected species"}, "wind availability": {"concepts": "wind availability", "concept_list": ["wind availability"], "type": "cluster", "node_size": 18, "label": "wind availability"}, "plan": {"concepts": "plan", "concept_list": ["plan"], "type": "cluster", "node_size": 18, "label": "plan"}, "renewables": {"concepts": "renewables", "concept_list": ["renewables"], "type": "cluster", "node_size": 18, "label": "renewables"}, "flexibility": {"concepts": "flexibility", "concept_list": ["flexibility"], "type": "cluster", "node_size": 18, "label": "flexibility"}, "psos": {"concepts": "psos", "concept_list": ["psos"], "type": "cluster", "node_size": 18, "label": "psos"}, "plan specific": {"concepts": "plan specific", "concept_list": ["plan specific"], "type": "cluster", "node_size": 18, "label": "plan specific"}, "jurisdiction": {"concepts": "jurisdiction", "concept_list": ["jurisdiction"], "type": "cluster", "node_size": 18, "label": "jurisdiction"}, "southeast fishery science center": {"concepts": "southeast fishery science center", "concept_list": ["southeast fishery science center"], "type": "cluster", "node_size": 18, "label": "southeast fishery science center"}, "impact hammers": {"concepts": "impact hammers", "concept_list": ["impact hammers"], "type": "cluster", "node_size": 18, "label": "impact hammers"}, "geotech": {"concepts": "geotech", "concept_list": ["geotech"], "type": "cluster", "node_size": 18, "label": "geotech"}, "decommissioning": {"concepts": "decommissioning", "concept_list": ["decommissioning"], "type": "cluster", "node_size": 18, "label": "decommissioning"}, "organizational conflict": {"concepts": "organizational conflict", "concept_list": ["organizational conflict"], "type": "cluster", "node_size": 18, "label": "organizational conflict"}, "pile driving": {"concepts": "pile driving", "concept_list": ["pile driving"], "type": "cluster", "node_size": 18, "label": "pile driving"}, "management actions": {"concepts": "management actions", "concept_list": ["management actions"], "type": "cluster", "node_size": 18, "label": "management actions"}, "policy perspective": {"concepts": "policy perspective", "concept_list": ["policy perspective"], "type": "cluster", "node_size": 18, "label": "policy perspective"}, "regulatory framework": {"concepts": "regulatory framework", "concept_list": ["regulatory framework"], "type": "cluster", "node_size": 18, "label": "regulatory framework"}, "concentrated data": {"concepts": "concentrated data", "concept_list": ["concentrated data"], "type": "cluster", "node_size": 18, "label": "concentrated data"}, "marine spatial planning": {"concepts": "marine spatial planning", "concept_list": ["marine spatial planning"], "type": "cluster", "node_size": 18, "label": "marine spatial planning"}, "nasa facility": {"concepts": "nasa facility", "concept_list": ["nasa facility"], "type": "cluster", "node_size": 18, "label": "nasa facility"}, "research cruises": {"concepts": "research cruises", "concept_list": ["research cruises"], "type": "cluster", "node_size": 18, "label": "research cruises"}, "bsee": {"concepts": "bsee", "concept_list": ["bsee"], "type": "cluster", "node_size": 18, "label": "bsee"}, "protected species observers": {"concepts": "protected species observers", "concept_list": ["protected species observers"], "type": "cluster", "node_size": 18, "label": "protected species observers"}, "population estimates": {"concepts": "population estimates", "concept_list": ["population estimates"], "type": "cluster", "node_size": 18, "label": "population estimates"}, "regulation": {"concepts": "regulation", "concept_list": ["regulation"], "type": "cluster", "node_size": 18, "label": "regulation"}, "electricity cables": {"concepts": "electricity cables", "concept_list": ["electricity cables"], "type": "cluster", "node_size": 18, "label": "electricity cables"}, "project density": {"concepts": "project density", "concept_list": ["project density"], "type": "cluster", "node_size": 18, "label": "project density"}, "oil and gas": {"concepts": "oil and gas", "concept_list": ["oil and gas"], "type": "cluster", "node_size": 18, "label": "oil and gas"}, "ecosystem": {"concepts": "ecosystem", "concept_list": ["ecosystem"], "type": "cluster", "node_size": 18, "label": "ecosystem"}, "construction operation plan": {"concepts": "construction operation plan", "concept_list": ["construction operation plan"], "type": "cluster", "node_size": 18, "label": "construction operation plan"}, "louisiana department of natural resources": {"concepts": "louisiana department of natural resources", "concept_list": ["louisiana department of natural resources"], "type": "cluster", "node_size": 18, "label": "louisiana department of natural resources"}, "blades": {"concepts": "blades", "concept_list": ["blades"], "type": "cluster", "node_size": 18, "label": "blades"}, "gulf of mexico": {"concepts": "gulf of mexico", "concept_list": ["gulf of mexico"], "type": "cluster", "node_size": 18, "label": "gulf of mexico"}, "monitoring": {"concepts": "monitoring", "concept_list": ["monitoring"], "type": "cluster", "node_size": 18, "label": "monitoring"}, "scientific assessments": {"concepts": "scientific assessments", "concept_list": ["scientific assessments"], "type": "cluster", "node_size": 18, "label": "scientific assessments"}, "state waters": {"concepts": "state waters", "concept_list": ["state waters"], "type": "cluster", "node_size": 18, "label": "state waters"}, "review activities": {"concepts": "review activities", "concept_list": ["review activities"], "type": "cluster", "node_size": 18, "label": "review activities"}, "hrg surveys": {"concepts": "hrg surveys", "concept_list": ["hrg surveys"], "type": "cluster", "node_size": 18, "label": "hrg surveys"}, "us army corps of engineers": {"concepts": "us army corps of engineers", "concept_list": ["us army corps of engineers"], "type": "cluster", "node_size": 18, "label": "us army corps of engineers"}, "data collection": {"concepts": "data collection", "concept_list": ["data collection"], "type": "cluster", "node_size": 18, "label": "data collection"}, "diameter": {"concepts": "diameter", "concept_list": ["diameter"], "type": "cluster", "node_size": 18, "label": "diameter"}, "carbon capture": {"concepts": "carbon capture", "concept_list": ["carbon capture"], "type": "cluster", "node_size": 18, "label": "carbon capture"}, "foundations": {"concepts": "foundations", "concept_list": ["foundations"], "type": "cluster", "node_size": 18, "label": "foundations"}, "observations": {"concepts": "observations", "concept_list": ["observations"], "type": "cluster", "node_size": 18, "label": "observations"}};
+        const conceptData = {};
+        const interClusterEdges = [["regulatory structure", "scientific assessments", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["geophysical data", "installations", {"weight": 1.0, "confidence": 0.575, "type": "inter_cluster", "style": "solid"}], ["geophysical data", "mitigations", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["geophysical data", "mitigation", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["geophysical data", "ecosystem", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["renewable energy", "mitigations", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["environmental compliance", "jurisdiction", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["regulatory", "plan", {"weight": 1.0, "confidence": 0.7999999999999999, "type": "inter_cluster", "style": "solid"}], ["regulatory", "bessie", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["steel in the water", "geophysical data", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["mitigations", "gulf of mexico", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["g&g information", "monitoring plans", {"weight": 1.0, "confidence": 0.6166666666666667, "type": "inter_cluster", "style": "solid"}], ["lease phase", "mitigation measures", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["lease phase", "stakeholder engagement", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["lease phase", "monitoring", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["well conductor pipe", "energy production", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["shallow water", "vessel traffic", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["shallow water", "protected species", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["permit", "wind farms", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["permit", "technical elements", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["permit", "vineyard wind", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["bessie", "policy perspective", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["vessel traffic", "mitigations", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["vessel traffic", "technical elements", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["conventional activities", "pile driving", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["critical habitat", "policy perspective", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["critical habitat", "observations", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["critical habitat", "passive acoustic monitoring", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["nacelles", "wind energy", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["offshore wind", "bsee", {"weight": 1.0, "confidence": 0.8000000000000002, "type": "inter_cluster", "style": "solid"}], ["environmental impact", "management actions", {"weight": 0.3333333333333333, "confidence": 0.7833333333333332, "type": "inter_cluster", "style": "solid"}], ["environmental impact", "installations", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["energy demands", "bessie", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["conflict resolution", "novelty", {"weight": -0.3333333333333333, "confidence": 0.19999999999999998, "type": "inter_cluster", "style": "solid"}], ["pipelines", "industry development", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["energy production", "topsides", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["geographical data", "marine spatial planning", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["political climate", "mitigation", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["supply chain", "barges", {"weight": 1.0, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["supply chain", "wind availability", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["supply chain", "technical elements", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["resource strain", "east coast", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["stakeholder engagement", "development", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["east coast", "organizational conflict", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["east coast", "wind energy assessments", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["east coast", "scientific assessments", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["environmental impact statement", "development", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["environmental impact statement", "monopod", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["environmental impact statement", "flexibility", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["atlantic", "protected species observers", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["atlantic", "project density", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["atlantic", "topsides", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["geologic features", "critical habitat", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["geologic features", "industry development", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["atlantic seaboard", "wind energy assessments", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["enforcement", "state waters", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["regulations", "gulf of mexico region", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["regulations", "hrg surveys", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["regulations", "environmental compliance", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["investment", "state waters", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["investment", "g&g information", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["investment", "east coast", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["wind availability", "east coast", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["plan", "pile driving", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["plan", "mitigations", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["plan", "ecosystem", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["renewables", "diameter", {"weight": 0.5, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["renewables", "marine spatial planning", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["flexibility", "infrastructure", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["plan specific", "project density", {"weight": -0.5, "confidence": 0.275, "type": "inter_cluster", "style": "solid"}], ["impact hammers", "offshore wind", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["geotech", "us army corps of engineers", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["decommissioning", "plan specific", {"weight": 1.0, "confidence": 0.6333333333333333, "type": "inter_cluster", "style": "solid"}], ["pile driving", "steel in the water", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["management actions", "foundations", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["management actions", "project design envelope", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["regulatory framework", "critical habitat", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["regulatory framework", "protected species observers", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["concentrated data", "industry development", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["nasa facility", "plan", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["research cruises", "offshore wind", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["protected species observers", "monitoring", {"weight": 1.0, "confidence": 0.8833333333333333, "type": "inter_cluster", "style": "solid"}], ["population estimates", "southeast fishery science center", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["regulation", "steel in the water", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["regulation", "energy portfolios", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["oil and gas", "hrg surveys", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["ecosystem", "infrastructure", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["construction operation plan", "resource strain", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["construction operation plan", "hrg surveys", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["louisiana department of natural resources", "industry development", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["blades", "development", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["gulf of mexico", "protected species observers", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["monitoring", "carbon sequestration", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["review activities", "installations", {"weight": 1.0, "confidence": 0.7333333333333334, "type": "inter_cluster", "style": "solid"}], ["hrg surveys", "psos", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["data collection", "site assessment", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["carbon capture", "mitigation measures", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["carbon capture", "monitoring", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["foundations", "construction operation plan", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["foundations", "geography", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["foundations", "electricity cables", {"weight": 0.5, "confidence": 0.325, "type": "inter_cluster", "style": "solid"}], ["observations", "geographical data", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["observations", "protected species observers", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

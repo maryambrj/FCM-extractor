@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"seniors": {"concepts": "seniors", "concept_list": ["seniors"], "type": "cluster", "node_size": 18, "label": "seniors"}, "meals on wheels": {"concepts": "meals on wheels", "concept_list": ["meals on wheels"], "type": "cluster", "node_size": 18, "label": "meals on wheels"}, "supplemental nutrition programs": {"concepts": "supplemental nutrition programs", "concept_list": ["supplemental nutrition programs"], "type": "cluster", "node_size": 18, "label": "supplemental nutrition programs"}, "food emergency": {"concepts": "food emergency", "concept_list": ["food emergency"], "type": "cluster", "node_size": 18, "label": "food emergency"}, "quarantined boxes": {"concepts": "quarantined boxes", "concept_list": ["quarantined boxes"], "type": "cluster", "node_size": 18, "label": "quarantined boxes"}, "health": {"concepts": "health", "concept_list": ["health"], "type": "cluster", "node_size": 18, "label": "health"}, "vegetables": {"concepts": "vegetables", "concept_list": ["vegetables"], "type": "cluster", "node_size": 18, "label": "vegetables"}, "bonus items": {"concepts": "bonus items", "concept_list": ["bonus items"], "type": "cluster", "node_size": 18, "label": "bonus items"}, "supplemental programs": {"concepts": "supplemental programs", "concept_list": ["supplemental programs"], "type": "cluster", "node_size": 18, "label": "supplemental programs"}, "farmers market": {"concepts": "farmers market", "concept_list": ["farmers market"], "type": "cluster", "node_size": 18, "label": "farmers market"}, "relationships": {"concepts": "relationships", "concept_list": ["relationships"], "type": "cluster", "node_size": 18, "label": "relationships"}, "social support": {"concepts": "social support", "concept_list": ["social support"], "type": "cluster", "node_size": 18, "label": "social support"}, "fruits": {"concepts": "fruits", "concept_list": ["fruits"], "type": "cluster", "node_size": 18, "label": "fruits"}, "affordable food": {"concepts": "affordable food", "concept_list": ["affordable food"], "type": "cluster", "node_size": 18, "label": "affordable food"}, "direct producer": {"concepts": "direct producer", "concept_list": ["direct producer"], "type": "cluster", "node_size": 18, "label": "direct producer"}, "neighborhood disparities": {"concepts": "neighborhood disparities", "concept_list": ["neighborhood disparities"], "type": "cluster", "node_size": 18, "label": "neighborhood disparities"}, "fruit": {"concepts": "fruit", "concept_list": ["fruit"], "type": "cluster", "node_size": 18, "label": "fruit"}, "nutritious meals": {"concepts": "nutritious meals", "concept_list": ["nutritious meals"], "type": "cluster", "node_size": 18, "label": "nutritious meals"}, "good things": {"concepts": "good things", "concept_list": ["good things"], "type": "cluster", "node_size": 18, "label": "good things"}, "community": {"concepts": "community", "concept_list": ["community"], "type": "cluster", "node_size": 18, "label": "community"}, "food insecurity": {"concepts": "food insecurity", "concept_list": ["food insecurity"], "type": "cluster", "node_size": 18, "label": "food insecurity"}, "gccard": {"concepts": "gccard", "concept_list": ["gccard"], "type": "cluster", "node_size": 18, "label": "gccard"}, "food deserts": {"concepts": "food deserts", "concept_list": ["food deserts"], "type": "cluster", "node_size": 18, "label": "food deserts"}, "meal delivery": {"concepts": "meal delivery", "concept_list": ["meal delivery"], "type": "cluster", "node_size": 18, "label": "meal delivery"}, "eligibility": {"concepts": "eligibility", "concept_list": ["eligibility"], "type": "cluster", "node_size": 18, "label": "eligibility"}, "vegetable": {"concepts": "vegetable", "concept_list": ["vegetable"], "type": "cluster", "node_size": 18, "label": "vegetable"}, "senior services": {"concepts": "senior services", "concept_list": ["senior services"], "type": "cluster", "node_size": 18, "label": "senior services"}, "prices": {"concepts": "prices", "concept_list": ["prices"], "type": "cluster", "node_size": 18, "label": "prices"}, "supplemental food boxes": {"concepts": "supplemental food boxes", "concept_list": ["supplemental food boxes"], "type": "cluster", "node_size": 18, "label": "supplemental food boxes"}, "equitable prices": {"concepts": "equitable prices", "concept_list": ["equitable prices"], "type": "cluster", "node_size": 18, "label": "equitable prices"}, "nutrition education": {"concepts": "nutrition education", "concept_list": ["nutrition education"], "type": "cluster", "node_size": 18, "label": "nutrition education"}, "grocery stores": {"concepts": "grocery stores", "concept_list": ["grocery stores"], "type": "cluster", "node_size": 18, "label": "grocery stores"}, "commodity program": {"concepts": "commodity program", "concept_list": ["commodity program"], "type": "cluster", "node_size": 18, "label": "commodity program"}, "emergency aspects": {"concepts": "emergency aspects", "concept_list": ["emergency aspects"], "type": "cluster", "node_size": 18, "label": "emergency aspects"}, "healthy lifestyle": {"concepts": "healthy lifestyle", "concept_list": ["healthy lifestyle"], "type": "cluster", "node_size": 18, "label": "healthy lifestyle"}, "flint": {"concepts": "flint", "concept_list": ["flint"], "type": "cluster", "node_size": 18, "label": "flint"}, "genesee county office of senior services": {"concepts": "genesee county office of senior services", "concept_list": ["genesee county office of senior services"], "type": "cluster", "node_size": 18, "label": "genesee county office of senior services"}, "partnerships": {"concepts": "partnerships", "concept_list": ["partnerships"], "type": "cluster", "node_size": 18, "label": "partnerships"}, "healthy meals": {"concepts": "healthy meals", "concept_list": ["healthy meals"], "type": "cluster", "node_size": 18, "label": "healthy meals"}, "inner city": {"concepts": "inner city", "concept_list": ["inner city"], "type": "cluster", "node_size": 18, "label": "inner city"}, "quality of life": {"concepts": "quality of life", "concept_list": ["quality of life"], "type": "cluster", "node_size": 18, "label": "quality of life"}, "emergency programs": {"concepts": "emergency programs", "concept_list": ["emergency programs"], "type": "cluster", "node_size": 18, "label": "emergency programs"}, "delivery service": {"concepts": "delivery service", "concept_list": ["delivery service"], "type": "cluster", "node_size": 18, "label": "delivery service"}, "commodities program": {"concepts": "commodities program", "concept_list": ["commodities program"], "type": "cluster", "node_size": 18, "label": "commodities program"}, "affordability": {"concepts": "affordability", "concept_list": ["affordability"], "type": "cluster", "node_size": 18, "label": "affordability"}, "transportation access": {"concepts": "transportation access", "concept_list": ["transportation access"], "type": "cluster", "node_size": 18, "label": "transportation access"}, "food system sectors": {"concepts": "food system sectors", "concept_list": ["food system sectors"], "type": "cluster", "node_size": 18, "label": "food system sectors"}, "funding": {"concepts": "funding", "concept_list": ["funding"], "type": "cluster", "node_size": 18, "label": "funding"}, "wellbeing": {"concepts": "wellbeing", "concept_list": ["wellbeing"], "type": "cluster", "node_size": 18, "label": "wellbeing"}, "nutrition programs": {"concepts": "nutrition programs", "concept_list": ["nutrition programs"], "type": "cluster", "node_size": 18, "label": "nutrition programs"}, "protein": {"concepts": "protein", "concept_list": ["protein"], "type": "cluster", "node_size": 18, "label": "protein"}, "transportation": {"concepts": "transportation", "concept_list": ["transportation"], "type": "cluster", "node_size": 18, "label": "transportation"}, "small businesses": {"concepts": "small businesses", "concept_list": ["small businesses"], "type": "cluster", "node_size": 18, "label": "small businesses"}, "nutritious values": {"concepts": "nutritious values", "concept_list": ["nutritious values"], "type": "cluster", "node_size": 18, "label": "nutritious values"}, "aging in place": {"concepts": "aging in place", "concept_list": ["aging in place"], "type": "cluster", "node_size": 18, "label": "aging in place"}, "convenience stores": {"concepts": "convenience stores", "concept_list": ["convenience stores"], "type": "cluster", "node_size": 18, "label": "convenience stores"}, "retail types": {"concepts": "retail types", "concept_list": ["retail types"], "type": "cluster", "node_size": 18, "label": "retail types"}, "food access": {"concepts": "food access", "concept_list": ["food access"], "type": "cluster", "node_size": 18, "label": "food access"}, "retail use": {"concepts": "retail use", "concept_list": ["retail use"], "type": "cluster", "node_size": 18, "label": "retail use"}, "fairness": {"concepts": "fairness", "concept_list": ["fairness"], "type": "cluster", "node_size": 18, "label": "fairness"}, "nursing home": {"concepts": "nursing home", "concept_list": ["nursing home"], "type": "cluster", "node_size": 18, "label": "nursing home"}, "support local": {"concepts": "support local", "concept_list": ["support local"], "type": "cluster", "node_size": 18, "label": "support local"}, "covid": {"concepts": "covid", "concept_list": ["covid"], "type": "cluster", "node_size": 18, "label": "covid"}, "senior nutrition program": {"concepts": "senior nutrition program", "concept_list": ["senior nutrition program"], "type": "cluster", "node_size": 18, "label": "senior nutrition program"}, "donations": {"concepts": "donations", "concept_list": ["donations"], "type": "cluster", "node_size": 18, "label": "donations"}, "equity": {"concepts": "equity", "concept_list": ["equity"], "type": "cluster", "node_size": 18, "label": "equity"}, "nutrition": {"concepts": "nutrition", "concept_list": ["nutrition"], "type": "cluster", "node_size": 18, "label": "nutrition"}, "food affordability": {"concepts": "food affordability", "concept_list": ["food affordability"], "type": "cluster", "node_size": 18, "label": "food affordability"}, "area agency on aging": {"concepts": "area agency on aging", "concept_list": ["area agency on aging"], "type": "cluster", "node_size": 18, "label": "area agency on aging"}, "price gouging": {"concepts": "price gouging", "concept_list": ["price gouging"], "type": "cluster", "node_size": 18, "label": "price gouging"}, "corner stores": {"concepts": "corner stores", "concept_list": ["corner stores"], "type": "cluster", "node_size": 18, "label": "corner stores"}, "state": {"concepts": "state", "concept_list": ["state"], "type": "cluster", "node_size": 18, "label": "state"}, "accessibility": {"concepts": "accessibility", "concept_list": ["accessibility"], "type": "cluster", "node_size": 18, "label": "accessibility"}, "heart of the city": {"concepts": "heart of the city", "concept_list": ["heart of the city"], "type": "cluster", "node_size": 18, "label": "heart of the city"}, "food system": {"concepts": "food system", "concept_list": ["food system"], "type": "cluster", "node_size": 18, "label": "food system"}};
+        const conceptData = {};
+        const interClusterEdges = [["seniors", "emergency programs", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["seniors", "partnerships", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["meals on wheels", "inner city", {"weight": 1.0, "confidence": 0.6166666666666667, "type": "inter_cluster", "style": "solid"}], ["food emergency", "prices", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["food emergency", "meal delivery", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["quarantined boxes", "nutritious values", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["health", "covid", {"weight": -0.5, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["vegetables", "equity", {"weight": 1.0, "confidence": 0.44999999999999996, "type": "inter_cluster", "style": "solid"}], ["vegetables", "nutrition", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["bonus items", "seniors", {"weight": 1.0, "confidence": 0.7166666666666667, "type": "inter_cluster", "style": "solid"}], ["bonus items", "accessibility", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["bonus items", "nutritious values", {"weight": 0.3333333333333333, "confidence": 0.2333333333333333, "type": "inter_cluster", "style": "solid"}], ["supplemental programs", "equity", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["supplemental programs", "convenience stores", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["farmers market", "accessibility", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["relationships", "supplemental nutrition programs", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["fruits", "farmers market", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["affordable food", "prices", {"weight": -1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["direct producer", "healthy meals", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["direct producer", "seniors", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["neighborhood disparities", "vegetable", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["nutritious meals", "wellbeing", {"weight": 1.0, "confidence": 0.925, "type": "inter_cluster", "style": "solid"}], ["community", "supplemental programs", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["community", "nutrition programs", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food insecurity", "good things", {"weight": -1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["gccard", "social support", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food deserts", "commodities program", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["meal delivery", "accessibility", {"weight": 1.0, "confidence": 0.925, "type": "inter_cluster", "style": "solid"}], ["meal delivery", "aging in place", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["vegetable", "small businesses", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["senior services", "gccard", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["senior services", "nutritious values", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["prices", "equitable prices", {"weight": -1.0, "confidence": 0.8333333333333334, "type": "inter_cluster", "style": "solid"}], ["supplemental food boxes", "healthy meals", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["supplemental food boxes", "inner city", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["supplemental food boxes", "food access", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["equitable prices", "quality of life", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["nutrition education", "nutritious meals", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["grocery stores", "fruits", {"weight": 1.0, "confidence": 0.7749999999999999, "type": "inter_cluster", "style": "solid"}], ["grocery stores", "meal delivery", {"weight": -0.5, "confidence": 0.25, "type": "inter_cluster", "style": "solid"}], ["commodity program", "food deserts", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["emergency aspects", "accessibility", {"weight": 1.0, "confidence": 0.7250000000000001, "type": "inter_cluster", "style": "solid"}], ["emergency aspects", "heart of the city", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["healthy lifestyle", "convenience stores", {"weight": -1.0, "confidence": 0.7333333333333334, "type": "inter_cluster", "style": "solid"}], ["healthy lifestyle", "supplemental programs", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["flint", "neighborhood disparities", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["genesee county office of senior services", "eligibility", {"weight": 1.0, "confidence": 0.7333333333333334, "type": "inter_cluster", "style": "solid"}], ["genesee county office of senior services", "food system", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["genesee county office of senior services", "healthy lifestyle", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["partnerships", "food access", {"weight": 1.0, "confidence": 0.875, "type": "inter_cluster", "style": "solid"}], ["partnerships", "funding", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["partnerships", "community", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["healthy meals", "equity", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["inner city", "convenience stores", {"weight": 1.0, "confidence": 0.7749999999999999, "type": "inter_cluster", "style": "solid"}], ["inner city", "support local", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["quality of life", "food access", {"weight": 1.0, "confidence": 0.6833333333333332, "type": "inter_cluster", "style": "solid"}], ["quality of life", "senior services", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["emergency programs", "food system", {"weight": 1.0, "confidence": 0.6833333333333332, "type": "inter_cluster", "style": "solid"}], ["delivery service", "nutritious meals", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["delivery service", "neighborhood disparities", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["delivery service", "emergency aspects", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["commodities program", "fruits", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["commodities program", "meal delivery", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["commodities program", "nutritious meals", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["affordability", "grocery stores", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["affordability", "commodity program", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["affordability", "food affordability", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["transportation access", "vegetable", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["transportation access", "healthy lifestyle", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["funding", "meals on wheels", {"weight": 1.0, "confidence": 0.8666666666666667, "type": "inter_cluster", "style": "solid"}], ["funding", "food system sectors", {"weight": 1.0, "confidence": 0.7333333333333334, "type": "inter_cluster", "style": "solid"}], ["wellbeing", "aging in place", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["wellbeing", "vegetables", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["nutrition programs", "convenience stores", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["nutritious values", "vegetable", {"weight": 0.6666666666666666, "confidence": 0.4333333333333333, "type": "inter_cluster", "style": "solid"}], ["nutritious values", "healthy lifestyle", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["nutritious values", "state", {"weight": 0.3333333333333333, "confidence": 0.2333333333333333, "type": "inter_cluster", "style": "solid"}], ["aging in place", "food insecurity", {"weight": -1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["aging in place", "delivery service", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food access", "wellbeing", {"weight": 1.0, "confidence": 0.8500000000000001, "type": "inter_cluster", "style": "solid"}], ["food access", "nutritious meals", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food access", "price gouging", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["retail use", "transportation", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["fairness", "heart of the city", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["fairness", "commodities program", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["support local", "social support", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["support local", "vegetable", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["covid", "inner city", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["senior nutrition program", "healthy lifestyle", {"weight": 1.0, "confidence": 0.925, "type": "inter_cluster", "style": "solid"}], ["senior nutrition program", "neighborhood disparities", {"weight": -1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["donations", "nutrition", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["equity", "grocery stores", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["equity", "retail types", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["area agency on aging", "nursing home", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["price gouging", "grocery stores", {"weight": -0.3333333333333333, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["price gouging", "protein", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["corner stores", "affordability", {"weight": -1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["corner stores", "food insecurity", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["state", "fruit", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["state", "emergency aspects", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["accessibility", "healthy lifestyle", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["accessibility", "vegetables", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["food system", "nursing home", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

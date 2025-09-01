@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"ecosystems": {"concepts": "ecosystems", "concept_list": ["ecosystems"], "type": "cluster", "node_size": 18, "label": "ecosystems"}, "compliance": {"concepts": "compliance", "concept_list": ["compliance"], "type": "cluster", "node_size": 18, "label": "compliance"}, "hurricanes": {"concepts": "hurricanes", "concept_list": ["hurricanes"], "type": "cluster", "node_size": 18, "label": "hurricanes"}, "seasonal closures": {"concepts": "seasonal closures", "concept_list": ["seasonal closures"], "type": "cluster", "node_size": 18, "label": "seasonal closures"}, "politics": {"concepts": "politics", "concept_list": ["politics"], "type": "cluster", "node_size": 18, "label": "politics"}, "cultural standpoint": {"concepts": "cultural standpoint", "concept_list": ["cultural standpoint"], "type": "cluster", "node_size": 18, "label": "cultural standpoint"}, "global issues": {"concepts": "global issues", "concept_list": ["global issues"], "type": "cluster", "node_size": 18, "label": "global issues"}, "ocean climate": {"concepts": "ocean climate", "concept_list": ["ocean climate"], "type": "cluster", "node_size": 18, "label": "ocean climate"}, "overfished": {"concepts": "overfished", "concept_list": ["overfished"], "type": "cluster", "node_size": 18, "label": "overfished"}, "trammel nets": {"concepts": "trammel nets", "concept_list": ["trammel nets"], "type": "cluster", "node_size": 18, "label": "trammel nets"}, "fines": {"concepts": "fines", "concept_list": ["fines"], "type": "cluster", "node_size": 18, "label": "fines"}, "derelict traps": {"concepts": "derelict traps, trap design studies", "concept_list": ["derelict traps", "trap design studies"], "type": "cluster", "node_size": 21, "label": "derelict traps"}, "african dust": {"concepts": "african dust", "concept_list": ["african dust"], "type": "cluster", "node_size": 18, "label": "african dust"}, "lone wolf": {"concepts": "lone wolf, key informant", "concept_list": ["lone wolf", "key informant"], "type": "cluster", "node_size": 21, "label": "lone wolf"}, "Coastal Activities": {"concepts": "ecologist, ecosystem ecology, ecological outcomes", "concept_list": ["ecologist", "ecosystem ecology", "ecological outcomes"], "type": "cluster", "node_size": 24, "label": "Coastal Activities"}, "Family Workshops": {"concepts": "beach maintenance, boat captains", "concept_list": ["beach maintenance", "boat captains"], "type": "cluster", "node_size": 21, "label": "Family Workshops"}, "Species Depletion": {"concepts": "family interactions, data workshop, queen conch, undersized conch, baby conch", "concept_list": ["family interactions", "data workshop", "queen conch", "undersized conch", "baby conch"], "type": "cluster", "node_size": 30, "label": "Species Depletion"}, "Fishing Methods": {"concepts": "anchovies, modeling projects, by catch, gill nets", "concept_list": ["anchovies", "modeling projects", "by catch", "gill nets"], "type": "cluster", "node_size": 27, "label": "Fishing Methods"}, "Fishermen Types": {"concepts": "full-time fishermen, wealthier fishermen, subsistence fishermen, st. thomas fishermen, part-time fishermen, recreational fisher, fishermen, fishers, st. thomas fisherman's association, north side fishermen, conch fisherman, registered fishermen, usvi fishers, fishermen's association, fisher's associations, local fishermen", "concept_list": ["full-time fishermen", "wealthier fishermen", "subsistence fishermen", "st. thomas fishermen", "part-time fishermen", "recreational fisher", "fishermen", "fishers", "st. thomas fisherman's association", "north side fishermen", "conch fisherman", "registered fishermen", "usvi fishers", "fishermen's association", "fisher's associations", "local fishermen"], "type": "cluster", "node_size": 63, "label": "Fishermen Types"}, "Fishery Dynamics": {"concepts": "fishery changes, fishery trends, fishery ranking, fishery worth, fishery drivers, fishery benefits, fishery impact, fishery impacts, fishery economics, fishery effects, fishery emissions, fishery, fishery assessment, fishery challenges, fishery threats, fishery efforts, fishery decline, fishery problems, fishery success, fishery recovery, fishery sources", "concept_list": ["fishery changes", "fishery trends", "fishery ranking", "fishery worth", "fishery drivers", "fishery benefits", "fishery impact", "fishery impacts", "fishery economics", "fishery effects", "fishery emissions", "fishery", "fishery assessment", "fishery challenges", "fishery threats", "fishery efforts", "fishery decline", "fishery problems", "fishery success", "fishery recovery", "fishery sources"], "type": "cluster", "node_size": 78, "label": "Fishery Dynamics"}, "Fishery Issues": {"concepts": "fishery opinions, red heine fishery, caribbean fisheries, fishery limitations, fishery concerns, fishery opinion, fishery warming, sport fishery, fisheries, fishery stability, multi-use fishery, fishery stakeholders, fisheries associations, fishery bleaching, competitive fishers, fisheries scientist, fishery gases, fishery protection, fishery issues, fisheries chief, commercial fisher, fishery dependent data, fishery managers, fishery observations, usvi fisheries, fishery knowledge, recreational fishery, fishery stressors, lone wolf fishermen, fishery connection, fishery independent survey", "concept_list": ["fishery opinions", "red heine fishery", "caribbean fisheries", "fishery limitations", "fishery concerns", "fishery opinion", "fishery warming", "sport fishery", "fisheries", "fishery stability", "multi-use fishery", "fishery stakeholders", "fisheries associations", "fishery bleaching", "competitive fishers", "fisheries scientist", "fishery gases", "fishery protection", "fishery issues", "fisheries chief", "commercial fisher", "fishery dependent data", "fishery managers", "fishery observations", "usvi fisheries", "fishery knowledge", "recreational fishery", "fishery stressors", "lone wolf fishermen", "fishery connection", "fishery independent survey"], "type": "cluster", "node_size": 108, "label": "Fishery Issues"}, "Coastal Environment": {"concepts": "coastal protection, protections, lionfish invasion, warming trends, epiphytes, stipulacea, coastal development, environmental changes, erosion, white band disease, herbivores, data collection, habitat degradation, runoff, virgin island's coastal communities, coastal zone management, home ranges, habitat change, bleaching", "concept_list": ["coastal protection", "protections", "lionfish invasion", "warming trends", "epiphytes", "stipulacea", "coastal development", "environmental changes", "erosion", "white band disease", "herbivores", "data collection", "habitat degradation", "runoff", "virgin island's coastal communities", "coastal zone management", "home ranges", "habitat change", "bleaching"], "type": "cluster", "node_size": 72, "label": "Coastal Environment"}, "Community Dynamics": {"concepts": "families, resident populations, immigrants, north side, support, coastal communities, house construction, conflicts, mariner people, socialization, community, over fishing, socializing, land inheritance, mandal bay, grammanik bank, south side, puerto rico, governor, uvi involvement, social activities", "concept_list": ["families", "resident populations", "immigrants", "north side", "support", "coastal communities", "house construction", "conflicts", "mariner people", "socialization", "community", "over fishing", "socializing", "land inheritance", "mandal bay", "grammanik bank", "south side", "puerto rico", "governor", "uvi involvement", "social activities"], "type": "cluster", "node_size": 78, "label": "Community Dynamics"}, "Fishing Regulations": {"concepts": "catch-based system, size limits, catch seasons, seasonal moratorium, fish traps, fishing tournaments, trap fishermen, traps, negotiation., limits, management decisions, recruitment, species identification, landings records, juvenile, halophila, lionfish, permitting issues., pursing nets, shipping, pacific lionfish, fishing aggregating devices, trap reduction, regulation, sedar meetings, population depletion, fishing aggregation devices, trap fishing", "concept_list": ["catch-based system", "size limits", "catch seasons", "seasonal moratorium", "fish traps", "fishing tournaments", "trap fishermen", "traps", "negotiation.", "limits", "management decisions", "recruitment", "species identification", "landings records", "juvenile", "halophila", "lionfish", "permitting issues.", "pursing nets", "shipping", "pacific lionfish", "fishing aggregating devices", "trap reduction", "regulation", "sedar meetings", "population depletion", "fishing aggregation devices", "trap fishing"], "type": "cluster", "node_size": 99, "label": "Fishing Regulations"}, "Marine Resources": {"concepts": "cruise ships, cruise ship dock, frenchie, sprat, disease, refrigeration, scuba diving, fry, nutrients, algal overgrowth, data series, discussions, resources, knowledge, menhadens, habitat protection, grant, data, location, receivers, habitat use, personal grievances, council meetings, grants, diving, anecdotal opinion, external stresses", "concept_list": ["cruise ships", "cruise ship dock", "frenchie", "sprat", "disease", "refrigeration", "scuba diving", "fry", "nutrients", "algal overgrowth", "data series", "discussions", "resources", "knowledge", "menhadens", "habitat protection", "grant", "data", "location", "receivers", "habitat use", "personal grievances", "council meetings", "grants", "diving", "anecdotal opinion", "external stresses"], "type": "cluster", "node_size": 96, "label": "Marine Resources"}, "Fishing Types": {"concepts": "fishing communities, fishing community, spear fishing, recreational fishing, commercial fishing, subsistence fishing", "concept_list": ["fishing communities", "fishing community", "spear fishing", "recreational fishing", "commercial fishing", "subsistence fishing"], "type": "cluster", "node_size": 33, "label": "Fishing Types"}, "Fishing Policies": {"concepts": "fishing regulations, fishing aggregation buoys, lobster landings, fishing pressure, fishing territories, fishing restrictions, fishing license", "concept_list": ["fishing regulations", "fishing aggregation buoys", "lobster landings", "fishing pressure", "fishing territories", "fishing restrictions", "fishing license"], "type": "cluster", "node_size": 36, "label": "Fishing Policies"}, "Federal Regulations": {"concepts": "federal oversight, legal issues, federal regulations, regulations, local regulations, permitting issues, compatible regulations, federal government, government", "concept_list": ["federal oversight", "legal issues", "federal regulations", "regulations", "local regulations", "permitting issues", "compatible regulations", "federal government", "government"], "type": "cluster", "node_size": 42, "label": "Federal Regulations"}, "Local Compliance": {"concepts": "restrictions, local schools, local government, local kids, permit compliance, local people, law enforcement, enforcement", "concept_list": ["restrictions", "local schools", "local government", "local kids", "permit compliance", "local people", "law enforcement", "enforcement"], "type": "cluster", "node_size": 39, "label": "Local Compliance"}, "Salt River Areas": {"concepts": "salt river bay., salt river canyon, north shore, northeast shelf, salt river bay", "concept_list": ["salt river bay.", "salt river canyon", "north shore", "northeast shelf", "salt river bay"], "type": "cluster", "node_size": 30, "label": "Salt River Areas"}, "Sediment Dynamics": {"concepts": "coast guard, sediment movement, thalassia beds, sediment", "concept_list": ["coast guard", "sediment movement", "thalassia beds", "sediment"], "type": "cluster", "node_size": 27, "label": "Sediment Dynamics"}, "Scientific Research": {"concepts": "researchers, charlotte amalia, scientific data, grouper, east lab facility, under reporting, profession, hard work, research team, research, fac group, farleigh dickinson lab, nassau grouper, insights, university, decision makers, scientists, cooperative research, council, long term, negotiation, public comments, commissioner, outsiders, groupers, chronic change, short term, scientific analysis, stakeholder group, market, commercially important, no take reserve, marketing center, annual basis, hind bank, funds, rebuilding stock, stock, stock assessment", "concept_list": ["researchers", "charlotte amalia", "scientific data", "grouper", "east lab facility", "under reporting", "profession", "hard work", "research team", "research", "fac group", "farleigh dickinson lab", "nassau grouper", "insights", "university", "decision makers", "scientists", "cooperative research", "council", "long term", "negotiation", "public comments", "commissioner", "outsiders", "groupers", "chronic change", "short term", "scientific analysis", "stakeholder group", "market", "commercially important", "no take reserve", "marketing center", "annual basis", "hind bank", "funds", "rebuilding stock", "stock", "stock assessment"], "type": "cluster", "node_size": 132, "label": "Scientific Research"}, "Coral Health": {"concepts": "coral cover, coral tissue loss disease, coral reef disease, coral heal, coral mortality, stony coral tissue loss disease, coral genotypes, coral research, coral diseases, coral disease, coral bleaching, live coral, coral bay, coral ecology, coral cover loss, acropora corals, coral thermal stress", "concept_list": ["coral cover", "coral tissue loss disease", "coral reef disease", "coral heal", "coral mortality", "stony coral tissue loss disease", "coral genotypes", "coral research", "coral diseases", "coral disease", "coral bleaching", "live coral", "coral bay", "coral ecology", "coral cover loss", "acropora corals", "coral thermal stress"], "type": "cluster", "node_size": 66, "label": "Coral Health"}, "Resource Management": {"concepts": "reproduction, development, demand, resource exploitation, administration, fairness", "concept_list": ["reproduction", "development", "demand", "resource exploitation", "administration", "fairness"], "type": "cluster", "node_size": 33, "label": "Resource Management"}, "Economic Impact": {"concepts": "economic impact, central mortality, population rebound, mortality, economics, tax reasons, growth rates, economic pressure, economic loss, peer pressure, economic standpoint", "concept_list": ["economic impact", "central mortality", "population rebound", "mortality", "economics", "tax reasons", "growth rates", "economic pressure", "economic loss", "peer pressure", "economic standpoint"], "type": "cluster", "node_size": 48, "label": "Economic Impact"}, "Fish and Wildlife": {"concepts": "fish market, division of fish and wildlife, fish biologist, juvenile recruitment, fish and wildlife office, fish markets, fish size, atlantic lionfish, juvenile habitat, juvenile fish, fish population, fish stock, larval fish, fish and wildlife, ciguatera fish poisoning, fish consumption, fish management", "concept_list": ["fish market", "division of fish and wildlife", "fish biologist", "juvenile recruitment", "fish and wildlife office", "fish markets", "fish size", "atlantic lionfish", "juvenile habitat", "juvenile fish", "fish population", "fish stock", "larval fish", "fish and wildlife", "ciguatera fish poisoning", "fish consumption", "fish management"], "type": "cluster", "node_size": 66, "label": "Fish and Wildlife"}, "Marine Tourism": {"concepts": "red hind grouper, visual surveys, sunday dinner, snorkeling, mutton snapper, bastille day, snapper, annual softball tournament, dog snapper, tourists, aesthetics, tang, snorkeling surveys, tourism, yellowfin grouper, latin snapper, snappers, tourist based, tangs, red hind, cubera snapper, yellowfin, summertime", "concept_list": ["red hind grouper", "visual surveys", "sunday dinner", "snorkeling", "mutton snapper", "bastille day", "snapper", "annual softball tournament", "dog snapper", "tourists", "aesthetics", "tang", "snorkeling surveys", "tourism", "yellowfin grouper", "latin snapper", "snappers", "tourist based", "tangs", "red hind", "cubera snapper", "yellowfin", "summertime"], "type": "cluster", "node_size": 84, "label": "Marine Tourism"}, "Marine Research": {"concepts": "sctld, usgs, mahi mahi, maria, moratorium, diademas, irma, usvi, ngos, sargassum, urchins, magnuson-stevens, noaa, sedar", "concept_list": ["sctld", "usgs", "mahi mahi", "maria", "moratorium", "diademas", "irma", "usvi", "ngos", "sargassum", "urchins", "magnuson-stevens", "noaa", "sedar"], "type": "cluster", "node_size": 57, "label": "Marine Research"}, "Community Engagement": {"concepts": "community relationships, management, youth outreach, surgeons, staff", "concept_list": ["community relationships", "management", "youth outreach", "surgeons", "staff"], "type": "cluster", "node_size": 30, "label": "Community Engagement"}, "Island Ecology": {"concepts": "st. john, dr. david olson, thalassia, acropora, t-bar tag, acroporids., c-dar meetings, living., st. thomas, st. croix, dr. caroline rogers, department of planning, years of experience, co-op, st. croix.", "concept_list": ["st. john", "dr. david olson", "thalassia", "acropora", "t-bar tag", "acroporids.", "c-dar meetings", "living.", "st. thomas", "st. croix", "dr. caroline rogers", "department of planning", "years of experience", "co-op", "st. croix."], "type": "cluster", "node_size": 60, "label": "Island Ecology"}, "Environmental Concerns": {"concepts": "environmentalist, human emissions, environmental impacts, ecological harm, environmental conditions, environmental concerns, man-made pollution, environmental protection, pollution, chemical contaminants, sustainability, environmental bent", "concept_list": ["environmentalist", "human emissions", "environmental impacts", "ecological harm", "environmental conditions", "environmental concerns", "man-made pollution", "environmental protection", "pollution", "chemical contaminants", "sustainability", "environmental bent"], "type": "cluster", "node_size": 51, "label": "Environmental Concerns"}, "Cultural Communities": {"concepts": "livelihoods, megan's bay, frenchtown, french community, west indian community, french related community, viequean expat community, national park service, puerto rican community", "concept_list": ["livelihoods", "megan's bay", "frenchtown", "french community", "west indian community", "french related community", "viequean expat community", "national park service", "puerto rican community"], "type": "cluster", "node_size": 42, "label": "Cultural Communities"}, "Water Quality Issues": {"concepts": "fish pots, state waters, turbidity, water pollution, raw sewage, mangrove lagoon, poaching, water quality, water conditions, federal waters", "concept_list": ["fish pots", "state waters", "turbidity", "water pollution", "raw sewage", "mangrove lagoon", "poaching", "water quality", "water conditions", "federal waters"], "type": "cluster", "node_size": 45, "label": "Water Quality Issues"}, "Virgin Islands Fisheries": {"concepts": "us virgin islands, escape vents, tunas, virgin islands, escape panels, u.s. virgin islands", "concept_list": ["us virgin islands", "escape vents", "tunas", "virgin islands", "escape panels", "u.s. virgin islands"], "type": "cluster", "node_size": 33, "label": "Virgin Islands Fisheries"}, "Coral Reef Ecology": {"concepts": "coral reef ecologist, coral reefs, coral reef, reefs, reef fish, reef degradation, coral reef leaching, algal dominated reefs, reef species, fringing reefs, barrier reef, reef decline, coral reef monitoring program, coral reef habitats, coral reef research, coral reef monitoring, reef fisheries, coral reef decline, algal dominated reefs., reef visual census, territorial coral reef monitoring program, deep coral reef habitats", "concept_list": ["coral reef ecologist", "coral reefs", "coral reef", "reefs", "reef fish", "reef degradation", "coral reef leaching", "algal dominated reefs", "reef species", "fringing reefs", "barrier reef", "reef decline", "coral reef monitoring program", "coral reef habitats", "coral reef research", "coral reef monitoring", "reef fisheries", "coral reef decline", "algal dominated reefs.", "reef visual census", "territorial coral reef monitoring program", "deep coral reef habitats"], "type": "cluster", "node_size": 81, "label": "Coral Reef Ecology"}, "Fish Spawning Cycles": {"concepts": "spawning fishes, spawning snappers, spawning aggregation, reproductive cycle, spawning aggregations, grouper spawning aggregations, spawning periods, snappers spawning, spawning groupers", "concept_list": ["spawning fishes", "spawning snappers", "spawning aggregation", "reproductive cycle", "spawning aggregations", "grouper spawning aggregations", "spawning periods", "snappers spawning", "spawning groupers"], "type": "cluster", "node_size": 42, "label": "Fish Spawning Cycles"}, "Seagrass Ecosystems": {"concepts": "sea grass, exotic species, invasive sea grass, turtle grass, invasive species, pelagic species, manatee grass, algal abundance, invasive seagrass, seagrass plants, algal area, seagrass, grazers", "concept_list": ["sea grass", "exotic species", "invasive sea grass", "turtle grass", "invasive species", "pelagic species", "manatee grass", "algal abundance", "invasive seagrass", "seagrass plants", "algal area", "seagrass", "grazers"], "type": "cluster", "node_size": 54, "label": "Seagrass Ecosystems"}, "Marine Conservation": {"concepts": "marine conservation district, marine reserve, marine reserves, marine reserve areas, hind bank marine reserve, marine studies, marine protection, hind bank marine conservation district, marine conservation, marine systems, marine resources", "concept_list": ["marine conservation district", "marine reserve", "marine reserves", "marine reserve areas", "hind bank marine reserve", "marine studies", "marine protection", "hind bank marine conservation district", "marine conservation", "marine systems", "marine resources"], "type": "cluster", "node_size": 48, "label": "Marine Conservation"}, "Monitoring Techniques": {"concepts": "tracking, identification, degradation, acoustic tags, tagging, digital measurements, monitoring", "concept_list": ["tracking", "identification", "degradation", "acoustic tags", "tagging", "digital measurements", "monitoring"], "type": "cluster", "node_size": 36, "label": "Monitoring Techniques"}, "Climate Impact": {"concepts": "external climate drivers, greenhouse gases, climate change, warming", "concept_list": ["external climate drivers", "greenhouse gases", "climate change", "warming"], "type": "cluster", "node_size": 27, "label": "Climate Impact"}, "Climate Change Effects": {"concepts": "global warming, wave impacts, increased storms", "concept_list": ["global warming", "wave impacts", "increased storms"], "type": "cluster", "node_size": 24, "label": "Climate Change Effects"}, "Storms and Climate": {"concepts": "hurricane hugo, local climate, storms, carbon dioxide", "concept_list": ["hurricane hugo", "local climate", "storms", "carbon dioxide"], "type": "cluster", "node_size": 27, "label": "Storms and Climate"}, "Caribbean Culture": {"concepts": "caribbean, political deference, cultural importance, christmas party", "concept_list": ["caribbean", "political deference", "cultural importance", "christmas party"], "type": "cluster", "node_size": 27, "label": "Caribbean Culture"}, "Sea Temperature Data": {"concepts": "sea surface temperatures, sea temperatures, sea temperature., sea temperature", "concept_list": ["sea surface temperatures", "sea temperatures", "sea temperature.", "sea temperature"], "type": "cluster", "node_size": 27, "label": "Sea Temperature Data"}, "Ocean Warming": {"concepts": "ocean warming, sea temperature increase.", "concept_list": ["ocean warming", "sea temperature increase."], "type": "cluster", "node_size": 21, "label": "Ocean Warming"}, "Parrotfish Varieties": {"concepts": "midnight parrotfish, parrot fishes, rainbow parrotfish, parrotfish", "concept_list": ["midnight parrotfish", "parrot fishes", "rainbow parrotfish", "parrotfish"], "type": "cluster", "node_size": 27, "label": "Parrotfish Varieties"}, "Fishing Locations": {"concepts": "fish bay, bait fish", "concept_list": ["fish bay", "bait fish"], "type": "cluster", "node_size": 21, "label": "Fishing Locations"}, "Overfishing Issues": {"concepts": "overfishing, billfish, parrot fish, larval disbursal", "concept_list": ["overfishing", "billfish", "parrot fish", "larval disbursal"], "type": "cluster", "node_size": 27, "label": "Overfishing Issues"}, "Bycatch Solutions": {"concepts": "bycatch, bycatch reduction, conch", "concept_list": ["bycatch", "bycatch reduction", "conch"], "type": "cluster", "node_size": 24, "label": "Bycatch Solutions"}};
+        const conceptData = {};
+        const interClusterEdges = [["ecosystems", "Community Dynamics", {"weight": 0.6666666666666666, "confidence": 0.5333333333333333, "type": "inter_cluster", "style": "solid"}], ["hurricanes", "Local Compliance", {"weight": -1.0, "confidence": 0.6666666666666666, "type": "inter_cluster", "style": "solid"}], ["hurricanes", "Fish Spawning Cycles", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["seasonal closures", "Fishermen Types", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["politics", "Community Dynamics", {"weight": -0.3333333333333333, "confidence": 0.6999999999999998, "type": "inter_cluster", "style": "solid"}], ["ocean climate", "Storms and Climate", {"weight": 0.75, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["ocean climate", "Sea Temperature Data", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["overfished", "Fishing Methods", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["trammel nets", "Ocean Warming", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["fines", "Marine Conservation", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["fines", "Fishing Policies", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["fines", "Seagrass Ecosystems", {"weight": 0.5, "confidence": 0.375, "type": "inter_cluster", "style": "solid"}], ["derelict traps", "Fishing Policies", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["african dust", "ecosystems", {"weight": 0.6666666666666666, "confidence": 0.45, "type": "inter_cluster", "style": "solid"}], ["Coastal Activities", "Climate Impact", {"weight": 0.3333333333333333, "confidence": 0.8166666666666668, "type": "inter_cluster", "style": "solid"}], ["Coastal Activities", "Community Dynamics", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Coastal Activities", "Scientific Research", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Family Workshops", "Community Dynamics", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Family Workshops", "Seagrass Ecosystems", {"weight": 0.6666666666666666, "confidence": 0.4666666666666666, "type": "inter_cluster", "style": "solid"}], ["Species Depletion", "politics", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Species Depletion", "ecosystems", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Fishermen Types", "global issues", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Fishery Issues", "Sediment Dynamics", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Fishery Issues", "Fishing Types", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Community Dynamics", "cultural standpoint", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Marine Resources", "Species Depletion", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Marine Resources", "Federal Regulations", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Fishing Types", "Community Dynamics", {"weight": 1.0, "confidence": 0.7333333333333334, "type": "inter_cluster", "style": "solid"}], ["Fishing Types", "Virgin Islands Fisheries", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Local Compliance", "Water Quality Issues", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Local Compliance", "Environmental Concerns", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Salt River Areas", "Resource Management", {"weight": 0.3333333333333333, "confidence": 0.6833333333333332, "type": "inter_cluster", "style": "solid"}], ["Sediment Dynamics", "Coastal Environment", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Sediment Dynamics", "Species Depletion", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Scientific Research", "Climate Impact", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["Scientific Research", "Parrotfish Varieties", {"weight": 0.5, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["Coral Health", "Fish and Wildlife", {"weight": -1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Resource Management", "Caribbean Culture", {"weight": 0.75, "confidence": 0.525, "type": "inter_cluster", "style": "solid"}], ["Resource Management", "Climate Change Effects", {"weight": 0.6666666666666666, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["Resource Management", "Fishing Locations", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Economic Impact", "Coastal Environment", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Economic Impact", "Community Engagement", {"weight": 0.3333333333333333, "confidence": 0.6666666666666666, "type": "inter_cluster", "style": "solid"}], ["Economic Impact", "Fishery Dynamics", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Economic Impact", "global issues", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Fish and Wildlife", "Storms and Climate", {"weight": -1.0, "confidence": 0.6999999999999998, "type": "inter_cluster", "style": "solid"}], ["Fish and Wildlife", "Climate Impact", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["Fish and Wildlife", "Bycatch Solutions", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Marine Tourism", "Marine Conservation", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Marine Tourism", "Ocean Warming", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Marine Research", "Fishery Issues", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Island Ecology", "Virgin Islands Fisheries", {"weight": 1.0, "confidence": 0.7333333333333334, "type": "inter_cluster", "style": "solid"}], ["Island Ecology", "Coral Reef Ecology", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Island Ecology", "derelict traps", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Island Ecology", "Salt River Areas", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Environmental Concerns", "Overfishing Issues", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Environmental Concerns", "politics", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Cultural Communities", "Local Compliance", {"weight": -0.2, "confidence": 0.45, "type": "inter_cluster", "style": "solid"}], ["Water Quality Issues", "Overfishing Issues", {"weight": 0.3333333333333333, "confidence": 0.7166666666666667, "type": "inter_cluster", "style": "solid"}], ["Water Quality Issues", "cultural standpoint", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Water Quality Issues", "seasonal closures", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Virgin Islands Fisheries", "Environmental Concerns", {"weight": 0.5, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["Coral Reef Ecology", "Fish and Wildlife", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Coral Reef Ecology", "politics", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Monitoring Techniques", "Fishing Regulations", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Monitoring Techniques", "overfished", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Monitoring Techniques", "Cultural Communities", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Climate Impact", "Resource Management", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Climate Impact", "compliance", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Climate Impact", "Caribbean Culture", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["Climate Change Effects", "hurricanes", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Sea Temperature Data", "Climate Change Effects", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Sea Temperature Data", "lone wolf", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Parrotfish Varieties", "seasonal closures", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Fishing Locations", "african dust", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Fishing Locations", "Coral Health", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Overfishing Issues", "fines", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Overfishing Issues", "hurricanes", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Overfishing Issues", "Virgin Islands Fisheries", {"weight": -0.5, "confidence": 0.375, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {"derelict traps": [], "lone wolf": [], "Coastal Activities": [], "Family Workshops": [], "Species Depletion": [], "Fishing Methods": [], "Fishermen Types": [], "Fishery Dynamics": [], "Fishery Issues": [], "Coastal Environment": [], "Community Dynamics": [], "Fishing Regulations": [], "Marine Resources": [], "Fishing Types": [], "Fishing Policies": [], "Federal Regulations": [], "Local Compliance": [], "Salt River Areas": [], "Sediment Dynamics": [], "Scientific Research": [], "Coral Health": [], "Resource Management": [], "Economic Impact": [], "Fish and Wildlife": [], "Marine Tourism": [], "Marine Research": [], "Community Engagement": [], "Island Ecology": [], "Environmental Concerns": [], "Cultural Communities": [], "Water Quality Issues": [], "Virgin Islands Fisheries": [], "Coral Reef Ecology": [], "Fish Spawning Cycles": [], "Seagrass Ecosystems": [], "Marine Conservation": [], "Monitoring Techniques": [], "Climate Impact": [], "Climate Change Effects": [], "Storms and Climate": [], "Caribbean Culture": [], "Sea Temperature Data": [], "Ocean Warming": [], "Parrotfish Varieties": [], "Fishing Locations": [], "Overfishing Issues": [], "Bycatch Solutions": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

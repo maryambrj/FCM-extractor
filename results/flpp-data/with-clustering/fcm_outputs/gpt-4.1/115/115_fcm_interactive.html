@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"residents": {"concepts": "residents", "concept_list": ["residents"], "type": "cluster", "node_size": 18, "label": "residents"}, "program outreach": {"concepts": "program outreach", "concept_list": ["program outreach"], "type": "cluster", "node_size": 18, "label": "program outreach"}, "quality of life": {"concepts": "quality of life", "concept_list": ["quality of life"], "type": "cluster", "node_size": 18, "label": "quality of life"}, "food-related support": {"concepts": "food-related support", "concept_list": ["food-related support"], "type": "cluster", "node_size": 18, "label": "food-related support"}, "Food Partnerships": {"concepts": "federal funding, funders", "concept_list": ["federal funding", "funders"], "type": "cluster", "node_size": 21, "label": "Food Partnerships"}, "Community Health Programs": {"concepts": "food-related community, food-related partnerships", "concept_list": ["food-related community", "food-related partnerships"], "type": "cluster", "node_size": 21, "label": "Community Health Programs"}, "Educational Initiatives": {"concepts": "community programs, community health", "concept_list": ["community programs", "community health"], "type": "cluster", "node_size": 21, "label": "Educational Initiatives"}, "Food System Sector": {"concepts": "educational impact, sector education, educational collaboration, educational connections, educational outreach, organizational education, program education, educational mapping, educational initiatives, organizational education programs, educational partnerships, educational programs, community education, educational opportunities, educational sector, sector education programs, educational relationships, educational involvement, education", "concept_list": ["educational impact", "sector education", "educational collaboration", "educational connections", "educational outreach", "organizational education", "program education", "educational mapping", "educational initiatives", "organizational education programs", "educational partnerships", "educational programs", "community education", "educational opportunities", "educational sector", "sector education programs", "educational relationships", "educational involvement", "education"], "type": "cluster", "node_size": 72, "label": "Food System Sector"}, "Federal Funding": {"concepts": "sector food system, sector food programs, food system sectors, food system mapping, food institutions, food pantries, food sector, food system stakeholders, supplemental sector, sector mapping", "concept_list": ["sector food system", "sector food programs", "food system sectors", "food system mapping", "food institutions", "food pantries", "food sector", "food system stakeholders", "supplemental sector", "sector mapping"], "type": "cluster", "node_size": 45, "label": "Federal Funding"}, "Local Food Systems": {"concepts": "city policy, farmers markets, community production, local agriculture, urban agriculture education, land availability, farmers market, composting program, locally grown produce, community food programs, available land, transportation access, community food system, county government, local food system, locally grown food, community food, urban food systems, community food systems, local food, urban agriculture", "concept_list": ["city policy", "farmers markets", "community production", "local agriculture", "urban agriculture education", "land availability", "farmers market", "composting program", "locally grown produce", "community food programs", "available land", "transportation access", "community food system", "county government", "local food system", "locally grown food", "community food", "urban food systems", "community food systems", "local food", "urban agriculture"], "type": "cluster", "node_size": 78, "label": "Local Food Systems"}, "Food Organization Roles": {"concepts": "food-related organizational support, food-related organizational involvement, food-related organizational participation, food-related organizational sector, food-related organizational roles, food-related organizational relationships, food-related organizational initiatives, food-related organizational mapping, food-related organizational connections, food-related organizational experience, food-related organizational community", "concept_list": ["food-related organizational support", "food-related organizational involvement", "food-related organizational participation", "food-related organizational sector", "food-related organizational roles", "food-related organizational relationships", "food-related organizational initiatives", "food-related organizational mapping", "food-related organizational connections", "food-related organizational experience", "food-related organizational community"], "type": "cluster", "node_size": 48, "label": "Food Organization Roles"}, "Community Food Networks": {"concepts": "food-related organizations, health department, food mapping, nonprofits, food insecurity, program partnerships, technology, covid-19 impact, production, emergency sector, food system partnerships, institutional waste, food stigma, accessibility, nonprofit organizations, food system values, food partnerships, food sector relationships, food system relationships, shopping stigma, emergency food, stakeholder mapping, consumer behavior, flexibility, incentivizing, stakeholder engagement, leverage points, food system impact, food distribution events, influence factors, resident engagement, nutritious foods, shared resources, healthy choices, packaged foods, shopping behavior, grant resources, edible flint, resource sharing, food-related collaboration, food-related production, food production, chain food, food system programs, stakeholder experience, system diffusion, community engagement, coordinated engagement, food waste, food choice, shopping choices, community sector, community partnerships, resident support, resident burnout, local produce, food availability, community incentives, stakeholder input, food-related sectors, local engagement", "concept_list": ["food-related organizations", "health department", "food mapping", "nonprofits", "food insecurity", "program partnerships", "technology", "covid-19 impact", "production", "emergency sector", "food system partnerships", "institutional waste", "food stigma", "accessibility", "nonprofit organizations", "food system values", "food partnerships", "food sector relationships", "food system relationships", "shopping stigma", "emergency food", "stakeholder mapping", "consumer behavior", "flexibility", "incentivizing", "stakeholder engagement", "leverage points", "food system impact", "food distribution events", "influence factors", "resident engagement", "nutritious foods", "shared resources", "healthy choices", "packaged foods", "shopping behavior", "grant resources", "edible flint", "resource sharing", "food-related collaboration", "food-related production", "food production", "chain food", "food system programs", "stakeholder experience", "system diffusion", "community engagement", "coordinated engagement", "food waste", "food choice", "shopping choices", "community sector", "community partnerships", "resident support", "resident burnout", "local produce", "food availability", "community incentives", "stakeholder input", "food-related sectors", "local engagement"], "type": "cluster", "node_size": 198, "label": "Community Food Networks"}, "Food Sector Partnerships": {"concepts": "organizational food collaboration, organizational food partnerships, organizational food connections, organizational food sector", "concept_list": ["organizational food collaboration", "organizational food partnerships", "organizational food connections", "organizational food sector"], "type": "cluster", "node_size": 27, "label": "Food Sector Partnerships"}, "Food Program Outreach": {"concepts": "organizational food programs, organizational food education programs, organizational food outreach", "concept_list": ["organizational food programs", "organizational food education programs", "organizational food outreach"], "type": "cluster", "node_size": 24, "label": "Food Program Outreach"}, "Food Participation": {"concepts": "organizational food experience, organizational food involvement, organizational food participation", "concept_list": ["organizational food experience", "organizational food involvement", "organizational food participation"], "type": "cluster", "node_size": 24, "label": "Food Participation"}, "Food Systems": {"concepts": "food systems, food ecosystem, food system", "concept_list": ["food systems", "food ecosystem", "food system"], "type": "cluster", "node_size": 24, "label": "Food Systems"}, "Sector Collaboration": {"concepts": "sector representation, sector impact, sector partnerships, sector connections, sector collaboration, sector relationships", "concept_list": ["sector representation", "sector impact", "sector partnerships", "sector connections", "sector collaboration", "sector relationships"], "type": "cluster", "node_size": 33, "label": "Sector Collaboration"}, "Food Pharmacy": {"concepts": "food pharmacy, hurley food pharmacy", "concept_list": ["food pharmacy", "hurley food pharmacy"], "type": "cluster", "node_size": 21, "label": "Food Pharmacy"}, "Food Purchasing": {"concepts": "food purchasing, food retail, food business", "concept_list": ["food purchasing", "food retail", "food business"], "type": "cluster", "node_size": 24, "label": "Food Purchasing"}, "Food Packaging": {"concepts": "food packaging, emergency food providers", "concept_list": ["food packaging", "emergency food providers"], "type": "cluster", "node_size": 21, "label": "Food Packaging"}, "Institutional Partnerships": {"concepts": "institutional partners, partnerships", "concept_list": ["institutional partners", "partnerships"], "type": "cluster", "node_size": 21, "label": "Institutional Partnerships"}, "Partnership Dynamics": {"concepts": "partnership outcomes, partnership drivers, partnership barriers, increased partnership", "concept_list": ["partnership outcomes", "partnership drivers", "partnership barriers", "increased partnership"], "type": "cluster", "node_size": 27, "label": "Partnership Dynamics"}, "Partnership Benefits": {"concepts": "benefit management, partnership benefits, system outcomes, resource allocation", "concept_list": ["benefit management", "partnership benefits", "system outcomes", "resource allocation"], "type": "cluster", "node_size": 27, "label": "Partnership Benefits"}, "Office Staffing": {"concepts": "planning offices, human resources", "concept_list": ["planning offices", "human resources"], "type": "cluster", "node_size": 21, "label": "Office Staffing"}, "Organizational Collaboration": {"concepts": "organizational partnerships, organizational collaboration, organizational experience, organizational impact, organizational connections, organizational partners, organizational expertise, organizational tension, organizational mapping, organizational involvement, organizational relationships, organizational roles, organizational sector, organizational engagement", "concept_list": ["organizational partnerships", "organizational collaboration", "organizational experience", "organizational impact", "organizational connections", "organizational partners", "organizational expertise", "organizational tension", "organizational mapping", "organizational involvement", "organizational relationships", "organizational roles", "organizational sector", "organizational engagement"], "type": "cluster", "node_size": 57, "label": "Organizational Collaboration"}, "Food Access": {"concepts": "food environment, food sources, food distribution", "concept_list": ["food environment", "food sources", "food distribution"], "type": "cluster", "node_size": 24, "label": "Food Access"}, "Food Programs": {"concepts": "food-related programs, food program, food programs", "concept_list": ["food-related programs", "food program", "food programs"], "type": "cluster", "node_size": 24, "label": "Food Programs"}, "Food Education": {"concepts": "educational food outreach, food system education, food education, food system outreach, educational food impact, educational food system, food-related education, food choice education, educational food relationships, educational food partnerships, nutrition education, educational food involvement, educational food collaboration, educational food programs, educational food initiatives, food-related outreach, educational food sector, educational food support, educational food systems, educational food mapping, educational food education programs", "concept_list": ["educational food outreach", "food system education", "food education", "food system outreach", "educational food impact", "educational food system", "food-related education", "food choice education", "educational food relationships", "educational food partnerships", "nutrition education", "educational food involvement", "educational food collaboration", "educational food programs", "educational food initiatives", "food-related outreach", "educational food sector", "educational food support", "educational food systems", "educational food mapping", "educational food education programs"], "type": "cluster", "node_size": 78, "label": "Food Education"}, "Organizational Silos": {"concepts": "silos, productive spaces, city of flint, snap ed, historical context, siloed operations, dhhs, myplate", "concept_list": ["silos", "productive spaces", "city of flint", "snap ed", "historical context", "siloed operations", "dhhs", "myplate"], "type": "cluster", "node_size": 39, "label": "Organizational Silos"}, "Program Incentives": {"concepts": "purchasing incentives, program incentives", "concept_list": ["purchasing incentives", "program incentives"], "type": "cluster", "node_size": 21, "label": "Program Incentives"}, "Program Participation": {"concepts": "program participation, program utilization, program use", "concept_list": ["program participation", "program utilization", "program use"], "type": "cluster", "node_size": 24, "label": "Program Participation"}, "Community Gardening": {"concepts": "local gardeners, urban gardening, community gardening, gardening resources, gardening", "concept_list": ["local gardeners", "urban gardening", "community gardening", "gardening resources", "gardening"], "type": "cluster", "node_size": 30, "label": "Community Gardening"}, "Food Security & Culture": {"concepts": "food security, food culture", "concept_list": ["food security", "food culture"], "type": "cluster", "node_size": 21, "label": "Food Security & Culture"}, "Food Engagement": {"concepts": "food-related values, food engagement, food system engagement", "concept_list": ["food-related values", "food engagement", "food system engagement"], "type": "cluster", "node_size": 24, "label": "Food Engagement"}, "Healthy Eating Initiatives": {"concepts": "healthy foods initiative, community nutrition, nutritious options", "concept_list": ["healthy foods initiative", "community nutrition", "nutritious options"], "type": "cluster", "node_size": 24, "label": "Healthy Eating Initiatives"}, "Nutrition Assistance": {"concepts": "supplemental nutrition programs, supplemental foods", "concept_list": ["supplemental nutrition programs", "supplemental foods"], "type": "cluster", "node_size": 21, "label": "Nutrition Assistance"}, "Community Values": {"concepts": "community mission, community impact, community values", "concept_list": ["community mission", "community impact", "community values"], "type": "cluster", "node_size": 24, "label": "Community Values"}, "Community Support": {"concepts": "community grower, community resources, community support", "concept_list": ["community grower", "community resources", "community support"], "type": "cluster", "node_size": 24, "label": "Community Support"}, "Relationship Building": {"concepts": "connection strengths, positive relationships, communication", "concept_list": ["connection strengths", "positive relationships", "communication"], "type": "cluster", "node_size": 24, "label": "Relationship Building"}, "Shared Mission": {"concepts": "common mission, project direction", "concept_list": ["common mission", "project direction"], "type": "cluster", "node_size": 21, "label": "Shared Mission"}, "Collaborative Partnerships": {"concepts": "partnership, collaboration, partners", "concept_list": ["partnership", "collaboration", "partners"], "type": "cluster", "node_size": 24, "label": "Collaborative Partnerships"}, "Retail Spaces": {"concepts": "retail spaces, retail outlets, retail use, retail types", "concept_list": ["retail spaces", "retail outlets", "retail use", "retail types"], "type": "cluster", "node_size": 27, "label": "Retail Spaces"}, "Restaurant Types": {"concepts": "local restaurants, chain restaurants, shelters", "concept_list": ["local restaurants", "chain restaurants", "shelters"], "type": "cluster", "node_size": 24, "label": "Restaurant Types"}, "Retail Stores": {"concepts": "convenience stores, grocery stores", "concept_list": ["convenience stores", "grocery stores"], "type": "cluster", "node_size": 21, "label": "Retail Stores"}};
+        const conceptData = {};
+        const interClusterEdges = [["residents", "Partnership Benefits", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["residents", "Community Values", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["residents", "Food Participation", {"weight": 0.5, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["program outreach", "Retail Spaces", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["program outreach", "Partnership Dynamics", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["quality of life", "Federal Funding", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Food Partnerships", "Local Food Systems", {"weight": 1.0, "confidence": 0.7250000000000001, "type": "inter_cluster", "style": "solid"}], ["Community Health Programs", "program outreach", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Educational Initiatives", "Relationship Building", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["Food System Sector", "Relationship Building", {"weight": 1.0, "confidence": 0.8399999999999999, "type": "inter_cluster", "style": "solid"}], ["Food System Sector", "Healthy Eating Initiatives", {"weight": 0.8, "confidence": 0.6900000000000001, "type": "inter_cluster", "style": "solid"}], ["Food System Sector", "Community Values", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Federal Funding", "Food Program Outreach", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Food Organization Roles", "Sector Collaboration", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Food Organization Roles", "Community Food Networks", {"weight": 0.6666666666666666, "confidence": 0.5166666666666666, "type": "inter_cluster", "style": "solid"}], ["Food Organization Roles", "residents", {"weight": 0.5, "confidence": 0.375, "type": "inter_cluster", "style": "solid"}], ["Food Sector Partnerships", "Food Participation", {"weight": 0.6666666666666666, "confidence": 0.5333333333333333, "type": "inter_cluster", "style": "solid"}], ["Food Sector Partnerships", "Institutional Partnerships", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Food Program Outreach", "Organizational Collaboration", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Food Program Outreach", "Food Sector Partnerships", {"weight": 1.0, "confidence": 0.8166666666666668, "type": "inter_cluster", "style": "solid"}], ["Food Program Outreach", "Federal Funding", {"weight": 0.6666666666666666, "confidence": 0.5166666666666667, "type": "inter_cluster", "style": "solid"}], ["Food Program Outreach", "Institutional Partnerships", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Food Participation", "Nutrition Assistance", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Sector Collaboration", "Community Food Networks", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Food Pharmacy", "Retail Spaces", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Food Pharmacy", "Federal Funding", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Food Purchasing", "Food Pharmacy", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Food Purchasing", "Partnership Dynamics", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Food Purchasing", "Food Sector Partnerships", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Food Purchasing", "Community Support", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Food Packaging", "Community Values", {"weight": 0.75, "confidence": 0.45000000000000007, "type": "inter_cluster", "style": "solid"}], ["Food Packaging", "Food Partnerships", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["Institutional Partnerships", "Program Incentives", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Institutional Partnerships", "quality of life", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Partnership Benefits", "Food Systems", {"weight": 1.0, "confidence": 0.8000000000000002, "type": "inter_cluster", "style": "solid"}], ["Partnership Benefits", "Shared Mission", {"weight": 1.0, "confidence": 0.7666666666666666, "type": "inter_cluster", "style": "solid"}], ["Partnership Benefits", "Federal Funding", {"weight": 1.0, "confidence": 0.7333333333333334, "type": "inter_cluster", "style": "solid"}], ["Partnership Benefits", "Community Food Networks", {"weight": 0.75, "confidence": 0.5375, "type": "inter_cluster", "style": "solid"}], ["Partnership Benefits", "Institutional Partnerships", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Partnership Benefits", "residents", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["Organizational Collaboration", "Relationship Building", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Organizational Collaboration", "food-related support", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Organizational Collaboration", "Institutional Partnerships", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Food Access", "Food System Sector", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Food Access", "Community Values", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Food Access", "Partnership Benefits", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Food Programs", "Food Participation", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Food Programs", "quality of life", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Food Education", "Healthy Eating Initiatives", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["Organizational Silos", "Food Access", {"weight": 0.3333333333333333, "confidence": 0.6999999999999998, "type": "inter_cluster", "style": "solid"}], ["Program Incentives", "Community Health Programs", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Program Incentives", "Educational Initiatives", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Program Participation", "Food Education", {"weight": 1.0, "confidence": 0.6999999999999998, "type": "inter_cluster", "style": "solid"}], ["Program Participation", "Office Staffing", {"weight": 0.75, "confidence": 0.46249999999999997, "type": "inter_cluster", "style": "solid"}], ["Community Gardening", "Collaborative Partnerships", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Community Gardening", "Food Program Outreach", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Food Security & Culture", "Food Program Outreach", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Healthy Eating Initiatives", "Food Pharmacy", {"weight": 1.0, "confidence": 0.8166666666666668, "type": "inter_cluster", "style": "solid"}], ["Nutrition Assistance", "Food Access", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["Community Values", "Community Health Programs", {"weight": 1.0, "confidence": 0.7625, "type": "inter_cluster", "style": "solid"}], ["Community Values", "Nutrition Assistance", {"weight": 1.0, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["Community Support", "Food Education", {"weight": 1.0, "confidence": 0.6999999999999998, "type": "inter_cluster", "style": "solid"}], ["Community Support", "quality of life", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Community Support", "Food Programs", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Relationship Building", "Partnership Dynamics", {"weight": 1.0, "confidence": 0.89, "type": "inter_cluster", "style": "solid"}], ["Relationship Building", "Community Food Networks", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Relationship Building", "Nutrition Assistance", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Shared Mission", "Food Purchasing", {"weight": 0.75, "confidence": 0.525, "type": "inter_cluster", "style": "solid"}], ["Shared Mission", "Retail Spaces", {"weight": 1.0, "confidence": 0.6333333333333333, "type": "inter_cluster", "style": "solid"}], ["Collaborative Partnerships", "Institutional Partnerships", {"weight": 0.75, "confidence": 0.6875, "type": "inter_cluster", "style": "solid"}], ["Collaborative Partnerships", "Retail Spaces", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["Collaborative Partnerships", "Food System Sector", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Collaborative Partnerships", "Food Engagement", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["Collaborative Partnerships", "Federal Funding", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Collaborative Partnerships", "program outreach", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Restaurant Types", "Sector Collaboration", {"weight": 1.0, "confidence": 0.7000000000000001, "type": "inter_cluster", "style": "solid"}], ["Restaurant Types", "Retail Spaces", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["Restaurant Types", "Community Gardening", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Retail Stores", "Food Education", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {"Food Partnerships": [], "Community Health Programs": [], "Educational Initiatives": [], "Food System Sector": [], "Federal Funding": [], "Local Food Systems": [], "Food Organization Roles": [], "Community Food Networks": [], "Food Sector Partnerships": [], "Food Program Outreach": [], "Food Participation": [], "Food Systems": [], "Sector Collaboration": [], "Food Pharmacy": [], "Food Purchasing": [], "Food Packaging": [], "Institutional Partnerships": [], "Partnership Dynamics": [], "Partnership Benefits": [], "Office Staffing": [], "Organizational Collaboration": [], "Food Access": [], "Food Programs": [], "Food Education": [], "Organizational Silos": [], "Program Incentives": [], "Program Participation": [], "Community Gardening": [], "Food Security & Culture": [], "Food Engagement": [], "Healthy Eating Initiatives": [], "Nutrition Assistance": [], "Community Values": [], "Community Support": [], "Relationship Building": [], "Shared Mission": [], "Collaborative Partnerships": [], "Retail Spaces": [], "Restaurant Types": [], "Retail Stores": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

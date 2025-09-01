@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"fishery effects": {"concepts": "fishery effects", "concept_list": ["fishery effects"], "type": "cluster", "node_size": 18, "label": "fishery effects"}, "management actions": {"concepts": "management actions", "concept_list": ["management actions"], "type": "cluster", "node_size": 18, "label": "management actions"}, "structure forum": {"concepts": "structure forum", "concept_list": ["structure forum"], "type": "cluster", "node_size": 18, "label": "structure forum"}, "structure aggregation": {"concepts": "structure aggregation", "concept_list": ["structure aggregation"], "type": "cluster", "node_size": 18, "label": "structure aggregation"}, "spillover effects": {"concepts": "spillover effects", "concept_list": ["spillover effects"], "type": "cluster", "node_size": 18, "label": "spillover effects"}, "hurricane impacts": {"concepts": "hurricane impacts", "concept_list": ["hurricane impacts"], "type": "cluster", "node_size": 18, "label": "hurricane impacts"}, "protected areas": {"concepts": "protected areas", "concept_list": ["protected areas"], "type": "cluster", "node_size": 18, "label": "protected areas"}, "oil and gas": {"concepts": "oil and gas", "concept_list": ["oil and gas"], "type": "cluster", "node_size": 18, "label": "oil and gas"}, "benefits": {"concepts": "benefits", "concept_list": ["benefits"], "type": "cluster", "node_size": 18, "label": "benefits"}, "artificial reefs": {"concepts": "artificial reefs", "concept_list": ["artificial reefs"], "type": "cluster", "node_size": 18, "label": "artificial reefs"}, "fish species": {"concepts": "fish species", "concept_list": ["fish species"], "type": "cluster", "node_size": 18, "label": "fish species"}, "size differences": {"concepts": "size differences", "concept_list": ["size differences"], "type": "cluster", "node_size": 18, "label": "size differences"}, "gulf of mexico": {"concepts": "gulf of mexico", "concept_list": ["gulf of mexico"], "type": "cluster", "node_size": 18, "label": "gulf of mexico"}, "marine mammals": {"concepts": "marine mammals", "concept_list": ["marine mammals"], "type": "cluster", "node_size": 18, "label": "marine mammals"}, "transition zone": {"concepts": "transition zone", "concept_list": ["transition zone"], "type": "cluster", "node_size": 18, "label": "transition zone"}, "construction": {"concepts": "construction", "concept_list": ["construction"], "type": "cluster", "node_size": 18, "label": "construction"}, "flower garden banks": {"concepts": "flower garden banks", "concept_list": ["flower garden banks"], "type": "cluster", "node_size": 18, "label": "flower garden banks"}, "mitigation": {"concepts": "mitigation", "concept_list": ["mitigation"], "type": "cluster", "node_size": 18, "label": "mitigation"}, "gas platforms": {"concepts": "gas platforms", "concept_list": ["gas platforms"], "type": "cluster", "node_size": 18, "label": "gas platforms"}, "electrical current": {"concepts": "electrical current", "concept_list": ["electrical current"], "type": "cluster", "node_size": 18, "label": "electrical current"}, "commercial fishing": {"concepts": "commercial fishing", "concept_list": ["commercial fishing"], "type": "cluster", "node_size": 18, "label": "commercial fishing"}, "noise pollution": {"concepts": "noise pollution", "concept_list": ["noise pollution"], "type": "cluster", "node_size": 18, "label": "noise pollution"}, "wind energy areas": {"concepts": "wind energy areas", "concept_list": ["wind energy areas"], "type": "cluster", "node_size": 18, "label": "wind energy areas"}, "migratory species": {"concepts": "migratory species", "concept_list": ["migratory species"], "type": "cluster", "node_size": 18, "label": "migratory species"}, "offshore wind development": {"concepts": "offshore wind development", "concept_list": ["offshore wind development"], "type": "cluster", "node_size": 18, "label": "offshore wind development"}, "pollution": {"concepts": "pollution", "concept_list": ["pollution"], "type": "cluster", "node_size": 18, "label": "pollution"}, "recreational fishing": {"concepts": "recreational fishing", "concept_list": ["recreational fishing"], "type": "cluster", "node_size": 18, "label": "recreational fishing"}, "fishing pressure": {"concepts": "fishing pressure", "concept_list": ["fishing pressure"], "type": "cluster", "node_size": 18, "label": "fishing pressure"}, "turbine technology": {"concepts": "turbine technology", "concept_list": ["turbine technology"], "type": "cluster", "node_size": 18, "label": "turbine technology"}, "galveston site": {"concepts": "galveston site", "concept_list": ["galveston site"], "type": "cluster", "node_size": 18, "label": "galveston site"}, "production aggregation": {"concepts": "production aggregation", "concept_list": ["production aggregation"], "type": "cluster", "node_size": 18, "label": "production aggregation"}, "habitat change": {"concepts": "habitat change", "concept_list": ["habitat change"], "type": "cluster", "node_size": 18, "label": "habitat change"}, "vessel traffic": {"concepts": "vessel traffic", "concept_list": ["vessel traffic"], "type": "cluster", "node_size": 18, "label": "vessel traffic"}, "turbine placement": {"concepts": "turbine placement", "concept_list": ["turbine placement"], "type": "cluster", "node_size": 18, "label": "turbine placement"}, "sac meeting": {"concepts": "sac meeting", "concept_list": ["sac meeting"], "type": "cluster", "node_size": 18, "label": "sac meeting"}, "electromagnetics": {"concepts": "electromagnetics", "concept_list": ["electromagnetics"], "type": "cluster", "node_size": 18, "label": "electromagnetics"}, "metapopulation connectivity": {"concepts": "metapopulation connectivity", "concept_list": ["metapopulation connectivity"], "type": "cluster", "node_size": 18, "label": "metapopulation connectivity"}, "platforms": {"concepts": "platforms", "concept_list": ["platforms"], "type": "cluster", "node_size": 18, "label": "platforms"}, "impacts": {"concepts": "impacts", "concept_list": ["impacts"], "type": "cluster", "node_size": 18, "label": "impacts"}, "noise issues": {"concepts": "noise issues", "concept_list": ["noise issues"], "type": "cluster", "node_size": 18, "label": "noise issues"}, "military uses": {"concepts": "military uses", "concept_list": ["military uses"], "type": "cluster", "node_size": 18, "label": "military uses"}, "platform ecology": {"concepts": "platform ecology", "concept_list": ["platform ecology"], "type": "cluster", "node_size": 18, "label": "platform ecology"}, "wind farms": {"concepts": "wind farms", "concept_list": ["wind farms"], "type": "cluster", "node_size": 18, "label": "wind farms"}, "genetic effects": {"concepts": "genetic effects", "concept_list": ["genetic effects"], "type": "cluster", "node_size": 18, "label": "genetic effects"}, "decommissioning": {"concepts": "decommissioning", "concept_list": ["decommissioning"], "type": "cluster", "node_size": 18, "label": "decommissioning"}, "artificial reef ecology": {"concepts": "artificial reef ecology", "concept_list": ["artificial reef ecology"], "type": "cluster", "node_size": 18, "label": "artificial reef ecology"}, "oil": {"concepts": "oil", "concept_list": ["oil"], "type": "cluster", "node_size": 18, "label": "oil"}, "shrimp fishery": {"concepts": "shrimp fishery", "concept_list": ["shrimp fishery"], "type": "cluster", "node_size": 18, "label": "shrimp fishery"}, "fisheries ecology": {"concepts": "fisheries ecology", "concept_list": ["fisheries ecology"], "type": "cluster", "node_size": 18, "label": "fisheries ecology"}, "red snapper": {"concepts": "red snapper", "concept_list": ["red snapper"], "type": "cluster", "node_size": 18, "label": "red snapper"}, "exclusion zones": {"concepts": "exclusion zones", "concept_list": ["exclusion zones"], "type": "cluster", "node_size": 18, "label": "exclusion zones"}, "offshore winds": {"concepts": "offshore winds", "concept_list": ["offshore winds"], "type": "cluster", "node_size": 18, "label": "offshore winds"}, "fishing conflict": {"concepts": "fishing conflict", "concept_list": ["fishing conflict"], "type": "cluster", "node_size": 18, "label": "fishing conflict"}, "damages": {"concepts": "damages", "concept_list": ["damages"], "type": "cluster", "node_size": 18, "label": "damages"}, "operation": {"concepts": "operation", "concept_list": ["operation"], "type": "cluster", "node_size": 18, "label": "operation"}, "tuna populations": {"concepts": "tuna populations", "concept_list": ["tuna populations"], "type": "cluster", "node_size": 18, "label": "tuna populations"}, "offshore wind": {"concepts": "offshore wind", "concept_list": ["offshore wind"], "type": "cluster", "node_size": 18, "label": "offshore wind"}, "fish aggregation": {"concepts": "fish aggregation", "concept_list": ["fish aggregation"], "type": "cluster", "node_size": 18, "label": "fish aggregation"}, "marine protected areas": {"concepts": "marine protected areas", "concept_list": ["marine protected areas"], "type": "cluster", "node_size": 18, "label": "marine protected areas"}, "sound pollution": {"concepts": "sound pollution", "concept_list": ["sound pollution"], "type": "cluster", "node_size": 18, "label": "sound pollution"}, "anthropogenic impacts": {"concepts": "anthropogenic impacts", "concept_list": ["anthropogenic impacts"], "type": "cluster", "node_size": 18, "label": "anthropogenic impacts"}, "fishing exclusion": {"concepts": "fishing exclusion", "concept_list": ["fishing exclusion"], "type": "cluster", "node_size": 18, "label": "fishing exclusion"}, "reef fish": {"concepts": "reef fish", "concept_list": ["reef fish"], "type": "cluster", "node_size": 18, "label": "reef fish"}, "emf": {"concepts": "emf", "concept_list": ["emf"], "type": "cluster", "node_size": 18, "label": "emf"}, "green hydrogen": {"concepts": "green hydrogen", "concept_list": ["green hydrogen"], "type": "cluster", "node_size": 18, "label": "green hydrogen"}, "ecological standpoints": {"concepts": "ecological standpoints", "concept_list": ["ecological standpoints"], "type": "cluster", "node_size": 18, "label": "ecological standpoints"}};
+        const conceptData = {};
+        const interClusterEdges = [["fishery effects", "impacts", {"weight": 1.0, "confidence": 0.8400000000000001, "type": "inter_cluster", "style": "solid"}], ["fishery effects", "offshore wind", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["structure forum", "fishery effects", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["structure forum", "transition zone", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["structure aggregation", "exclusion zones", {"weight": 1.0, "confidence": 0.45, "type": "inter_cluster", "style": "solid"}], ["structure aggregation", "wind energy areas", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["spillover effects", "vessel traffic", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["spillover effects", "migratory species", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["spillover effects", "construction", {"weight": 0.5, "confidence": 0.25, "type": "inter_cluster", "style": "solid"}], ["hurricane impacts", "reef fish", {"weight": -1.0, "confidence": 0.2333333333333333, "type": "inter_cluster", "style": "solid"}], ["hurricane impacts", "platforms", {"weight": -1.0, "confidence": 0.2, "type": "inter_cluster", "style": "solid"}], ["protected areas", "marine mammals", {"weight": 1.0, "confidence": 0.5666666666666667, "type": "inter_cluster", "style": "solid"}], ["protected areas", "migratory species", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["protected areas", "artificial reef ecology", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["benefits", "transition zone", {"weight": 1.0, "confidence": 0.325, "type": "inter_cluster", "style": "solid"}], ["benefits", "platforms", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["artificial reefs", "fishery effects", {"weight": 1.0, "confidence": 0.6666666666666666, "type": "inter_cluster", "style": "solid"}], ["artificial reefs", "exclusion zones", {"weight": 1.0, "confidence": 0.43333333333333335, "type": "inter_cluster", "style": "solid"}], ["fish species", "fish aggregation", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["size differences", "red snapper", {"weight": 1.0, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["size differences", "recreational fishing", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["gulf of mexico", "anthropogenic impacts", {"weight": 1.0, "confidence": 0.475, "type": "inter_cluster", "style": "solid"}], ["marine mammals", "protected areas", {"weight": 1.0, "confidence": 0.4000000000000001, "type": "inter_cluster", "style": "solid"}], ["transition zone", "size differences", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["transition zone", "fishing exclusion", {"weight": 0.5, "confidence": 0.15, "type": "inter_cluster", "style": "solid"}], ["construction", "pollution", {"weight": 1.0, "confidence": 0.7500000000000001, "type": "inter_cluster", "style": "solid"}], ["construction", "emf", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["construction", "fish aggregation", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["construction", "structure aggregation", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["construction", "management actions", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["flower garden banks", "genetic effects", {"weight": 1.0, "confidence": 0.2, "type": "inter_cluster", "style": "solid"}], ["flower garden banks", "noise pollution", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["mitigation", "shrimp fishery", {"weight": 1.0, "confidence": 0.30000000000000004, "type": "inter_cluster", "style": "solid"}], ["mitigation", "turbine technology", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["gas platforms", "wind farms", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["gas platforms", "offshore winds", {"weight": 1.0, "confidence": 0.2, "type": "inter_cluster", "style": "solid"}], ["gas platforms", "hurricane impacts", {"weight": -1.0, "confidence": 0.1, "type": "inter_cluster", "style": "solid"}], ["electrical current", "migratory species", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["commercial fishing", "habitat change", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["noise pollution", "migratory species", {"weight": -1.0, "confidence": 0.575, "type": "inter_cluster", "style": "solid"}], ["noise pollution", "oil and gas", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["wind energy areas", "offshore wind development", {"weight": 1.0, "confidence": 0.7666666666666667, "type": "inter_cluster", "style": "solid"}], ["migratory species", "mitigation", {"weight": 0.75, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["migratory species", "management actions", {"weight": 0.5, "confidence": 0.15, "type": "inter_cluster", "style": "solid"}], ["pollution", "fish aggregation", {"weight": -1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["pollution", "commercial fishing", {"weight": -1.0, "confidence": 0.2, "type": "inter_cluster", "style": "solid"}], ["pollution", "decommissioning", {"weight": 1.0, "confidence": 0.2, "type": "inter_cluster", "style": "solid"}], ["recreational fishing", "artificial reef ecology", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["recreational fishing", "structure forum", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["fishing pressure", "fishing conflict", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["galveston site", "gulf of mexico", {"weight": 1.0, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["galveston site", "spillover effects", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["habitat change", "fishing conflict", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["habitat change", "wind farms", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["habitat change", "artificial reefs", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["vessel traffic", "migratory species", {"weight": 0.5, "confidence": 0.45, "type": "inter_cluster", "style": "solid"}], ["sac meeting", "artificial reef ecology", {"weight": 1.0, "confidence": 0.2, "type": "inter_cluster", "style": "solid"}], ["sac meeting", "electromagnetics", {"weight": 1.0, "confidence": 0.2, "type": "inter_cluster", "style": "solid"}], ["metapopulation connectivity", "flower garden banks", {"weight": 1.0, "confidence": 0.44999999999999996, "type": "inter_cluster", "style": "solid"}], ["platforms", "structure forum", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["platforms", "ecological standpoints", {"weight": 1.0, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["impacts", "genetic effects", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["military uses", "artificial reefs", {"weight": -1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["platform ecology", "noise pollution", {"weight": 1.0, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["platform ecology", "habitat change", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["wind farms", "production aggregation", {"weight": 1.0, "confidence": 0.43999999999999995, "type": "inter_cluster", "style": "solid"}], ["genetic effects", "platforms", {"weight": 1.0, "confidence": 0.26666666666666666, "type": "inter_cluster", "style": "solid"}], ["decommissioning", "artificial reef ecology", {"weight": 0.5, "confidence": 0.2, "type": "inter_cluster", "style": "solid"}], ["decommissioning", "platform ecology", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["artificial reef ecology", "gas platforms", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["artificial reef ecology", "gulf of mexico", {"weight": 1.0, "confidence": 0.3333333333333333, "type": "inter_cluster", "style": "solid"}], ["artificial reef ecology", "spillover effects", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["oil", "reef fish", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["fisheries ecology", "structure aggregation", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["red snapper", "fishery effects", {"weight": 1.0, "confidence": 0.6000000000000001, "type": "inter_cluster", "style": "solid"}], ["red snapper", "production aggregation", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["red snapper", "wind farms", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["exclusion zones", "artificial reef ecology", {"weight": 1.0, "confidence": 0.45, "type": "inter_cluster", "style": "solid"}], ["exclusion zones", "military uses", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["offshore winds", "emf", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["fishing conflict", "anthropogenic impacts", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["fishing conflict", "marine protected areas", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["damages", "turbine placement", {"weight": 1.0, "confidence": 0.2, "type": "inter_cluster", "style": "solid"}], ["operation", "management actions", {"weight": 1.0, "confidence": 0.68, "type": "inter_cluster", "style": "solid"}], ["tuna populations", "exclusion zones", {"weight": 1.0, "confidence": 0.3666666666666667, "type": "inter_cluster", "style": "solid"}], ["tuna populations", "platforms", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["offshore wind", "protected areas", {"weight": 1.0, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["fish aggregation", "shrimp fishery", {"weight": -1.0, "confidence": 0.3333333333333333, "type": "inter_cluster", "style": "solid"}], ["fish aggregation", "ecological standpoints", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["fish aggregation", "platform ecology", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["fish aggregation", "genetic effects", {"weight": 1.0, "confidence": 0.2, "type": "inter_cluster", "style": "solid"}], ["marine protected areas", "ecological standpoints", {"weight": 0.5, "confidence": 0.25, "type": "inter_cluster", "style": "solid"}], ["marine protected areas", "production aggregation", {"weight": 0.3333333333333333, "confidence": 0.09999999999999999, "type": "inter_cluster", "style": "solid"}], ["sound pollution", "oil and gas", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["anthropogenic impacts", "pollution", {"weight": 1.0, "confidence": 0.7625000000000001, "type": "inter_cluster", "style": "solid"}], ["anthropogenic impacts", "shrimp fishery", {"weight": -1.0, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["anthropogenic impacts", "noise issues", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["fishing exclusion", "benefits", {"weight": 1.0, "confidence": 0.525, "type": "inter_cluster", "style": "solid"}], ["green hydrogen", "benefits", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["ecological standpoints", "wind energy areas", {"weight": 1.0, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["ecological standpoints", "hurricane impacts", {"weight": 1.0, "confidence": 0.2, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"mindful eating": {"concepts": "mindful eating", "concept_list": ["mindful eating"], "type": "cluster", "node_size": 18, "label": "mindful eating"}, "pandemic": {"concepts": "pandemic", "concept_list": ["pandemic"], "type": "cluster", "node_size": 18, "label": "pandemic"}, "vegetable preparation": {"concepts": "vegetable preparation", "concept_list": ["vegetable preparation"], "type": "cluster", "node_size": 18, "label": "vegetable preparation"}, "community engagement": {"concepts": "community engagement", "concept_list": ["community engagement"], "type": "cluster", "node_size": 18, "label": "community engagement"}, "food system": {"concepts": "food system", "concept_list": ["food system"], "type": "cluster", "node_size": 18, "label": "food system"}, "local businesses": {"concepts": "local businesses", "concept_list": ["local businesses"], "type": "cluster", "node_size": 18, "label": "local businesses"}, "flint food system": {"concepts": "flint food system", "concept_list": ["flint food system"], "type": "cluster", "node_size": 18, "label": "flint food system"}, "food exposure": {"concepts": "food exposure", "concept_list": ["food exposure"], "type": "cluster", "node_size": 18, "label": "food exposure"}, "tasting events": {"concepts": "tasting events", "concept_list": ["tasting events"], "type": "cluster", "node_size": 18, "label": "tasting events"}, "food preparation skills": {"concepts": "food preparation skills", "concept_list": ["food preparation skills"], "type": "cluster", "node_size": 18, "label": "food preparation skills"}, "community organizations": {"concepts": "community organizations", "concept_list": ["community organizations"], "type": "cluster", "node_size": 18, "label": "community organizations"}, "social worker": {"concepts": "social worker", "concept_list": ["social worker"], "type": "cluster", "node_size": 18, "label": "social worker"}, "partnerships": {"concepts": "partnerships", "concept_list": ["partnerships"], "type": "cluster", "node_size": 18, "label": "partnerships"}, "health": {"concepts": "health", "concept_list": ["health"], "type": "cluster", "node_size": 18, "label": "health"}, "organic choices": {"concepts": "organic choices", "concept_list": ["organic choices"], "type": "cluster", "node_size": 18, "label": "organic choices"}, "lead water": {"concepts": "lead water", "concept_list": ["lead water"], "type": "cluster", "node_size": 18, "label": "lead water"}, "cooking classes": {"concepts": "cooking classes", "concept_list": ["cooking classes"], "type": "cluster", "node_size": 18, "label": "cooking classes"}, "empowerment": {"concepts": "empowerment", "concept_list": ["empowerment"], "type": "cluster", "node_size": 18, "label": "empowerment"}, "food system impact": {"concepts": "food system impact", "concept_list": ["food system impact"], "type": "cluster", "node_size": 18, "label": "food system impact"}, "nutritious food": {"concepts": "nutritious food", "concept_list": ["nutritious food"], "type": "cluster", "node_size": 18, "label": "nutritious food"}, "neighborhood": {"concepts": "neighborhood", "concept_list": ["neighborhood"], "type": "cluster", "node_size": 18, "label": "neighborhood"}, "farmers markets": {"concepts": "farmers markets", "concept_list": ["farmers markets"], "type": "cluster", "node_size": 18, "label": "farmers markets"}, "food system sectors": {"concepts": "food system sectors", "concept_list": ["food system sectors"], "type": "cluster", "node_size": 18, "label": "food system sectors"}, "franchise": {"concepts": "franchise", "concept_list": ["franchise"], "type": "cluster", "node_size": 18, "label": "franchise"}, "food system improvement": {"concepts": "food system improvement", "concept_list": ["food system improvement"], "type": "cluster", "node_size": 18, "label": "food system improvement"}, "service sustainability": {"concepts": "service sustainability", "concept_list": ["service sustainability"], "type": "cluster", "node_size": 18, "label": "service sustainability"}, "contaminated water": {"concepts": "contaminated water", "concept_list": ["contaminated water"], "type": "cluster", "node_size": 18, "label": "contaminated water"}, "food exploration": {"concepts": "food exploration", "concept_list": ["food exploration"], "type": "cluster", "node_size": 18, "label": "food exploration"}, "food demonstrations": {"concepts": "food demonstrations", "concept_list": ["food demonstrations"], "type": "cluster", "node_size": 18, "label": "food demonstrations"}, "mindful meditation": {"concepts": "mindful meditation", "concept_list": ["mindful meditation"], "type": "cluster", "node_size": 18, "label": "mindful meditation"}, "food delivery": {"concepts": "food delivery", "concept_list": ["food delivery"], "type": "cluster", "node_size": 18, "label": "food delivery"}, "recipe cards": {"concepts": "recipe cards", "concept_list": ["recipe cards"], "type": "cluster", "node_size": 18, "label": "recipe cards"}, "gift cards": {"concepts": "gift cards", "concept_list": ["gift cards"], "type": "cluster", "node_size": 18, "label": "gift cards"}, "availability": {"concepts": "availability", "concept_list": ["availability"], "type": "cluster", "node_size": 18, "label": "availability"}, "food system change": {"concepts": "food system change", "concept_list": ["food system change"], "type": "cluster", "node_size": 18, "label": "food system change"}, "food drives": {"concepts": "food drives", "concept_list": ["food drives"], "type": "cluster", "node_size": 18, "label": "food drives"}, "city issues": {"concepts": "city issues", "concept_list": ["city issues"], "type": "cluster", "node_size": 18, "label": "city issues"}, "food security": {"concepts": "food security", "concept_list": ["food security"], "type": "cluster", "node_size": 18, "label": "food security"}, "gardening": {"concepts": "gardening", "concept_list": ["gardening"], "type": "cluster", "node_size": 18, "label": "gardening"}, "community organization": {"concepts": "community organization", "concept_list": ["community organization"], "type": "cluster", "node_size": 18, "label": "community organization"}, "food prescriptions": {"concepts": "food prescriptions", "concept_list": ["food prescriptions"], "type": "cluster", "node_size": 18, "label": "food prescriptions"}, "community empowerment": {"concepts": "community empowerment", "concept_list": ["community empowerment"], "type": "cluster", "node_size": 18, "label": "community empowerment"}, "alcohol": {"concepts": "alcohol", "concept_list": ["alcohol"], "type": "cluster", "node_size": 18, "label": "alcohol"}, "cameras": {"concepts": "cameras", "concept_list": ["cameras"], "type": "cluster", "node_size": 18, "label": "cameras"}, "food appreciation": {"concepts": "food appreciation", "concept_list": ["food appreciation"], "type": "cluster", "node_size": 18, "label": "food appreciation"}, "food system challenges": {"concepts": "food system challenges", "concept_list": ["food system challenges"], "type": "cluster", "node_size": 18, "label": "food system challenges"}, "local restaurants": {"concepts": "local restaurants", "concept_list": ["local restaurants"], "type": "cluster", "node_size": 18, "label": "local restaurants"}, "convenience": {"concepts": "convenience", "concept_list": ["convenience"], "type": "cluster", "node_size": 18, "label": "convenience"}, "nutritious foods": {"concepts": "nutritious foods", "concept_list": ["nutritious foods"], "type": "cluster", "node_size": 18, "label": "nutritious foods"}, "healthy food": {"concepts": "healthy food", "concept_list": ["healthy food"], "type": "cluster", "node_size": 18, "label": "healthy food"}, "labor": {"concepts": "labor", "concept_list": ["labor"], "type": "cluster", "node_size": 18, "label": "labor"}, "community health": {"concepts": "community health", "concept_list": ["community health"], "type": "cluster", "node_size": 18, "label": "community health"}, "rainwater": {"concepts": "rainwater", "concept_list": ["rainwater"], "type": "cluster", "node_size": 18, "label": "rainwater"}, "sustainability": {"concepts": "sustainability", "concept_list": ["sustainability"], "type": "cluster", "node_size": 18, "label": "sustainability"}, "fast food": {"concepts": "fast food", "concept_list": ["fast food"], "type": "cluster", "node_size": 18, "label": "fast food"}, "chain restaurants": {"concepts": "chain restaurants", "concept_list": ["chain restaurants"], "type": "cluster", "node_size": 18, "label": "chain restaurants"}, "food system organizations": {"concepts": "food system organizations", "concept_list": ["food system organizations"], "type": "cluster", "node_size": 18, "label": "food system organizations"}, "green beans": {"concepts": "green beans", "concept_list": ["green beans"], "type": "cluster", "node_size": 18, "label": "green beans"}, "food system solutions": {"concepts": "food system solutions", "concept_list": ["food system solutions"], "type": "cluster", "node_size": 18, "label": "food system solutions"}, "exposure": {"concepts": "exposure", "concept_list": ["exposure"], "type": "cluster", "node_size": 18, "label": "exposure"}, "food banks": {"concepts": "food banks", "concept_list": ["food banks"], "type": "cluster", "node_size": 18, "label": "food banks"}, "food preparation": {"concepts": "food preparation", "concept_list": ["food preparation"], "type": "cluster", "node_size": 18, "label": "food preparation"}, "food choice": {"concepts": "food choice", "concept_list": ["food choice"], "type": "cluster", "node_size": 18, "label": "food choice"}, "marketing": {"concepts": "marketing", "concept_list": ["marketing"], "type": "cluster", "node_size": 18, "label": "marketing"}, "urban agriculture": {"concepts": "urban agriculture", "concept_list": ["urban agriculture"], "type": "cluster", "node_size": 18, "label": "urban agriculture"}, "demonstrations": {"concepts": "demonstrations", "concept_list": ["demonstrations"], "type": "cluster", "node_size": 18, "label": "demonstrations"}, "sample dishes": {"concepts": "sample dishes", "concept_list": ["sample dishes"], "type": "cluster", "node_size": 18, "label": "sample dishes"}, "food delivery service": {"concepts": "food delivery service", "concept_list": ["food delivery service"], "type": "cluster", "node_size": 18, "label": "food delivery service"}, "fresh produce": {"concepts": "fresh produce", "concept_list": ["fresh produce"], "type": "cluster", "node_size": 18, "label": "fresh produce"}, "grants": {"concepts": "grants", "concept_list": ["grants"], "type": "cluster", "node_size": 18, "label": "grants"}, "food system events": {"concepts": "food system events", "concept_list": ["food system events"], "type": "cluster", "node_size": 18, "label": "food system events"}, "food access": {"concepts": "food access", "concept_list": ["food access"], "type": "cluster", "node_size": 18, "label": "food access"}, "roasting": {"concepts": "roasting", "concept_list": ["roasting"], "type": "cluster", "node_size": 18, "label": "roasting"}, "food sector values": {"concepts": "food sector values", "concept_list": ["food sector values"], "type": "cluster", "node_size": 18, "label": "food sector values"}, "food exploration programs": {"concepts": "food exploration programs", "concept_list": ["food exploration programs"], "type": "cluster", "node_size": 18, "label": "food exploration programs"}, "fall festival": {"concepts": "fall festival", "concept_list": ["fall festival"], "type": "cluster", "node_size": 18, "label": "fall festival"}, "unhealthy foods": {"concepts": "unhealthy foods", "concept_list": ["unhealthy foods"], "type": "cluster", "node_size": 18, "label": "unhealthy foods"}, "safety": {"concepts": "safety", "concept_list": ["safety"], "type": "cluster", "node_size": 18, "label": "safety"}, "food education": {"concepts": "food education", "concept_list": ["food education"], "type": "cluster", "node_size": 18, "label": "food education"}, "food-related programs": {"concepts": "food-related programs", "concept_list": ["food-related programs"], "type": "cluster", "node_size": 18, "label": "food-related programs"}, "food bank": {"concepts": "food bank", "concept_list": ["food bank"], "type": "cluster", "node_size": 18, "label": "food bank"}, "neighborhood outreach": {"concepts": "neighborhood outreach", "concept_list": ["neighborhood outreach"], "type": "cluster", "node_size": 18, "label": "neighborhood outreach"}, "local gardener": {"concepts": "local gardener", "concept_list": ["local gardener"], "type": "cluster", "node_size": 18, "label": "local gardener"}, "community garden": {"concepts": "community garden", "concept_list": ["community garden"], "type": "cluster", "node_size": 18, "label": "community garden"}, "well being": {"concepts": "well being", "concept_list": ["well being"], "type": "cluster", "node_size": 18, "label": "well being"}, "vegetable box": {"concepts": "vegetable box", "concept_list": ["vegetable box"], "type": "cluster", "node_size": 18, "label": "vegetable box"}, "convenience stores": {"concepts": "convenience stores", "concept_list": ["convenience stores"], "type": "cluster", "node_size": 18, "label": "convenience stores"}, "prepared foods": {"concepts": "prepared foods", "concept_list": ["prepared foods"], "type": "cluster", "node_size": 18, "label": "prepared foods"}, "appreciation": {"concepts": "appreciation", "concept_list": ["appreciation"], "type": "cluster", "node_size": 18, "label": "appreciation"}};
+        const conceptData = {};
+        const interClusterEdges = [["pandemic", "food preparation skills", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["pandemic", "food prescriptions", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["vegetable preparation", "fresh produce", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["community engagement", "organic choices", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["community engagement", "mindful eating", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["local businesses", "food system solutions", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["local businesses", "sample dishes", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["local businesses", "food sector values", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["local businesses", "prepared foods", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food exposure", "empowerment", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food exposure", "labor", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["food preparation skills", "prepared foods", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["community organizations", "food banks", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["social worker", "nutritious food", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["partnerships", "urban agriculture", {"weight": 1.0, "confidence": 0.8333333333333334, "type": "inter_cluster", "style": "solid"}], ["partnerships", "well being", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["health", "food banks", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["lead water", "convenience", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["cooking classes", "neighborhood outreach", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["empowerment", "local businesses", {"weight": 1.0, "confidence": 0.6833333333333332, "type": "inter_cluster", "style": "solid"}], ["empowerment", "fresh produce", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["food system impact", "flint food system", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["nutritious food", "food demonstrations", {"weight": 1.0, "confidence": 0.7000000000000001, "type": "inter_cluster", "style": "solid"}], ["nutritious food", "food-related programs", {"weight": 1.0, "confidence": 0.6166666666666667, "type": "inter_cluster", "style": "solid"}], ["nutritious food", "availability", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["neighborhood", "food preparation skills", {"weight": 1.0, "confidence": 0.5666666666666667, "type": "inter_cluster", "style": "solid"}], ["neighborhood", "sustainability", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["farmers markets", "availability", {"weight": 1.0, "confidence": 0.7250000000000001, "type": "inter_cluster", "style": "solid"}], ["farmers markets", "food system sectors", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["farmers markets", "food demonstrations", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["farmers markets", "food system organizations", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["franchise", "healthy food", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food system improvement", "healthy food", {"weight": 1.0, "confidence": 0.82, "type": "inter_cluster", "style": "solid"}], ["food system improvement", "vegetable preparation", {"weight": 1.0, "confidence": 0.6833333333333332, "type": "inter_cluster", "style": "solid"}], ["food system improvement", "organic choices", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["contaminated water", "tasting events", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["food exploration", "food preparation skills", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["food demonstrations", "demonstrations", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["food demonstrations", "local gardener", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["gift cards", "food system sectors", {"weight": 1.0, "confidence": 0.6166666666666666, "type": "inter_cluster", "style": "solid"}], ["food system change", "community garden", {"weight": 1.0, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["food system change", "food system", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food system change", "local gardener", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food drives", "vegetable box", {"weight": 1.0, "confidence": 0.575, "type": "inter_cluster", "style": "solid"}], ["food drives", "food exposure", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["city issues", "local businesses", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["food security", "nutritious food", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["food security", "service sustainability", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["community organization", "food delivery", {"weight": 1.0, "confidence": 0.6166666666666667, "type": "inter_cluster", "style": "solid"}], ["community organization", "demonstrations", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food prescriptions", "food sector values", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food prescriptions", "convenience", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["community empowerment", "food system improvement", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["community empowerment", "gardening", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["community empowerment", "grants", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["cameras", "health", {"weight": -1.0, "confidence": 0.575, "type": "inter_cluster", "style": "solid"}], ["food appreciation", "cooking classes", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food appreciation", "prepared foods", {"weight": 1.0, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["food appreciation", "food system change", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food system challenges", "food system", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food system challenges", "alcohol", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["local restaurants", "neighborhood outreach", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["convenience", "food delivery", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["nutritious foods", "food system events", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["community health", "urban agriculture", {"weight": 1.0, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["rainwater", "neighborhood", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["sustainability", "food banks", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["fast food", "food system solutions", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["chain restaurants", "well being", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["food system organizations", "food security", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["green beans", "appreciation", {"weight": 0.3333333333333333, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food system solutions", "food exposure", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["exposure", "recipe cards", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["food preparation", "food appreciation", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["food preparation", "flint food system", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["marketing", "food system events", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["urban agriculture", "nutritious food", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food delivery service", "sustainability", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["fresh produce", "food delivery", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["grants", "food delivery", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["grants", "food access", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food access", "gift cards", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food access", "nutritious foods", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["food exploration programs", "appreciation", {"weight": 1.0, "confidence": 0.8500000000000001, "type": "inter_cluster", "style": "solid"}], ["food exploration programs", "community organizations", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["fall festival", "community empowerment", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["unhealthy foods", "food sector values", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["safety", "labor", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food education", "food delivery", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food-related programs", "food access", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food bank", "fast food", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["food bank", "health", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food bank", "flint food system", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food bank", "alcohol", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["neighborhood outreach", "food exposure", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["neighborhood outreach", "health", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["neighborhood outreach", "unhealthy foods", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["community garden", "food choice", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["well being", "flint food system", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["convenience stores", "food system improvement", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["prepared foods", "partnerships", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["appreciation", "mindful meditation", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["appreciation", "roasting", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["appreciation", "partnerships", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

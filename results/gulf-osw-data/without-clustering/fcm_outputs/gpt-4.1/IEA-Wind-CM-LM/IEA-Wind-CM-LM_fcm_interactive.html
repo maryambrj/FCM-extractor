@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"electrification": {"concepts": "electrification", "concept_list": ["electrification"], "type": "cluster", "node_size": 18, "label": "electrification"}, "space conflicts": {"concepts": "space conflicts", "concept_list": ["space conflicts"], "type": "cluster", "node_size": 18, "label": "space conflicts"}, "infrastructure": {"concepts": "infrastructure", "concept_list": ["infrastructure"], "type": "cluster", "node_size": 18, "label": "infrastructure"}, "communities": {"concepts": "communities", "concept_list": ["communities"], "type": "cluster", "node_size": 18, "label": "communities"}, "installation process": {"concepts": "installation process", "concept_list": ["installation process"], "type": "cluster", "node_size": 18, "label": "installation process"}, "construction impacts": {"concepts": "construction impacts", "concept_list": ["construction impacts"], "type": "cluster", "node_size": 18, "label": "construction impacts"}, "natural gas": {"concepts": "natural gas", "concept_list": ["natural gas"], "type": "cluster", "node_size": 18, "label": "natural gas"}, "onshore renewables": {"concepts": "onshore renewables", "concept_list": ["onshore renewables"], "type": "cluster", "node_size": 18, "label": "onshore renewables"}, "energy potential": {"concepts": "energy potential", "concept_list": ["energy potential"], "type": "cluster", "node_size": 18, "label": "energy potential"}, "supply chain": {"concepts": "supply chain", "concept_list": ["supply chain"], "type": "cluster", "node_size": 18, "label": "supply chain"}, "climate action": {"concepts": "climate action", "concept_list": ["climate action"], "type": "cluster", "node_size": 18, "label": "climate action"}, "rainfall events": {"concepts": "rainfall events", "concept_list": ["rainfall events"], "type": "cluster", "node_size": 18, "label": "rainfall events"}, "greenhouse emissions": {"concepts": "greenhouse emissions", "concept_list": ["greenhouse emissions"], "type": "cluster", "node_size": 18, "label": "greenhouse emissions"}, "impact mitigation": {"concepts": "impact mitigation", "concept_list": ["impact mitigation"], "type": "cluster", "node_size": 18, "label": "impact mitigation"}, "onshore resources": {"concepts": "onshore resources", "concept_list": ["onshore resources"], "type": "cluster", "node_size": 18, "label": "onshore resources"}, "cost": {"concepts": "cost", "concept_list": ["cost"], "type": "cluster", "node_size": 18, "label": "cost"}, "fossil fuels": {"concepts": "fossil fuels", "concept_list": ["fossil fuels"], "type": "cluster", "node_size": 18, "label": "fossil fuels"}, "lease": {"concepts": "lease", "concept_list": ["lease"], "type": "cluster", "node_size": 18, "label": "lease"}, "industry development": {"concepts": "industry development", "concept_list": ["industry development"], "type": "cluster", "node_size": 18, "label": "industry development"}, "policy": {"concepts": "policy", "concept_list": ["policy"], "type": "cluster", "node_size": 18, "label": "policy"}, "policies": {"concepts": "policies", "concept_list": ["policies"], "type": "cluster", "node_size": 18, "label": "policies"}, "skill development": {"concepts": "skill development", "concept_list": ["skill development"], "type": "cluster", "node_size": 18, "label": "skill development"}, "electric grid": {"concepts": "electric grid", "concept_list": ["electric grid"], "type": "cluster", "node_size": 18, "label": "electric grid"}, "energy portfolio": {"concepts": "energy portfolio", "concept_list": ["energy portfolio"], "type": "cluster", "node_size": 18, "label": "energy portfolio"}, "hydrogen production": {"concepts": "hydrogen production", "concept_list": ["hydrogen production"], "type": "cluster", "node_size": 18, "label": "hydrogen production"}, "marine life": {"concepts": "marine life", "concept_list": ["marine life"], "type": "cluster", "node_size": 18, "label": "marine life"}, "endangered whales": {"concepts": "endangered whales", "concept_list": ["endangered whales"], "type": "cluster", "node_size": 18, "label": "endangered whales"}, "texas": {"concepts": "texas", "concept_list": ["texas"], "type": "cluster", "node_size": 18, "label": "texas"}, "natural gas production": {"concepts": "natural gas production", "concept_list": ["natural gas production"], "type": "cluster", "node_size": 18, "label": "natural gas production"}, "social differences": {"concepts": "social differences", "concept_list": ["social differences"], "type": "cluster", "node_size": 18, "label": "social differences"}, "political support": {"concepts": "political support", "concept_list": ["political support"], "type": "cluster", "node_size": 18, "label": "political support"}, "fossil fuel": {"concepts": "fossil fuel", "concept_list": ["fossil fuel"], "type": "cluster", "node_size": 18, "label": "fossil fuel"}, "community impact": {"concepts": "community impact", "concept_list": ["community impact"], "type": "cluster", "node_size": 18, "label": "community impact"}, "renewable energy scenarios": {"concepts": "renewable energy scenarios", "concept_list": ["renewable energy scenarios"], "type": "cluster", "node_size": 18, "label": "renewable energy scenarios"}, "economics": {"concepts": "economics", "concept_list": ["economics"], "type": "cluster", "node_size": 18, "label": "economics"}, "turbines": {"concepts": "turbines", "concept_list": ["turbines"], "type": "cluster", "node_size": 18, "label": "turbines"}, "stakeholders": {"concepts": "stakeholders", "concept_list": ["stakeholders"], "type": "cluster", "node_size": 18, "label": "stakeholders"}, "regulatory framework": {"concepts": "regulatory framework", "concept_list": ["regulatory framework"], "type": "cluster", "node_size": 18, "label": "regulatory framework"}, "cost comparison": {"concepts": "cost comparison", "concept_list": ["cost comparison"], "type": "cluster", "node_size": 18, "label": "cost comparison"}, "hurricane winds": {"concepts": "hurricane winds", "concept_list": ["hurricane winds"], "type": "cluster", "node_size": 18, "label": "hurricane winds"}, "shipyard": {"concepts": "shipyard", "concept_list": ["shipyard"], "type": "cluster", "node_size": 18, "label": "shipyard"}, "hurricanes": {"concepts": "hurricanes", "concept_list": ["hurricanes"], "type": "cluster", "node_size": 18, "label": "hurricanes"}, "manufacturing": {"concepts": "manufacturing", "concept_list": ["manufacturing"], "type": "cluster", "node_size": 18, "label": "manufacturing"}, "industry": {"concepts": "industry", "concept_list": ["industry"], "type": "cluster", "node_size": 18, "label": "industry"}, "hostility": {"concepts": "hostility", "concept_list": ["hostility"], "type": "cluster", "node_size": 18, "label": "hostility"}, "hurricane events": {"concepts": "hurricane events", "concept_list": ["hurricane events"], "type": "cluster", "node_size": 18, "label": "hurricane events"}, "sensitive ecosystems": {"concepts": "sensitive ecosystems", "concept_list": ["sensitive ecosystems"], "type": "cluster", "node_size": 18, "label": "sensitive ecosystems"}, "management": {"concepts": "management", "concept_list": ["management"], "type": "cluster", "node_size": 18, "label": "management"}, "environmental concerns": {"concepts": "environmental concerns", "concept_list": ["environmental concerns"], "type": "cluster", "node_size": 18, "label": "environmental concerns"}, "coastal communities": {"concepts": "coastal communities", "concept_list": ["coastal communities"], "type": "cluster", "node_size": 18, "label": "coastal communities"}, "ira tax credits": {"concepts": "ira tax credits", "concept_list": ["ira tax credits"], "type": "cluster", "node_size": 18, "label": "ira tax credits"}, "wind energy": {"concepts": "wind energy", "concept_list": ["wind energy"], "type": "cluster", "node_size": 18, "label": "wind energy"}, "onshore wind": {"concepts": "onshore wind", "concept_list": ["onshore wind"], "type": "cluster", "node_size": 18, "label": "onshore wind"}, "interconnection": {"concepts": "interconnection", "concept_list": ["interconnection"], "type": "cluster", "node_size": 18, "label": "interconnection"}, "investment risk": {"concepts": "investment risk", "concept_list": ["investment risk"], "type": "cluster", "node_size": 18, "label": "investment risk"}, "environmental impact": {"concepts": "environmental impact", "concept_list": ["environmental impact"], "type": "cluster", "node_size": 18, "label": "environmental impact"}, "landfills": {"concepts": "landfills", "concept_list": ["landfills"], "type": "cluster", "node_size": 18, "label": "landfills"}, "pollutants": {"concepts": "pollutants", "concept_list": ["pollutants"], "type": "cluster", "node_size": 18, "label": "pollutants"}, "career transition": {"concepts": "career transition", "concept_list": ["career transition"], "type": "cluster", "node_size": 18, "label": "career transition"}, "incentives": {"concepts": "incentives", "concept_list": ["incentives"], "type": "cluster", "node_size": 18, "label": "incentives"}, "energy transition": {"concepts": "energy transition", "concept_list": ["energy transition"], "type": "cluster", "node_size": 18, "label": "energy transition"}, "community colleges": {"concepts": "community colleges", "concept_list": ["community colleges"], "type": "cluster", "node_size": 18, "label": "community colleges"}, "oil demand": {"concepts": "oil demand", "concept_list": ["oil demand"], "type": "cluster", "node_size": 18, "label": "oil demand"}, "texas parks and wildlife": {"concepts": "texas parks and wildlife", "concept_list": ["texas parks and wildlife"], "type": "cluster", "node_size": 18, "label": "texas parks and wildlife"}, "electricity prices": {"concepts": "electricity prices", "concept_list": ["electricity prices"], "type": "cluster", "node_size": 18, "label": "electricity prices"}, "texas house": {"concepts": "texas house", "concept_list": ["texas house"], "type": "cluster", "node_size": 18, "label": "texas house"}, "offshore drilling": {"concepts": "offshore drilling", "concept_list": ["offshore drilling"], "type": "cluster", "node_size": 18, "label": "offshore drilling"}, "louisiana": {"concepts": "louisiana", "concept_list": ["louisiana"], "type": "cluster", "node_size": 18, "label": "louisiana"}, "offshore oil": {"concepts": "offshore oil", "concept_list": ["offshore oil"], "type": "cluster", "node_size": 18, "label": "offshore oil"}, "environmental community": {"concepts": "environmental community", "concept_list": ["environmental community"], "type": "cluster", "node_size": 18, "label": "environmental community"}, "renewable energy": {"concepts": "renewable energy", "concept_list": ["renewable energy"], "type": "cluster", "node_size": 18, "label": "renewable energy"}, "onshore natural gas": {"concepts": "onshore natural gas", "concept_list": ["onshore natural gas"], "type": "cluster", "node_size": 18, "label": "onshore natural gas"}, "migratory birds": {"concepts": "migratory birds", "concept_list": ["migratory birds"], "type": "cluster", "node_size": 18, "label": "migratory birds"}, "environment": {"concepts": "environment", "concept_list": ["environment"], "type": "cluster", "node_size": 18, "label": "environment"}, "deregulated market": {"concepts": "deregulated market", "concept_list": ["deregulated market"], "type": "cluster", "node_size": 18, "label": "deregulated market"}, "wetlands": {"concepts": "wetlands", "concept_list": ["wetlands"], "type": "cluster", "node_size": 18, "label": "wetlands"}, "extreme rainfall": {"concepts": "extreme rainfall", "concept_list": ["extreme rainfall"], "type": "cluster", "node_size": 18, "label": "extreme rainfall"}, "negative policy": {"concepts": "negative policy", "concept_list": ["negative policy"], "type": "cluster", "node_size": 18, "label": "negative policy"}, "coastal areas": {"concepts": "coastal areas", "concept_list": ["coastal areas"], "type": "cluster", "node_size": 18, "label": "coastal areas"}, "extreme heat": {"concepts": "extreme heat", "concept_list": ["extreme heat"], "type": "cluster", "node_size": 18, "label": "extreme heat"}, "refineries": {"concepts": "refineries", "concept_list": ["refineries"], "type": "cluster", "node_size": 18, "label": "refineries"}, "legislative process": {"concepts": "legislative process", "concept_list": ["legislative process"], "type": "cluster", "node_size": 18, "label": "legislative process"}, "global development": {"concepts": "global development", "concept_list": ["global development"], "type": "cluster", "node_size": 18, "label": "global development"}, "economic development": {"concepts": "economic development", "concept_list": ["economic development"], "type": "cluster", "node_size": 18, "label": "economic development"}, "solar energy": {"concepts": "solar energy", "concept_list": ["solar energy"], "type": "cluster", "node_size": 18, "label": "solar energy"}, "policymaking": {"concepts": "policymaking", "concept_list": ["policymaking"], "type": "cluster", "node_size": 18, "label": "policymaking"}, "birds": {"concepts": "birds", "concept_list": ["birds"], "type": "cluster", "node_size": 18, "label": "birds"}, "greenhouse gas emissions": {"concepts": "greenhouse gas emissions", "concept_list": ["greenhouse gas emissions"], "type": "cluster", "node_size": 18, "label": "greenhouse gas emissions"}, "vessel manufacturing": {"concepts": "vessel manufacturing", "concept_list": ["vessel manufacturing"], "type": "cluster", "node_size": 18, "label": "vessel manufacturing"}, "renewables": {"concepts": "renewables", "concept_list": ["renewables"], "type": "cluster", "node_size": 18, "label": "renewables"}, "wind power": {"concepts": "wind power", "concept_list": ["wind power"], "type": "cluster", "node_size": 18, "label": "wind power"}, "bottleneck": {"concepts": "bottleneck", "concept_list": ["bottleneck"], "type": "cluster", "node_size": 18, "label": "bottleneck"}, "management tool": {"concepts": "management tool", "concept_list": ["management tool"], "type": "cluster", "node_size": 18, "label": "management tool"}, "advocacy": {"concepts": "advocacy", "concept_list": ["advocacy"], "type": "cluster", "node_size": 18, "label": "advocacy"}, "storm activity": {"concepts": "storm activity", "concept_list": ["storm activity"], "type": "cluster", "node_size": 18, "label": "storm activity"}, "clean energy": {"concepts": "clean energy", "concept_list": ["clean energy"], "type": "cluster", "node_size": 18, "label": "clean energy"}, "electricity production": {"concepts": "electricity production", "concept_list": ["electricity production"], "type": "cluster", "node_size": 18, "label": "electricity production"}, "grid": {"concepts": "grid", "concept_list": ["grid"], "type": "cluster", "node_size": 18, "label": "grid"}, "texas tracks": {"concepts": "texas tracks", "concept_list": ["texas tracks"], "type": "cluster", "node_size": 18, "label": "texas tracks"}, "revenue source": {"concepts": "revenue source", "concept_list": ["revenue source"], "type": "cluster", "node_size": 18, "label": "revenue source"}, "training programs": {"concepts": "training programs", "concept_list": ["training programs"], "type": "cluster", "node_size": 18, "label": "training programs"}, "r&d": {"concepts": "r&d", "concept_list": ["r&d"], "type": "cluster", "node_size": 18, "label": "r&d"}, "air pollution": {"concepts": "air pollution", "concept_list": ["air pollution"], "type": "cluster", "node_size": 18, "label": "air pollution"}, "hydrogen": {"concepts": "hydrogen", "concept_list": ["hydrogen"], "type": "cluster", "node_size": 18, "label": "hydrogen"}, "transmission": {"concepts": "transmission", "concept_list": ["transmission"], "type": "cluster", "node_size": 18, "label": "transmission"}, "offshore wind": {"concepts": "offshore wind", "concept_list": ["offshore wind"], "type": "cluster", "node_size": 18, "label": "offshore wind"}, "turbine technology": {"concepts": "turbine technology", "concept_list": ["turbine technology"], "type": "cluster", "node_size": 18, "label": "turbine technology"}, "peak demand": {"concepts": "peak demand", "concept_list": ["peak demand"], "type": "cluster", "node_size": 18, "label": "peak demand"}, "diesel boats": {"concepts": "diesel boats", "concept_list": ["diesel boats"], "type": "cluster", "node_size": 18, "label": "diesel boats"}, "mitigation": {"concepts": "mitigation", "concept_list": ["mitigation"], "type": "cluster", "node_size": 18, "label": "mitigation"}, "research and development": {"concepts": "research and development", "concept_list": ["research and development"], "type": "cluster", "node_size": 18, "label": "research and development"}, "solar": {"concepts": "solar", "concept_list": ["solar"], "type": "cluster", "node_size": 18, "label": "solar"}, "political differences": {"concepts": "political differences", "concept_list": ["political differences"], "type": "cluster", "node_size": 18, "label": "political differences"}, "transmission needs": {"concepts": "transmission needs", "concept_list": ["transmission needs"], "type": "cluster", "node_size": 18, "label": "transmission needs"}};
+        const conceptData = {};
+        const interClusterEdges = [["electrification", "birds", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["electrification", "mitigation", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["electrification", "community colleges", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["space conflicts", "lease", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["space conflicts", "environmental community", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["infrastructure", "transmission needs", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["construction impacts", "wetlands", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["construction impacts", "hostility", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["construction impacts", "skill development", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["natural gas", "political support", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["onshore renewables", "natural gas production", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["energy potential", "fossil fuels", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["supply chain", "wind energy", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["climate action", "r&d", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["impact mitigation", "rainfall events", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["onshore resources", "hydrogen", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["cost", "deregulated market", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["industry development", "turbines", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["industry development", "onshore renewables", {"weight": -0.5, "confidence": 0.375, "type": "inter_cluster", "style": "solid"}], ["policy", "energy potential", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["policy", "electricity prices", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["policies", "wetlands", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["policies", "communities", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["electric grid", "coastal communities", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["energy portfolio", "regulatory framework", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["hydrogen production", "energy transition", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["endangered whales", "industry development", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["community impact", "air pollution", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["renewable energy scenarios", "regulatory framework", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["stakeholders", "advocacy", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["regulatory framework", "career transition", {"weight": 1.0, "confidence": 0.575, "type": "inter_cluster", "style": "solid"}], ["cost comparison", "pollutants", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["hurricane winds", "installation process", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["hurricane winds", "texas", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["shipyard", "political differences", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["hurricanes", "policy", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["industry", "industry development", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["hostility", "economic development", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["hostility", "vessel manufacturing", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["hostility", "environmental concerns", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["hurricane events", "offshore drilling", {"weight": -1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["hurricane events", "transmission", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["management", "renewable energy", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["management", "electricity production", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["wind energy", "vessel manufacturing", {"weight": 1.0, "confidence": 0.8500000000000001, "type": "inter_cluster", "style": "solid"}], ["wind energy", "texas", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["wind energy", "communities", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["onshore wind", "turbine technology", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["interconnection", "policies", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["interconnection", "coastal communities", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["interconnection", "texas tracks", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["investment risk", "wind energy", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["energy transition", "migratory birds", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["energy transition", "refineries", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["community colleges", "solar", {"weight": 0.5, "confidence": 0.25, "type": "inter_cluster", "style": "solid"}], ["oil demand", "clean energy", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["texas parks and wildlife", "marine life", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["texas house", "incentives", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["offshore drilling", "industry", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["louisiana", "advocacy", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["offshore oil", "revenue source", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["offshore oil", "coastal areas", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["environmental community", "climate action", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["environmental community", "natural gas", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["environment", "greenhouse emissions", {"weight": -1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["extreme rainfall", "investment risk", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["extreme rainfall", "environment", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["negative policy", "marine life", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["coastal areas", "wetlands", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["extreme heat", "climate action", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["refineries", "fossil fuels", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["legislative process", "climate action", {"weight": 1.0, "confidence": 0.7000000000000001, "type": "inter_cluster", "style": "solid"}], ["legislative process", "offshore wind", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["global development", "fossil fuel", {"weight": -1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["global development", "legislative process", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["economic development", "revenue source", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["economic development", "ira tax credits", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["solar energy", "transmission", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["policymaking", "management tool", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["policymaking", "manufacturing", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["greenhouse gas emissions", "investment risk", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["renewables", "shipyard", {"weight": 1.0, "confidence": 0.6000000000000001, "type": "inter_cluster", "style": "solid"}], ["renewables", "rainfall events", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["wind power", "renewable energy scenarios", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["wind power", "economic development", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["bottleneck", "energy potential", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["storm activity", "industry development", {"weight": -1.0, "confidence": 0.6625000000000001, "type": "inter_cluster", "style": "solid"}], ["storm activity", "turbine technology", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["storm activity", "environmental impact", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["clean energy", "landfills", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["electricity production", "electric grid", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["electricity production", "peak demand", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["electricity production", "onshore natural gas", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["electricity production", "wetlands", {"weight": -1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["grid", "sensitive ecosystems", {"weight": -1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["grid", "social differences", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["training programs", "installation process", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["r&d", "impact mitigation", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["turbine technology", "economics", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["diesel boats", "greenhouse emissions", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["diesel boats", "environmental concerns", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["diesel boats", "vessel manufacturing", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["mitigation", "birds", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["research and development", "endangered whales", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["research and development", "management", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["research and development", "grid", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

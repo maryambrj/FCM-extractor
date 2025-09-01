@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"medical outreach": {"concepts": "medical outreach", "concept_list": ["medical outreach"], "type": "cluster", "node_size": 18, "label": "medical outreach"}, "flint": {"concepts": "flint", "concept_list": ["flint"], "type": "cluster", "node_size": 18, "label": "flint"}, "advisory council": {"concepts": "advisory council", "concept_list": ["advisory council"], "type": "cluster", "node_size": 18, "label": "advisory council"}, "nonprofit organizations": {"concepts": "nonprofit organizations", "concept_list": ["nonprofit organizations"], "type": "cluster", "node_size": 18, "label": "nonprofit organizations"}, "program sustainability": {"concepts": "program sustainability", "concept_list": ["program sustainability"], "type": "cluster", "node_size": 18, "label": "program sustainability"}, "trolley initiative": {"concepts": "trolley initiative", "concept_list": ["trolley initiative"], "type": "cluster", "node_size": 18, "label": "trolley initiative"}, "commercial kitchens": {"concepts": "commercial kitchens", "concept_list": ["commercial kitchens"], "type": "cluster", "node_size": 18, "label": "commercial kitchens"}, "shelters": {"concepts": "shelters", "concept_list": ["shelters"], "type": "cluster", "node_size": 18, "label": "shelters"}, "resale": {"concepts": "resale", "concept_list": ["resale"], "type": "cluster", "node_size": 18, "label": "resale"}, "Economic Backgrounds": {"concepts": "organizational engagement, participant engagement, social engagement", "concept_list": ["organizational engagement", "participant engagement", "social engagement"], "type": "cluster", "node_size": 24, "label": "Economic Backgrounds"}, "Health Education": {"concepts": "economic buffer, socio economic backgrounds, social domain, social support systems, stigma, social attitudes, social equity, social support, social innovation, social capital, social impact, social environment, social opportunities, social interaction, social services, social outcomes, social networks, disadvantaged families, social barriers, social inclusion, social participation, social dynamics, social integration, social facilitation, social resources, social programs, social stigma", "concept_list": ["economic buffer", "socio economic backgrounds", "social domain", "social support systems", "stigma", "social attitudes", "social equity", "social support", "social innovation", "social capital", "social impact", "social environment", "social opportunities", "social interaction", "social services", "social outcomes", "social networks", "disadvantaged families", "social barriers", "social inclusion", "social participation", "social dynamics", "social integration", "social facilitation", "social resources", "social programs", "social stigma"], "type": "cluster", "node_size": 96, "label": "Health Education"}, "Business Development": {"concepts": "health education, health outcomes", "concept_list": ["health education", "health outcomes"], "type": "cluster", "node_size": 21, "label": "Business Development"}, "Decision Comfort": {"concepts": "business development, new businesses, family business, business impact", "concept_list": ["business development", "new businesses", "family business", "business impact"], "type": "cluster", "node_size": 27, "label": "Decision Comfort"}, "Engagement Types": {"concepts": "comfort, decision making", "concept_list": ["comfort", "decision making"], "type": "cluster", "node_size": 21, "label": "Engagement Types"}, "Tech Convenience": {"concepts": "convenience, technology adoption, adaptability", "concept_list": ["convenience", "technology adoption", "adaptability"], "type": "cluster", "node_size": 24, "label": "Tech Convenience"}, "Pickup Logistics": {"concepts": "curbside pickup, utensils, bottom line, drop off box", "concept_list": ["curbside pickup", "utensils", "bottom line", "drop off box"], "type": "cluster", "node_size": 27, "label": "Pickup Logistics"}, "Community Engagement": {"concepts": "plumbing infrastructure, plumbing, special events, conversation, parking issues, workshops, communication, brainstorming", "concept_list": ["plumbing infrastructure", "plumbing", "special events", "conversation", "parking issues", "workshops", "communication", "brainstorming"], "type": "cluster", "node_size": 39, "label": "Community Engagement"}, "Food Systems": {"concepts": "food safety, fair food network, harvest surplus, free food, food options, food supply chain, food literacy, food health, food insecurity, nutritious foods, fresh food health, composting, soup production, food initiatives, food desert, food systems, fast food, food security, seasonal produce, seasonal food, food access, food programs, food system values, food assistance programs, food policy, food production, food vendors, food entrepreneurs, food programming, food waste, food, meat pricing, food rescue, takeout food, food-based businesses, food hub, healthy food access, food giveaways, side vegetable, double up food bucks, food pantries, food system, food movement, food price, food processing, flint fresh food hub, food affordability, foodworks program, food distribution, eat local", "concept_list": ["food safety", "fair food network", "harvest surplus", "free food", "food options", "food supply chain", "food literacy", "food health", "food insecurity", "nutritious foods", "fresh food health", "composting", "soup production", "food initiatives", "food desert", "food systems", "fast food", "food security", "seasonal produce", "seasonal food", "food access", "food programs", "food system values", "food assistance programs", "food policy", "food production", "food vendors", "food entrepreneurs", "food programming", "food waste", "food", "meat pricing", "food rescue", "takeout food", "food-based businesses", "food hub", "healthy food access", "food giveaways", "side vegetable", "double up food bucks", "food pantries", "food system", "food movement", "food price", "food processing", "flint fresh food hub", "food affordability", "foodworks program", "food distribution", "eat local"], "type": "cluster", "node_size": 165, "label": "Food Systems"}, "Organizational Capacity": {"concepts": "organizational learning, organizational stewardship, organizational capacity, organizational priorities, organizational structure, organizational adaptation, organizational collaboration, organizational resources, stewardship, organizational effectiveness, organizational impact, organizational partnerships, organizational networks, organizational initiatives, organizational domains: facility relocation, organizational reputation, organizational outcomes, organizational communication, organizational support", "concept_list": ["organizational learning", "organizational stewardship", "organizational capacity", "organizational priorities", "organizational structure", "organizational adaptation", "organizational collaboration", "organizational resources", "stewardship", "organizational effectiveness", "organizational impact", "organizational partnerships", "organizational networks", "organizational initiatives", "organizational domains: facility relocation", "organizational reputation", "organizational outcomes", "organizational communication", "organizational support"], "type": "cluster", "node_size": 72, "label": "Organizational Capacity"}, "Market Operations": {"concepts": "leverage points, reseller practices, vehicle ownership, market efficiency, market accessibility, resellers, crate company, market day, market ownership, market relocation, market setting, market strategy, goodwill industries, market expansion, mobile market, market management, market operations", "concept_list": ["leverage points", "reseller practices", "vehicle ownership", "market efficiency", "market accessibility", "resellers", "crate company", "market day", "market ownership", "market relocation", "market setting", "market strategy", "goodwill industries", "market expansion", "mobile market", "market management", "market operations"], "type": "cluster", "node_size": 66, "label": "Market Operations"}, "Health Systems": {"concepts": "prescriptions for health, health interventions, health initiatives, health programming, public health, health infrastructure, health services, health research, health access, health systems", "concept_list": ["prescriptions for health", "health interventions", "health initiatives", "health programming", "public health", "health infrastructure", "health services", "health research", "health access", "health systems"], "type": "cluster", "node_size": 45, "label": "Health Systems"}, "Local Agriculture": {"concepts": "farm stand, root crops, flint farmers market sandwich, traveling farmers market, farmers, local agriculture, urban agriculture, farmer aging, strawberry season, farmer recruitment, agricultural labor, farmer attrition, family farm succession, agriculture, farmers markets, department of agriculture, farmers market, farming, michigan farmers market association, michigan agriculture", "concept_list": ["farm stand", "root crops", "flint farmers market sandwich", "traveling farmers market", "farmers", "local agriculture", "urban agriculture", "farmer aging", "strawberry season", "farmer recruitment", "agricultural labor", "farmer attrition", "family farm succession", "agriculture", "farmers markets", "department of agriculture", "farmers market", "farming", "michigan farmers market association", "michigan agriculture"], "type": "cluster", "node_size": 75, "label": "Local Agriculture"}, "Food Retailers": {"concepts": "convenience stores, corner stores, grocery stores, neighborhood stores", "concept_list": ["convenience stores", "corner stores", "grocery stores", "neighborhood stores"], "type": "cluster", "node_size": 27, "label": "Food Retailers"}, "Retail Industry": {"concepts": "retail sector, retail, retail competition", "concept_list": ["retail sector", "retail", "retail competition"], "type": "cluster", "node_size": 24, "label": "Retail Industry"}, "Consumer Behavior": {"concepts": "shopping behavior, consumer preferences, consumer behavior, consumer choice, shopping incentives", "concept_list": ["shopping behavior", "consumer preferences", "consumer behavior", "consumer choice", "shopping incentives"], "type": "cluster", "node_size": 30, "label": "Consumer Behavior"}, "Survey Exposure": {"concepts": "survey, exposure", "concept_list": ["survey", "exposure"], "type": "cluster", "node_size": 21, "label": "Survey Exposure"}, "Vendor Applications": {"concepts": "representatives, application process, vendors", "concept_list": ["representatives", "application process", "vendors"], "type": "cluster", "node_size": 24, "label": "Vendor Applications"}, "Medical Resources": {"concepts": "medical resources, medical services, medical programs", "concept_list": ["medical resources", "medical services", "medical programs"], "type": "cluster", "node_size": 24, "label": "Medical Resources"}, "Health Research": {"concepts": "health department, medical research", "concept_list": ["health department", "medical research"], "type": "cluster", "node_size": 21, "label": "Health Research"}, "Medical Outcomes": {"concepts": "medical outcomes, medical impact", "concept_list": ["medical outcomes", "medical impact"], "type": "cluster", "node_size": 21, "label": "Medical Outcomes"}, "Program Launch": {"concepts": "program rollout, program implementation", "concept_list": ["program rollout", "program implementation"], "type": "cluster", "node_size": 21, "label": "Program Launch"}, "Program Operations": {"concepts": "program management, program support, program resources", "concept_list": ["program management", "program support", "program resources"], "type": "cluster", "node_size": 24, "label": "Program Operations"}, "Program Assessment": {"concepts": "program evaluation, program guidelines", "concept_list": ["program evaluation", "program guidelines"], "type": "cluster", "node_size": 21, "label": "Program Assessment"}, "Program Growth": {"concepts": "program expansion, supplemental programs", "concept_list": ["program expansion", "supplemental programs"], "type": "cluster", "node_size": 21, "label": "Program Growth"}, "Local Food Initiatives": {"concepts": "edible flint, flint fresh, starbucks, wi fi issues", "concept_list": ["edible flint", "flint fresh", "starbucks", "wi fi issues"], "type": "cluster", "node_size": 27, "label": "Local Food Initiatives"}, "Community Catering": {"concepts": "catering, common good, judicious association", "concept_list": ["catering", "common good", "judicious association"], "type": "cluster", "node_size": 24, "label": "Community Catering"}, "Community Trust": {"concepts": "community beacon, community trust, community recognition", "concept_list": ["community beacon", "community trust", "community recognition"], "type": "cluster", "node_size": 24, "label": "Community Trust"}, "Community Foundations": {"concepts": "community foundation, community, community space, community resources, community site", "concept_list": ["community foundation", "community", "community space", "community resources", "community site"], "type": "cluster", "node_size": 30, "label": "Community Foundations"}, "Grant Funding": {"concepts": "external funding, grant funding, grants, funding", "concept_list": ["external funding", "grant funding", "grants", "funding"], "type": "cluster", "node_size": 27, "label": "Grant Funding"}, "Public Program Funding": {"concepts": "program funding, public funding", "concept_list": ["program funding", "public funding"], "type": "cluster", "node_size": 21, "label": "Public Program Funding"}, "Downtown Revitalization": {"concepts": "downtown revitalization, downtown, urban mobility, public transportation, residential patterns, urban development, transportation barriers, transportation system", "concept_list": ["downtown revitalization", "downtown", "urban mobility", "public transportation", "residential patterns", "urban development", "transportation barriers", "transportation system"], "type": "cluster", "node_size": 39, "label": "Downtown Revitalization"}, "Uptown Reinvestment": {"concepts": "uptown reinvestment, uptown reinvestment corporation", "concept_list": ["uptown reinvestment", "uptown reinvestment corporation"], "type": "cluster", "node_size": 21, "label": "Uptown Reinvestment"}, "Program Engagement": {"concepts": "program participation, program outcomes, program delivery", "concept_list": ["program participation", "program outcomes", "program delivery"], "type": "cluster", "node_size": 24, "label": "Program Engagement"}, "Program Partnerships": {"concepts": "program partners, program stakeholders", "concept_list": ["program partners", "program stakeholders"], "type": "cluster", "node_size": 21, "label": "Program Partnerships"}, "Financial Stress": {"concepts": "financial stress, crisis management, stress", "concept_list": ["financial stress", "crisis management", "stress"], "type": "cluster", "node_size": 24, "label": "Financial Stress"}, "Psychological Impact": {"concepts": "psychological domains: crisis perception, psychological impact, psychological stress", "concept_list": ["psychological domains: crisis perception", "psychological impact", "psychological stress"], "type": "cluster", "node_size": 24, "label": "Psychological Impact"}, "Burnout & Resilience": {"concepts": "burnout, resourcefulness", "concept_list": ["burnout", "resourcefulness"], "type": "cluster", "node_size": 21, "label": "Burnout & Resilience"}, "Mindful Positivity": {"concepts": "mindfulness, patience, positive experience", "concept_list": ["mindfulness", "patience", "positive experience"], "type": "cluster", "node_size": 24, "label": "Mindful Positivity"}, "Collaborative Partnerships": {"concepts": "collaboration, partnership, partnerships", "concept_list": ["collaboration", "partnership", "partnerships"], "type": "cluster", "node_size": 24, "label": "Collaborative Partnerships"}, "Partnership Models": {"concepts": "partnership models, program partnerships, economic viability, trust, health collaborations, medical partnerships, recipes, economic sustainability, stakeholder concerns, infrastructure, interconnected system, mixed income, technical assistance, accessibility, facilities management, knowledge dissemination, perception management, locally owned business, health partnerships, flint township, hurley children's center, tokens, problem solving, learning motivation, children's health, user experience, cooking demonstrations, motivation, stakeholder engagement, stakeholder networks, interview, genesee county, group dynamics, opportunity recognition, bridge card, confidentiality, hoffman's deli, the cork, local co-op, preservatives, big cities, supply chain, outreach programs, social infrastructure, coordination, urban residency, community hub, equitable access, cultural values, dignity, cultural center, agencies, seattle, housing development, social well-being, nonprofit tables, personal situation, learning process, education, community impact, electronic system, saginaw, quality of life, additives, local economy, flint water crisis, community services, supplier selection, missions, technology barriers, facility upgrades, electronic payment, board membership, suppliers, learning behavior, safety, social connections, affordability, infrastructure development, genesee county health department, connections, research project, outreach activities, youth engagement, participant, technical infrastructure, community outreach, self-education, the cork on saginaw, youth programs, local economic development, group participation, commercial facilities, information processing, community health, general store, health agencies, phd research, choices, business closure, public space, management model, resource allocation, program coordination, hard work, psychological well-being, wash and pack, economic impact, outreach, research collaboration, michigan state, chefs collaborative, mixed income housing, product development, canning workshops, community setting, resource provision, community infrastructure, resource distribution, availability, learning system, risk perception, programming, community programs, incentives, behavioral adaptation, school districts, younger people, neighborhood access, downtown vendors, budget management, community needs, social hub, business sustainability", "concept_list": ["partnership models", "program partnerships", "economic viability", "trust", "health collaborations", "medical partnerships", "recipes", "economic sustainability", "stakeholder concerns", "infrastructure", "interconnected system", "mixed income", "technical assistance", "accessibility", "facilities management", "knowledge dissemination", "perception management", "locally owned business", "health partnerships", "flint township", "hurley children's center", "tokens", "problem solving", "learning motivation", "children's health", "user experience", "cooking demonstrations", "motivation", "stakeholder engagement", "stakeholder networks", "interview", "genesee county", "group dynamics", "opportunity recognition", "bridge card", "confidentiality", "hoffman's deli", "the cork", "local co-op", "preservatives", "big cities", "supply chain", "outreach programs", "social infrastructure", "coordination", "urban residency", "community hub", "equitable access", "cultural values", "dignity", "cultural center", "agencies", "seattle", "housing development", "social well-being", "nonprofit tables", "personal situation", "learning process", "education", "community impact", "electronic system", "saginaw", "quality of life", "additives", "local economy", "flint water crisis", "community services", "supplier selection", "missions", "technology barriers", "facility upgrades", "electronic payment", "board membership", "suppliers", "learning behavior", "safety", "social connections", "affordability", "infrastructure development", "genesee county health department", "connections", "research project", "outreach activities", "youth engagement", "participant", "technical infrastructure", "community outreach", "self-education", "the cork on saginaw", "youth programs", "local economic development", "group participation", "commercial facilities", "information processing", "community health", "general store", "health agencies", "phd research", "choices", "business closure", "public space", "management model", "resource allocation", "program coordination", "hard work", "psychological well-being", "wash and pack", "economic impact", "outreach", "research collaboration", "michigan state", "chefs collaborative", "mixed income housing", "product development", "canning workshops", "community setting", "resource provision", "community infrastructure", "resource distribution", "availability", "learning system", "risk perception", "programming", "community programs", "incentives", "behavioral adaptation", "school districts", "younger people", "neighborhood access", "downtown vendors", "budget management", "community needs", "social hub", "business sustainability"], "type": "cluster", "node_size": 417, "label": "Partnership Models"}, "Cross-Sector Collaboration": {"concepts": "agency collaboration, university partnership, chef collaborative", "concept_list": ["agency collaboration", "university partnership", "chef collaborative"], "type": "cluster", "node_size": 24, "label": "Cross-Sector Collaboration"}, "Social Partnerships": {"concepts": "social partnerships, public-private partnerships", "concept_list": ["social partnerships", "public-private partnerships"], "type": "cluster", "node_size": 21, "label": "Social Partnerships"}, "Nutrition Focus": {"concepts": "nutrition, nutritional content, nutrition background", "concept_list": ["nutrition", "nutritional content", "nutrition background"], "type": "cluster", "node_size": 24, "label": "Nutrition Focus"}, "Nutrition Education": {"concepts": "nutrition outreach, nutrition programs, nutrition education", "concept_list": ["nutrition outreach", "nutrition programs", "nutrition education"], "type": "cluster", "node_size": 24, "label": "Nutrition Education"}, "Child Nutrition Programs": {"concepts": "supplemental nutrition programs, supplemental nutrition, child nutrition", "concept_list": ["supplemental nutrition programs", "supplemental nutrition", "child nutrition"], "type": "cluster", "node_size": 24, "label": "Child Nutrition Programs"}, "Leadership Support": {"concepts": "leadership, leadership support, leadership roles", "concept_list": ["leadership", "leadership support", "leadership roles"], "type": "cluster", "node_size": 24, "label": "Leadership Support"}, "Community Leadership": {"concepts": "program leadership, community leadership", "concept_list": ["program leadership", "community leadership"], "type": "cluster", "node_size": 21, "label": "Community Leadership"}, "Workforce Development": {"concepts": "workforce development, staff capacity", "concept_list": ["workforce development", "staff capacity"], "type": "cluster", "node_size": 21, "label": "Workforce Development"}, "Customer Perspective": {"concepts": "customer standpoint, customer experience, customer perspective", "concept_list": ["customer standpoint", "customer experience", "customer perspective"], "type": "cluster", "node_size": 24, "label": "Customer Perspective"}, "Customer Education": {"concepts": "customer education, customer base", "concept_list": ["customer education", "customer base"], "type": "cluster", "node_size": 21, "label": "Customer Education"}, "Vendor Relationships": {"concepts": "vendor-customer interaction, vendor relationships, vendor partnerships", "concept_list": ["vendor-customer interaction", "vendor relationships", "vendor partnerships"], "type": "cluster", "node_size": 24, "label": "Vendor Relationships"}, "Restaurant Types": {"concepts": "high end restaurant, wine restaurant, local restaurants, sit down restaurants, chain restaurants, restaurants", "concept_list": ["high end restaurant", "wine restaurant", "local restaurants", "sit down restaurants", "chain restaurants", "restaurants"], "type": "cluster", "node_size": 33, "label": "Restaurant Types"}, "Restaurant Operations": {"concepts": "restaurant management, restaurant growth, restaurant operations", "concept_list": ["restaurant management", "restaurant growth", "restaurant operations"], "type": "cluster", "node_size": 24, "label": "Restaurant Operations"}, "Community Partnerships": {"concepts": "msu extension, crim", "concept_list": ["msu extension", "crim"], "type": "cluster", "node_size": 21, "label": "Community Partnerships"}, "COVID Policy": {"concepts": "covid, senator stabenow", "concept_list": ["covid", "senator stabenow"], "type": "cluster", "node_size": 21, "label": "COVID Policy"}, "Equal Education": {"concepts": "educational opportunity, level playing field", "concept_list": ["educational opportunity", "level playing field"], "type": "cluster", "node_size": 21, "label": "Equal Education"}, "Food Education": {"concepts": "educational domains: cooking demonstrations, educational domains: educational piece, educational piece", "concept_list": ["educational domains: cooking demonstrations", "educational domains: educational piece", "educational piece"], "type": "cluster", "node_size": 24, "label": "Food Education"}, "Produce Access": {"concepts": "produce, produce access, local produce, produce selection", "concept_list": ["produce", "produce access", "local produce", "produce selection"], "type": "cluster", "node_size": 27, "label": "Produce Access"}, "Local Sourcing": {"concepts": "local producers, local suppliers, buy local", "concept_list": ["local producers", "local suppliers", "buy local"], "type": "cluster", "node_size": 24, "label": "Local Sourcing"}, "Bulk Buying": {"concepts": "bulk purchasing, yield", "concept_list": ["bulk purchasing", "yield"], "type": "cluster", "node_size": 21, "label": "Bulk Buying"}};
+        const conceptData = {};
+        const interClusterEdges = [["flint", "Local Food Initiatives", {"weight": 1.0, "confidence": 0.6625, "type": "inter_cluster", "style": "solid"}], ["advisory council", "commercial kitchens", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["advisory council", "Food Systems", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["nonprofit organizations", "medical outreach", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["nonprofit organizations", "COVID Policy", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["nonprofit organizations", "Pickup Logistics", {"weight": 0.5, "confidence": 0.325, "type": "inter_cluster", "style": "solid"}], ["program sustainability", "Program Operations", {"weight": 1.0, "confidence": 0.875, "type": "inter_cluster", "style": "solid"}], ["program sustainability", "Restaurant Operations", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["trolley initiative", "Customer Perspective", {"weight": 1.0, "confidence": 0.6166666666666667, "type": "inter_cluster", "style": "solid"}], ["trolley initiative", "Vendor Relationships", {"weight": 0.6666666666666666, "confidence": 0.39999999999999997, "type": "inter_cluster", "style": "solid"}], ["trolley initiative", "Public Program Funding", {"weight": 0.5, "confidence": 0.325, "type": "inter_cluster", "style": "solid"}], ["commercial kitchens", "Restaurant Types", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["shelters", "Food Systems", {"weight": 1.0, "confidence": 0.7300000000000001, "type": "inter_cluster", "style": "solid"}], ["shelters", "Child Nutrition Programs", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["resale", "Pickup Logistics", {"weight": 0.6666666666666666, "confidence": 0.4166666666666667, "type": "inter_cluster", "style": "solid"}], ["Economic Backgrounds", "Equal Education", {"weight": 1.0, "confidence": 0.8666666666666667, "type": "inter_cluster", "style": "solid"}], ["Economic Backgrounds", "Food Education", {"weight": 1.0, "confidence": 0.7666666666666667, "type": "inter_cluster", "style": "solid"}], ["Economic Backgrounds", "Financial Stress", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Economic Backgrounds", "Tech Convenience", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Health Education", "Consumer Behavior", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Health Education", "Leadership Support", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Business Development", "Customer Education", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["Business Development", "Uptown Reinvestment", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["Pickup Logistics", "medical outreach", {"weight": 0.6666666666666666, "confidence": 0.4666666666666666, "type": "inter_cluster", "style": "solid"}], ["Community Engagement", "Collaborative Partnerships", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["Food Systems", "Community Trust", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Organizational Capacity", "Vendor Applications", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Organizational Capacity", "Local Agriculture", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Market Operations", "Produce Access", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Health Systems", "Program Partnerships", {"weight": 1.0, "confidence": 0.7333333333333334, "type": "inter_cluster", "style": "solid"}], ["Health Systems", "Local Sourcing", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Health Systems", "Public Program Funding", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Local Agriculture", "Vendor Applications", {"weight": 1.0, "confidence": 0.7166666666666667, "type": "inter_cluster", "style": "solid"}], ["Local Agriculture", "Medical Outcomes", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["Local Agriculture", "Customer Perspective", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Food Retailers", "Pickup Logistics", {"weight": 0.6666666666666666, "confidence": 0.4333333333333333, "type": "inter_cluster", "style": "solid"}], ["Retail Industry", "Downtown Revitalization", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["Retail Industry", "Food Retailers", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Retail Industry", "Engagement Types", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Consumer Behavior", "Equal Education", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Survey Exposure", "Customer Education", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["Survey Exposure", "Community Foundations", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["Survey Exposure", "Community Leadership", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Vendor Applications", "Restaurant Types", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Medical Outcomes", "Program Growth", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Medical Outcomes", "Grant Funding", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Program Launch", "Health Research", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Program Operations", "Workforce Development", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Program Operations", "Social Partnerships", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Program Assessment", "Bulk Buying", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["Program Growth", "Local Food Initiatives", {"weight": 1.0, "confidence": 0.6375000000000001, "type": "inter_cluster", "style": "solid"}], ["Program Growth", "shelters", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["Program Growth", "Pickup Logistics", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Program Growth", "Downtown Revitalization", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["Local Food Initiatives", "program sustainability", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Local Food Initiatives", "Produce Access", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Community Catering", "Medical Resources", {"weight": 1.0, "confidence": 0.7166666666666668, "type": "inter_cluster", "style": "solid"}], ["Community Trust", "Tech Convenience", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Community Foundations", "Health Education", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Community Foundations", "Uptown Reinvestment", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["Grant Funding", "Program Launch", {"weight": 1.0, "confidence": 0.925, "type": "inter_cluster", "style": "solid"}], ["Grant Funding", "Bulk Buying", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Public Program Funding", "Community Leadership", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Uptown Reinvestment", "Program Partnerships", {"weight": 0.6666666666666666, "confidence": 0.39999999999999997, "type": "inter_cluster", "style": "solid"}], ["Uptown Reinvestment", "Community Catering", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Uptown Reinvestment", "Pickup Logistics", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["Program Engagement", "Health Education", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Program Partnerships", "Burnout & Resilience", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Financial Stress", "Retail Industry", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Psychological Impact", "Burnout & Resilience", {"weight": 1.0, "confidence": 0.7625, "type": "inter_cluster", "style": "solid"}], ["Psychological Impact", "Program Assessment", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Psychological Impact", "COVID Policy", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Burnout & Resilience", "Program Engagement", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Burnout & Resilience", "Tech Convenience", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Burnout & Resilience", "trolley initiative", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Mindful Positivity", "Community Leadership", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Mindful Positivity", "Cross-Sector Collaboration", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Mindful Positivity", "Community Catering", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Collaborative Partnerships", "Market Operations", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Collaborative Partnerships", "program sustainability", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["Partnership Models", "Local Food Initiatives", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Nutrition Focus", "Survey Exposure", {"weight": 0.3333333333333333, "confidence": 0.25, "type": "inter_cluster", "style": "solid"}], ["Nutrition Education", "Local Food Initiatives", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Child Nutrition Programs", "Program Growth", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["Child Nutrition Programs", "Food Education", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Leadership Support", "Retail Industry", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Leadership Support", "Burnout & Resilience", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Leadership Support", "Cross-Sector Collaboration", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Leadership Support", "Community Partnerships", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Workforce Development", "Local Sourcing", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Customer Perspective", "Community Partnerships", {"weight": 1.0, "confidence": 0.575, "type": "inter_cluster", "style": "solid"}], ["Customer Education", "Local Agriculture", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Customer Education", "Engagement Types", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Vendor Relationships", "Produce Access", {"weight": 0.6666666666666666, "confidence": 0.5499999999999999, "type": "inter_cluster", "style": "solid"}], ["Vendor Relationships", "flint", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Vendor Relationships", "commercial kitchens", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["Restaurant Types", "Business Development", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["Restaurant Types", "flint", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Restaurant Types", "Mindful Positivity", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Restaurant Types", "Social Partnerships", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Restaurant Operations", "Decision Comfort", {"weight": 1.0, "confidence": 0.7749999999999999, "type": "inter_cluster", "style": "solid"}], ["Community Partnerships", "Health Research", {"weight": 1.0, "confidence": 0.7333333333333334, "type": "inter_cluster", "style": "solid"}], ["COVID Policy", "Equal Education", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["COVID Policy", "Program Launch", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["COVID Policy", "Collaborative Partnerships", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Equal Education", "Local Food Initiatives", {"weight": 1.0, "confidence": 0.575, "type": "inter_cluster", "style": "solid"}], ["Food Education", "Cross-Sector Collaboration", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Produce Access", "Program Growth", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Produce Access", "Financial Stress", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Bulk Buying", "commercial kitchens", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {"Economic Backgrounds": [], "Health Education": [], "Business Development": [], "Decision Comfort": [], "Engagement Types": [], "Tech Convenience": [], "Pickup Logistics": [], "Community Engagement": [], "Food Systems": [], "Organizational Capacity": [], "Market Operations": [], "Health Systems": [], "Local Agriculture": [], "Food Retailers": [], "Retail Industry": [], "Consumer Behavior": [], "Survey Exposure": [], "Vendor Applications": [], "Medical Resources": [], "Health Research": [], "Medical Outcomes": [], "Program Launch": [], "Program Operations": [], "Program Assessment": [], "Program Growth": [], "Local Food Initiatives": [], "Community Catering": [], "Community Trust": [], "Community Foundations": [], "Grant Funding": [], "Public Program Funding": [], "Downtown Revitalization": [], "Uptown Reinvestment": [], "Program Engagement": [], "Program Partnerships": [], "Financial Stress": [], "Psychological Impact": [], "Burnout & Resilience": [], "Mindful Positivity": [], "Collaborative Partnerships": [], "Partnership Models": [], "Cross-Sector Collaboration": [], "Social Partnerships": [], "Nutrition Focus": [], "Nutrition Education": [], "Child Nutrition Programs": [], "Leadership Support": [], "Community Leadership": [], "Workforce Development": [], "Customer Perspective": [], "Customer Education": [], "Vendor Relationships": [], "Restaurant Types": [], "Restaurant Operations": [], "Community Partnerships": [], "COVID Policy": [], "Equal Education": [], "Food Education": [], "Produce Access": [], "Local Sourcing": [], "Bulk Buying": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"Community Access Barriers": {"concepts": "bulk purchasing, market", "concept_list": ["bulk purchasing", "market"], "type": "cluster", "node_size": 21, "label": "Community Access Barriers"}, "Local Food Markets": {"concepts": "convenience, community status, systemic barriers, affordability, governmental assistance, resident network, wic, generational challenge, double up blue bucks, time convenience, community health, snap, time, race, generational barriers, parental choice, covid-19 impact, advocacy, social equity, connection strengths, systematic inequality, community empowerment", "concept_list": ["convenience", "community status", "systemic barriers", "affordability", "governmental assistance", "resident network", "wic", "generational challenge", "double up blue bucks", "time convenience", "community health", "snap", "time", "race", "generational barriers", "parental choice", "covid-19 impact", "advocacy", "social equity", "connection strengths", "systematic inequality", "community empowerment"], "type": "cluster", "node_size": 81, "label": "Local Food Markets"}, "Food Access & Pricing": {"concepts": "farmers markets, underutilized markets, local food, retailer accountability, food advocacy, food retailer, food safety, financial success, food exposure, economic capital, food retailers, farmers market, economic downshift, resource utilization", "concept_list": ["farmers markets", "underutilized markets", "local food", "retailer accountability", "food advocacy", "food retailer", "food safety", "financial success", "food exposure", "economic capital", "food retailers", "farmers market", "economic downshift", "resource utilization"], "type": "cluster", "node_size": 57, "label": "Food Access & Pricing"}, "Retail Food Outlets": {"concepts": "food affordability, food access, food system, food pricing, food options, food system sectors, food choices, food price, food scarcity, food budgeting, food insecurity, food system map, food security, local food retailer", "concept_list": ["food affordability", "food access", "food system", "food pricing", "food options", "food system sectors", "food choices", "food price", "food scarcity", "food budgeting", "food insecurity", "food system map", "food security", "local food retailer"], "type": "cluster", "node_size": 57, "label": "Retail Food Outlets"}, "Bulk Market Buying": {"concepts": "grocery stores, convenience stores, chain restaurants, local restaurants, retail use, retail types", "concept_list": ["grocery stores", "convenience stores", "chain restaurants", "local restaurants", "retail use", "retail types"], "type": "cluster", "node_size": 33, "label": "Bulk Market Buying"}, "Health & Budget Education": {"concepts": "education, budgeting education, optimal health, budgeting, health outcomes, health education, health investment, program utilization, quality of life", "concept_list": ["education", "budgeting education", "optimal health", "budgeting", "health outcomes", "health education", "health investment", "program utilization", "quality of life"], "type": "cluster", "node_size": 42, "label": "Health & Budget Education"}, "Nutritious Foods": {"concepts": "nutritious food, healthy foods, nutritious foods", "concept_list": ["nutritious food", "healthy foods", "nutritious foods"], "type": "cluster", "node_size": 24, "label": "Nutritious Foods"}, "Fresh Produce": {"concepts": "fresh produce, fresh fruits, fresh vegetables", "concept_list": ["fresh produce", "fresh fruits", "fresh vegetables"], "type": "cluster", "node_size": 24, "label": "Fresh Produce"}, "Nutrition Programs": {"concepts": "supplemental nutrition programs, child nutrition", "concept_list": ["supplemental nutrition programs", "child nutrition"], "type": "cluster", "node_size": 21, "label": "Nutrition Programs"}, "Food Quality": {"concepts": "nutritional facts, meat quality, food quality", "concept_list": ["nutritional facts", "meat quality", "food quality"], "type": "cluster", "node_size": 24, "label": "Food Quality"}};
+        const conceptData = {};
+        const interClusterEdges = [["Community Access Barriers", "Nutritious Foods", {"weight": 0.8, "confidence": 0.66, "type": "inter_cluster", "style": "solid"}], ["Community Access Barriers", "Food Access & Pricing", {"weight": 0.8, "confidence": 0.5800000000000001, "type": "inter_cluster", "style": "solid"}], ["Community Access Barriers", "Fresh Produce", {"weight": 0.8, "confidence": 0.57, "type": "inter_cluster", "style": "solid"}], ["Community Access Barriers", "Food Quality", {"weight": 0.5, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["Community Access Barriers", "Nutrition Programs", {"weight": 0.4, "confidence": 0.25, "type": "inter_cluster", "style": "solid"}], ["Community Access Barriers", "Bulk Market Buying", {"weight": 0.5, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["Local Food Markets", "Bulk Market Buying", {"weight": 1.0, "confidence": 0.67, "type": "inter_cluster", "style": "solid"}], ["Local Food Markets", "Food Access & Pricing", {"weight": 0.8, "confidence": 0.5199999999999999, "type": "inter_cluster", "style": "solid"}], ["Local Food Markets", "Retail Food Outlets", {"weight": 0.6666666666666666, "confidence": 0.4666666666666666, "type": "inter_cluster", "style": "solid"}], ["Food Access & Pricing", "Fresh Produce", {"weight": 1.0, "confidence": 0.8300000000000001, "type": "inter_cluster", "style": "solid"}], ["Food Access & Pricing", "Community Access Barriers", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Retail Food Outlets", "Bulk Market Buying", {"weight": 0.8, "confidence": 0.5900000000000001, "type": "inter_cluster", "style": "solid"}], ["Retail Food Outlets", "Fresh Produce", {"weight": 0.8, "confidence": 0.5800000000000001, "type": "inter_cluster", "style": "solid"}], ["Retail Food Outlets", "Nutrition Programs", {"weight": 0.6, "confidence": 0.39, "type": "inter_cluster", "style": "solid"}], ["Retail Food Outlets", "Health & Budget Education", {"weight": 0.6, "confidence": 0.37, "type": "inter_cluster", "style": "solid"}], ["Bulk Market Buying", "Health & Budget Education", {"weight": 1.0, "confidence": 0.69, "type": "inter_cluster", "style": "solid"}], ["Bulk Market Buying", "Local Food Markets", {"weight": 0.8, "confidence": 0.63, "type": "inter_cluster", "style": "solid"}], ["Bulk Market Buying", "Food Quality", {"weight": 0.6, "confidence": 0.47000000000000003, "type": "inter_cluster", "style": "solid"}], ["Bulk Market Buying", "Community Access Barriers", {"weight": 0.6, "confidence": 0.45, "type": "inter_cluster", "style": "solid"}], ["Bulk Market Buying", "Retail Food Outlets", {"weight": 0.6666666666666666, "confidence": 0.4333333333333333, "type": "inter_cluster", "style": "solid"}], ["Bulk Market Buying", "Food Access & Pricing", {"weight": 0.6, "confidence": 0.39, "type": "inter_cluster", "style": "solid"}], ["Health & Budget Education", "Local Food Markets", {"weight": 1.0, "confidence": 0.71, "type": "inter_cluster", "style": "solid"}], ["Health & Budget Education", "Retail Food Outlets", {"weight": 1.0, "confidence": 0.7625000000000001, "type": "inter_cluster", "style": "solid"}], ["Health & Budget Education", "Nutrition Programs", {"weight": 0.6, "confidence": 0.39999999999999997, "type": "inter_cluster", "style": "solid"}], ["Health & Budget Education", "Community Access Barriers", {"weight": 0.5, "confidence": 0.2875, "type": "inter_cluster", "style": "solid"}], ["Nutritious Foods", "Local Food Markets", {"weight": 0.8, "confidence": 0.5800000000000001, "type": "inter_cluster", "style": "solid"}], ["Nutritious Foods", "Food Quality", {"weight": 0.8, "confidence": 0.5700000000000001, "type": "inter_cluster", "style": "solid"}], ["Nutritious Foods", "Nutrition Programs", {"weight": 0.6, "confidence": 0.43, "type": "inter_cluster", "style": "solid"}], ["Nutritious Foods", "Food Access & Pricing", {"weight": 0.5, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["Nutritious Foods", "Health & Budget Education", {"weight": 0.3333333333333333, "confidence": 0.2833333333333333, "type": "inter_cluster", "style": "solid"}], ["Nutritious Foods", "Retail Food Outlets", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Fresh Produce", "Food Access & Pricing", {"weight": 1.0, "confidence": 0.6900000000000001, "type": "inter_cluster", "style": "solid"}], ["Fresh Produce", "Community Access Barriers", {"weight": 0.8, "confidence": 0.51, "type": "inter_cluster", "style": "solid"}], ["Fresh Produce", "Food Quality", {"weight": 0.75, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["Fresh Produce", "Local Food Markets", {"weight": 1.0, "confidence": 0.6333333333333333, "type": "inter_cluster", "style": "solid"}], ["Fresh Produce", "Health & Budget Education", {"weight": 0.5, "confidence": 0.3125, "type": "inter_cluster", "style": "solid"}], ["Nutrition Programs", "Retail Food Outlets", {"weight": 0.6, "confidence": 0.48999999999999994, "type": "inter_cluster", "style": "solid"}], ["Nutrition Programs", "Local Food Markets", {"weight": 0.6, "confidence": 0.42000000000000004, "type": "inter_cluster", "style": "solid"}], ["Nutrition Programs", "Health & Budget Education", {"weight": 0.5, "confidence": 0.3625, "type": "inter_cluster", "style": "solid"}], ["Food Quality", "Nutritious Foods", {"weight": 0.8, "confidence": 0.6699999999999999, "type": "inter_cluster", "style": "solid"}], ["Food Quality", "Community Access Barriers", {"weight": 0.8, "confidence": 0.51, "type": "inter_cluster", "style": "solid"}], ["Food Quality", "Fresh Produce", {"weight": 0.8, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["Food Quality", "Bulk Market Buying", {"weight": 0.6666666666666666, "confidence": 0.5666666666666667, "type": "inter_cluster", "style": "solid"}], ["Food Quality", "Retail Food Outlets", {"weight": 0.6, "confidence": 0.45, "type": "inter_cluster", "style": "solid"}], ["Food Quality", "Health & Budget Education", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {"Community Access Barriers": [], "Local Food Markets": [], "Food Access & Pricing": [], "Retail Food Outlets": [], "Bulk Market Buying": [], "Health & Budget Education": [], "Nutritious Foods": [], "Fresh Produce": [], "Nutrition Programs": [], "Food Quality": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

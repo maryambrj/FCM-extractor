@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"economic barriers": {"concepts": "economic barriers", "concept_list": ["economic barriers"], "type": "cluster", "node_size": 18, "label": "economic barriers"}, "food policy": {"concepts": "food policy", "concept_list": ["food policy"], "type": "cluster", "node_size": 18, "label": "food policy"}, "age": {"concepts": "age", "concept_list": ["age"], "type": "cluster", "node_size": 18, "label": "age"}, "summer program": {"concepts": "summer program", "concept_list": ["summer program"], "type": "cluster", "node_size": 18, "label": "summer program"}, "trash": {"concepts": "trash", "concept_list": ["trash"], "type": "cluster", "node_size": 18, "label": "trash"}, "food culture": {"concepts": "food culture", "concept_list": ["food culture"], "type": "cluster", "node_size": 18, "label": "food culture"}, "retail": {"concepts": "retail", "concept_list": ["retail"], "type": "cluster", "node_size": 18, "label": "retail"}, "canned food": {"concepts": "canned food", "concept_list": ["canned food"], "type": "cluster", "node_size": 18, "label": "canned food"}, "cultural foods": {"concepts": "cultural foods", "concept_list": ["cultural foods"], "type": "cluster", "node_size": 18, "label": "cultural foods"}, "food procurement": {"concepts": "food procurement", "concept_list": ["food procurement"], "type": "cluster", "node_size": 18, "label": "food procurement"}, "chain restaurants": {"concepts": "chain restaurants", "concept_list": ["chain restaurants"], "type": "cluster", "node_size": 18, "label": "chain restaurants"}, "dietary preferences": {"concepts": "dietary preferences", "concept_list": ["dietary preferences"], "type": "cluster", "node_size": 18, "label": "dietary preferences"}, "food consumption": {"concepts": "food consumption", "concept_list": ["food consumption"], "type": "cluster", "node_size": 18, "label": "food consumption"}, "food system": {"concepts": "food system", "concept_list": ["food system"], "type": "cluster", "node_size": 18, "label": "food system"}, "food habits": {"concepts": "food habits", "concept_list": ["food habits"], "type": "cluster", "node_size": 18, "label": "food habits"}, "food traditions": {"concepts": "food traditions", "concept_list": ["food traditions"], "type": "cluster", "node_size": 18, "label": "food traditions"}, "community health": {"concepts": "community health", "concept_list": ["community health"], "type": "cluster", "node_size": 18, "label": "community health"}, "box": {"concepts": "box", "concept_list": ["box"], "type": "cluster", "node_size": 18, "label": "box"}, "emergency sector": {"concepts": "emergency sector", "concept_list": ["emergency sector"], "type": "cluster", "node_size": 18, "label": "emergency sector"}, "food assistance": {"concepts": "food assistance", "concept_list": ["food assistance"], "type": "cluster", "node_size": 18, "label": "food assistance"}, "food satisfaction": {"concepts": "food satisfaction", "concept_list": ["food satisfaction"], "type": "cluster", "node_size": 18, "label": "food satisfaction"}, "farmers markets": {"concepts": "farmers markets", "concept_list": ["farmers markets"], "type": "cluster", "node_size": 18, "label": "farmers markets"}, "educational opportunities": {"concepts": "educational opportunities", "concept_list": ["educational opportunities"], "type": "cluster", "node_size": 18, "label": "educational opportunities"}, "health behaviors": {"concepts": "health behaviors", "concept_list": ["health behaviors"], "type": "cluster", "node_size": 18, "label": "health behaviors"}, "community projects": {"concepts": "community projects", "concept_list": ["community projects"], "type": "cluster", "node_size": 18, "label": "community projects"}, "children": {"concepts": "children", "concept_list": ["children"], "type": "cluster", "node_size": 18, "label": "children"}, "transportation barriers": {"concepts": "transportation barriers", "concept_list": ["transportation barriers"], "type": "cluster", "node_size": 18, "label": "transportation barriers"}, "social capital": {"concepts": "social capital", "concept_list": ["social capital"], "type": "cluster", "node_size": 18, "label": "social capital"}, "cultural barriers": {"concepts": "cultural barriers", "concept_list": ["cultural barriers"], "type": "cluster", "node_size": 18, "label": "cultural barriers"}, "food literacy": {"concepts": "food literacy", "concept_list": ["food literacy"], "type": "cluster", "node_size": 18, "label": "food literacy"}, "garbage": {"concepts": "garbage", "concept_list": ["garbage"], "type": "cluster", "node_size": 18, "label": "garbage"}, "food security": {"concepts": "food security", "concept_list": ["food security"], "type": "cluster", "node_size": 18, "label": "food security"}, "stores": {"concepts": "stores", "concept_list": ["stores"], "type": "cluster", "node_size": 18, "label": "stores"}, "race": {"concepts": "race", "concept_list": ["race"], "type": "cluster", "node_size": 18, "label": "race"}, "city": {"concepts": "city", "concept_list": ["city"], "type": "cluster", "node_size": 18, "label": "city"}, "fresh vegetables": {"concepts": "fresh vegetables", "concept_list": ["fresh vegetables"], "type": "cluster", "node_size": 18, "label": "fresh vegetables"}, "transportation": {"concepts": "transportation", "concept_list": ["transportation"], "type": "cluster", "node_size": 18, "label": "transportation"}, "pizza": {"concepts": "pizza", "concept_list": ["pizza"], "type": "cluster", "node_size": 18, "label": "pizza"}, "hunger": {"concepts": "hunger", "concept_list": ["hunger"], "type": "cluster", "node_size": 18, "label": "hunger"}, "convenience stores": {"concepts": "convenience stores", "concept_list": ["convenience stores"], "type": "cluster", "node_size": 18, "label": "convenience stores"}, "age restriction": {"concepts": "age restriction", "concept_list": ["age restriction"], "type": "cluster", "node_size": 18, "label": "age restriction"}, "mold": {"concepts": "mold", "concept_list": ["mold"], "type": "cluster", "node_size": 18, "label": "mold"}, "food deserts": {"concepts": "food deserts", "concept_list": ["food deserts"], "type": "cluster", "node_size": 18, "label": "food deserts"}, "local restaurants": {"concepts": "local restaurants", "concept_list": ["local restaurants"], "type": "cluster", "node_size": 18, "label": "local restaurants"}, "double up bucks": {"concepts": "double up bucks", "concept_list": ["double up bucks"], "type": "cluster", "node_size": 18, "label": "double up bucks"}, "employment type": {"concepts": "employment type", "concept_list": ["employment type"], "type": "cluster", "node_size": 18, "label": "employment type"}, "baby": {"concepts": "baby", "concept_list": ["baby"], "type": "cluster", "node_size": 18, "label": "baby"}, "neighborhood": {"concepts": "neighborhood", "concept_list": ["neighborhood"], "type": "cluster", "node_size": 18, "label": "neighborhood"}, "food selection": {"concepts": "food selection", "concept_list": ["food selection"], "type": "cluster", "node_size": 18, "label": "food selection"}, "healthy eating": {"concepts": "healthy eating", "concept_list": ["healthy eating"], "type": "cluster", "node_size": 18, "label": "healthy eating"}, "food identity": {"concepts": "food identity", "concept_list": ["food identity"], "type": "cluster", "node_size": 18, "label": "food identity"}, "stigma": {"concepts": "stigma", "concept_list": ["stigma"], "type": "cluster", "node_size": 18, "label": "stigma"}, "health outcomes": {"concepts": "health outcomes", "concept_list": ["health outcomes"], "type": "cluster", "node_size": 18, "label": "health outcomes"}, "food bags": {"concepts": "food bags", "concept_list": ["food bags"], "type": "cluster", "node_size": 18, "label": "food bags"}, "diabetes": {"concepts": "diabetes", "concept_list": ["diabetes"], "type": "cluster", "node_size": 18, "label": "diabetes"}, "community engagement": {"concepts": "community engagement", "concept_list": ["community engagement"], "type": "cluster", "node_size": 18, "label": "community engagement"}, "federal money": {"concepts": "federal money", "concept_list": ["federal money"], "type": "cluster", "node_size": 18, "label": "federal money"}, "language access": {"concepts": "language access", "concept_list": ["language access"], "type": "cluster", "node_size": 18, "label": "language access"}, "nutrition education": {"concepts": "nutrition education", "concept_list": ["nutrition education"], "type": "cluster", "node_size": 18, "label": "nutrition education"}, "cereal": {"concepts": "cereal", "concept_list": ["cereal"], "type": "cluster", "node_size": 18, "label": "cereal"}, "flint": {"concepts": "flint", "concept_list": ["flint"], "type": "cluster", "node_size": 18, "label": "flint"}, "grocery stores": {"concepts": "grocery stores", "concept_list": ["grocery stores"], "type": "cluster", "node_size": 18, "label": "grocery stores"}, "food freshness": {"concepts": "food freshness", "concept_list": ["food freshness"], "type": "cluster", "node_size": 18, "label": "food freshness"}, "structural barriers": {"concepts": "structural barriers", "concept_list": ["structural barriers"], "type": "cluster", "node_size": 18, "label": "structural barriers"}, "food diversity": {"concepts": "food diversity", "concept_list": ["food diversity"], "type": "cluster", "node_size": 18, "label": "food diversity"}, "affordability": {"concepts": "affordability", "concept_list": ["affordability"], "type": "cluster", "node_size": 18, "label": "affordability"}, "food preferences": {"concepts": "food preferences", "concept_list": ["food preferences"], "type": "cluster", "node_size": 18, "label": "food preferences"}, "economy": {"concepts": "economy", "concept_list": ["economy"], "type": "cluster", "node_size": 18, "label": "economy"}, "chips": {"concepts": "chips", "concept_list": ["chips"], "type": "cluster", "node_size": 18, "label": "chips"}, "food availability": {"concepts": "food availability", "concept_list": ["food availability"], "type": "cluster", "node_size": 18, "label": "food availability"}, "supplemental nutrition programs": {"concepts": "supplemental nutrition programs", "concept_list": ["supplemental nutrition programs"], "type": "cluster", "node_size": 18, "label": "supplemental nutrition programs"}, "retail use": {"concepts": "retail use", "concept_list": ["retail use"], "type": "cluster", "node_size": 18, "label": "retail use"}, "ebt": {"concepts": "ebt", "concept_list": ["ebt"], "type": "cluster", "node_size": 18, "label": "ebt"}, "food retail": {"concepts": "food retail", "concept_list": ["food retail"], "type": "cluster", "node_size": 18, "label": "food retail"}, "detroit": {"concepts": "detroit", "concept_list": ["detroit"], "type": "cluster", "node_size": 18, "label": "detroit"}, "truth about food": {"concepts": "truth about food", "concept_list": ["truth about food"], "type": "cluster", "node_size": 18, "label": "truth about food"}, "food-related stress": {"concepts": "food-related stress", "concept_list": ["food-related stress"], "type": "cluster", "node_size": 18, "label": "food-related stress"}, "local food systems": {"concepts": "local food systems", "concept_list": ["local food systems"], "type": "cluster", "node_size": 18, "label": "local food systems"}, "food justice": {"concepts": "food justice", "concept_list": ["food justice"], "type": "cluster", "node_size": 18, "label": "food justice"}, "business": {"concepts": "business", "concept_list": ["business"], "type": "cluster", "node_size": 18, "label": "business"}, "salt": {"concepts": "salt", "concept_list": ["salt"], "type": "cluster", "node_size": 18, "label": "salt"}, "genetics": {"concepts": "genetics", "concept_list": ["genetics"], "type": "cluster", "node_size": 18, "label": "genetics"}, "food insecurity": {"concepts": "food insecurity", "concept_list": ["food insecurity"], "type": "cluster", "node_size": 18, "label": "food insecurity"}, "health disparities": {"concepts": "health disparities", "concept_list": ["health disparities"], "type": "cluster", "node_size": 18, "label": "health disparities"}, "vegetables": {"concepts": "vegetables", "concept_list": ["vegetables"], "type": "cluster", "node_size": 18, "label": "vegetables"}, "lime": {"concepts": "lime", "concept_list": ["lime"], "type": "cluster", "node_size": 18, "label": "lime"}, "valentina": {"concepts": "valentina", "concept_list": ["valentina"], "type": "cluster", "node_size": 18, "label": "valentina"}, "sodium": {"concepts": "sodium", "concept_list": ["sodium"], "type": "cluster", "node_size": 18, "label": "sodium"}, "juice": {"concepts": "juice", "concept_list": ["juice"], "type": "cluster", "node_size": 18, "label": "juice"}, "lactose intolerance": {"concepts": "lactose intolerance", "concept_list": ["lactose intolerance"], "type": "cluster", "node_size": 18, "label": "lactose intolerance"}, "food cost": {"concepts": "food cost", "concept_list": ["food cost"], "type": "cluster", "node_size": 18, "label": "food cost"}, "food equity": {"concepts": "food equity", "concept_list": ["food equity"], "type": "cluster", "node_size": 18, "label": "food equity"}, "social support": {"concepts": "social support", "concept_list": ["social support"], "type": "cluster", "node_size": 18, "label": "social support"}, "teenager": {"concepts": "teenager", "concept_list": ["teenager"], "type": "cluster", "node_size": 18, "label": "teenager"}, "food variety": {"concepts": "food variety", "concept_list": ["food variety"], "type": "cluster", "node_size": 18, "label": "food variety"}, "food supply": {"concepts": "food supply", "concept_list": ["food supply"], "type": "cluster", "node_size": 18, "label": "food supply"}, "food-related barriers": {"concepts": "food-related barriers", "concept_list": ["food-related barriers"], "type": "cluster", "node_size": 18, "label": "food-related barriers"}, "access": {"concepts": "access", "concept_list": ["access"], "type": "cluster", "node_size": 18, "label": "access"}, "high blood pressure": {"concepts": "high blood pressure", "concept_list": ["high blood pressure"], "type": "cluster", "node_size": 18, "label": "high blood pressure"}, "soda": {"concepts": "soda", "concept_list": ["soda"], "type": "cluster", "node_size": 18, "label": "soda"}, "organizational barriers": {"concepts": "organizational barriers", "concept_list": ["organizational barriers"], "type": "cluster", "node_size": 18, "label": "organizational barriers"}, "community": {"concepts": "community", "concept_list": ["community"], "type": "cluster", "node_size": 18, "label": "community"}, "protein": {"concepts": "protein", "concept_list": ["protein"], "type": "cluster", "node_size": 18, "label": "protein"}, "price": {"concepts": "price", "concept_list": ["price"], "type": "cluster", "node_size": 18, "label": "price"}, "food preparation": {"concepts": "food preparation", "concept_list": ["food preparation"], "type": "cluster", "node_size": 18, "label": "food preparation"}, "income": {"concepts": "income", "concept_list": ["income"], "type": "cluster", "node_size": 18, "label": "income"}, "nutritious foods": {"concepts": "nutritious foods", "concept_list": ["nutritious foods"], "type": "cluster", "node_size": 18, "label": "nutritious foods"}, "resource availability": {"concepts": "resource availability", "concept_list": ["resource availability"], "type": "cluster", "node_size": 18, "label": "resource availability"}, "wic": {"concepts": "wic", "concept_list": ["wic"], "type": "cluster", "node_size": 18, "label": "wic"}, "food programs": {"concepts": "food programs", "concept_list": ["food programs"], "type": "cluster", "node_size": 18, "label": "food programs"}, "bag": {"concepts": "bag", "concept_list": ["bag"], "type": "cluster", "node_size": 18, "label": "bag"}, "carbohydrates": {"concepts": "carbohydrates", "concept_list": ["carbohydrates"], "type": "cluster", "node_size": 18, "label": "carbohydrates"}, "urban residents": {"concepts": "urban residents", "concept_list": ["urban residents"], "type": "cluster", "node_size": 18, "label": "urban residents"}, "quality of life": {"concepts": "quality of life", "concept_list": ["quality of life"], "type": "cluster", "node_size": 18, "label": "quality of life"}, "chronic disease": {"concepts": "chronic disease", "concept_list": ["chronic disease"], "type": "cluster", "node_size": 18, "label": "chronic disease"}, "resource allocation": {"concepts": "resource allocation", "concept_list": ["resource allocation"], "type": "cluster", "node_size": 18, "label": "resource allocation"}, "social integration": {"concepts": "social integration", "concept_list": ["social integration"], "type": "cluster", "node_size": 18, "label": "social integration"}, "food access": {"concepts": "food access", "concept_list": ["food access"], "type": "cluster", "node_size": 18, "label": "food access"}, "food pantries": {"concepts": "food pantries", "concept_list": ["food pantries"], "type": "cluster", "node_size": 18, "label": "food pantries"}, "nonprofits": {"concepts": "nonprofits", "concept_list": ["nonprofits"], "type": "cluster", "node_size": 18, "label": "nonprofits"}, "city residents": {"concepts": "city residents", "concept_list": ["city residents"], "type": "cluster", "node_size": 18, "label": "city residents"}, "nutrition programs": {"concepts": "nutrition programs", "concept_list": ["nutrition programs"], "type": "cluster", "node_size": 18, "label": "nutrition programs"}, "employment": {"concepts": "employment", "concept_list": ["employment"], "type": "cluster", "node_size": 18, "label": "employment"}, "language barrier": {"concepts": "language barrier", "concept_list": ["language barrier"], "type": "cluster", "node_size": 18, "label": "language barrier"}, "food-related stigma": {"concepts": "food-related stigma", "concept_list": ["food-related stigma"], "type": "cluster", "node_size": 18, "label": "food-related stigma"}, "food education": {"concepts": "food education", "concept_list": ["food education"], "type": "cluster", "node_size": 18, "label": "food education"}, "community resources": {"concepts": "community resources", "concept_list": ["community resources"], "type": "cluster", "node_size": 18, "label": "community resources"}, "groceries": {"concepts": "groceries", "concept_list": ["groceries"], "type": "cluster", "node_size": 18, "label": "groceries"}, "food quality": {"concepts": "food quality", "concept_list": ["food quality"], "type": "cluster", "node_size": 18, "label": "food quality"}, "richest country": {"concepts": "richest country", "concept_list": ["richest country"], "type": "cluster", "node_size": 18, "label": "richest country"}, "food purchasing": {"concepts": "food purchasing", "concept_list": ["food purchasing"], "type": "cluster", "node_size": 18, "label": "food purchasing"}, "food environment": {"concepts": "food environment", "concept_list": ["food environment"], "type": "cluster", "node_size": 18, "label": "food environment"}, "education": {"concepts": "education", "concept_list": ["education"], "type": "cluster", "node_size": 18, "label": "education"}, "benefit": {"concepts": "benefit", "concept_list": ["benefit"], "type": "cluster", "node_size": 18, "label": "benefit"}, "health problems": {"concepts": "health problems", "concept_list": ["health problems"], "type": "cluster", "node_size": 18, "label": "health problems"}, "poverty": {"concepts": "poverty", "concept_list": ["poverty"], "type": "cluster", "node_size": 18, "label": "poverty"}, "food-related well-being": {"concepts": "food-related well-being", "concept_list": ["food-related well-being"], "type": "cluster", "node_size": 18, "label": "food-related well-being"}, "teenagers": {"concepts": "teenagers", "concept_list": ["teenagers"], "type": "cluster", "node_size": 18, "label": "teenagers"}, "birthday gift": {"concepts": "birthday gift", "concept_list": ["birthday gift"], "type": "cluster", "node_size": 18, "label": "birthday gift"}, "food affordability": {"concepts": "food affordability", "concept_list": ["food affordability"], "type": "cluster", "node_size": 18, "label": "food affordability"}, "food accessibility": {"concepts": "food accessibility", "concept_list": ["food accessibility"], "type": "cluster", "node_size": 18, "label": "food accessibility"}, "money": {"concepts": "money", "concept_list": ["money"], "type": "cluster", "node_size": 18, "label": "money"}, "processed foods": {"concepts": "processed foods", "concept_list": ["processed foods"], "type": "cluster", "node_size": 18, "label": "processed foods"}};
+        const conceptData = {};
+        const interClusterEdges = [["age", "food retail", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["age", "food education", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["age", "economic barriers", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["trash", "food preferences", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["trash", "food freshness", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["trash", "food identity", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food culture", "community resources", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["retail", "food satisfaction", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["retail", "teenager", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["canned food", "mold", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["cultural foods", "food cost", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food procurement", "food retail", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food procurement", "food habits", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["chain restaurants", "food diversity", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["dietary preferences", "cereal", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food consumption", "food availability", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["food consumption", "social integration", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["food system", "food availability", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["food system", "processed foods", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["community health", "food satisfaction", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["box", "canned food", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food assistance", "money", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["food satisfaction", "food justice", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["farmers markets", "business", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["health behaviors", "food access", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["health behaviors", "local restaurants", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["community projects", "nutritious foods", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["community projects", "transportation barriers", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["community projects", "food bags", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["community projects", "food satisfaction", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["community projects", "box", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["transportation barriers", "food equity", {"weight": -1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["cultural barriers", "community engagement", {"weight": -1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["food literacy", "food equity", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["garbage", "food equity", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["garbage", "money", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["garbage", "food preferences", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food security", "food variety", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["race", "sodium", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["city", "federal money", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["city", "lime", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["fresh vegetables", "food affordability", {"weight": -1.0, "confidence": 0.7833333333333333, "type": "inter_cluster", "style": "solid"}], ["pizza", "food literacy", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["convenience stores", "community", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["age restriction", "food preparation", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food deserts", "health problems", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["food deserts", "canned food", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["double up bucks", "supplemental nutrition programs", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["employment type", "vegetables", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["neighborhood", "food freshness", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food selection", "birthday gift", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food identity", "city residents", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food identity", "food insecurity", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["stigma", "food pantries", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["stigma", "protein", {"weight": -0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["health outcomes", "children", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["health outcomes", "chain restaurants", {"weight": -1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["food bags", "language barrier", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["diabetes", "health behaviors", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["community engagement", "social capital", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["community engagement", "detroit", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["language access", "groceries", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["nutrition education", "food supply", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["nutrition education", "nonprofits", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["flint", "food supply", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["grocery stores", "food-related stigma", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["structural barriers", "transportation", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food diversity", "food justice", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["affordability", "economic barriers", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["economy", "food environment", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["chips", "food literacy", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["chips", "food system", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["supplemental nutrition programs", "food policy", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["retail use", "detroit", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["retail use", "carbohydrates", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["ebt", "emergency sector", {"weight": -1.0, "confidence": 0.6999999999999998, "type": "inter_cluster", "style": "solid"}], ["ebt", "food programs", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["food retail", "processed foods", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food retail", "baby", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["detroit", "food access", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["food-related stress", "high blood pressure", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food-related stress", "social integration", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["local food systems", "community engagement", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["local food systems", "economic barriers", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["business", "nutrition programs", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["business", "healthy eating", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food insecurity", "food assistance", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["food insecurity", "children", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["health disparities", "food-related barriers", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["vegetables", "quality of life", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["vegetables", "stores", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["valentina", "health behaviors", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["sodium", "food security", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["lactose intolerance", "economic barriers", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food cost", "canned food", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food cost", "urban residents", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food cost", "resource allocation", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food equity", "truth about food", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["social support", "food accessibility", {"weight": 1.0, "confidence": 0.6166666666666667, "type": "inter_cluster", "style": "solid"}], ["food variety", "food insecurity", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food supply", "sodium", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["food-related barriers", "income", {"weight": -1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["food-related barriers", "juice", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["access", "organizational barriers", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["soda", "dietary preferences", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["soda", "food traditions", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["community", "food preparation", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["protein", "money", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["price", "food diversity", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["price", "food-related well-being", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food preparation", "access", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food preparation", "flint", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["resource availability", "neighborhood", {"weight": 1.0, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["resource availability", "farmers markets", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["wic", "fresh vegetables", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["wic", "health behaviors", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food programs", "birthday gift", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food programs", "educational opportunities", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["urban residents", "transportation barriers", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["quality of life", "farmers markets", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["chronic disease", "educational opportunities", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["social integration", "summer program", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food pantries", "hunger", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food pantries", "urban residents", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food pantries", "economy", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food pantries", "genetics", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["employment", "chain restaurants", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["language barrier", "food system", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["language barrier", "food identity", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["language barrier", "salt", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["food quality", "food affordability", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["richest country", "age restriction", {"weight": -0.6666666666666666, "confidence": 0.3666666666666667, "type": "inter_cluster", "style": "solid"}], ["richest country", "food environment", {"weight": -0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["food purchasing", "economic barriers", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food purchasing", "health outcomes", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food environment", "bag", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["education", "food variety", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["education", "hunger", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["benefit", "sodium", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["health problems", "genetics", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["health problems", "benefit", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["poverty", "teenagers", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["poverty", "wic", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food affordability", "social capital", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["money", "local restaurants", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["money", "food accessibility", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

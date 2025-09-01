@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"safety": {"concepts": "safety", "concept_list": ["safety"], "type": "cluster", "node_size": 18, "label": "safety"}, "latinx community": {"concepts": "latinx community", "concept_list": ["latinx community"], "type": "cluster", "node_size": 18, "label": "latinx community"}, "feedstock": {"concepts": "feedstock", "concept_list": ["feedstock"], "type": "cluster", "node_size": 18, "label": "feedstock"}, "grocery store": {"concepts": "grocery store", "concept_list": ["grocery store"], "type": "cluster", "node_size": 18, "label": "grocery store"}, "connections": {"concepts": "connections", "concept_list": ["connections"], "type": "cluster", "node_size": 18, "label": "connections"}, "values": {"concepts": "values", "concept_list": ["values"], "type": "cluster", "node_size": 18, "label": "values"}, "locally grown food": {"concepts": "locally grown food", "concept_list": ["locally grown food"], "type": "cluster", "node_size": 18, "label": "locally grown food"}, "healthier options": {"concepts": "healthier options", "concept_list": ["healthier options"], "type": "cluster", "node_size": 18, "label": "healthier options"}, "arab community": {"concepts": "arab community", "concept_list": ["arab community"], "type": "cluster", "node_size": 18, "label": "arab community"}, "mission statement": {"concepts": "mission statement", "concept_list": ["mission statement"], "type": "cluster", "node_size": 18, "label": "mission statement"}, "leverage points": {"concepts": "leverage points", "concept_list": ["leverage points"], "type": "cluster", "node_size": 18, "label": "leverage points"}, "covid-19": {"concepts": "covid-19", "concept_list": ["covid-19"], "type": "cluster", "node_size": 18, "label": "covid-19"}, "fruits": {"concepts": "fruits", "concept_list": ["fruits"], "type": "cluster", "node_size": 18, "label": "fruits"}, "food security": {"concepts": "food security", "concept_list": ["food security"], "type": "cluster", "node_size": 18, "label": "food security"}, "flint": {"concepts": "flint", "concept_list": ["flint"], "type": "cluster", "node_size": 18, "label": "flint"}, "vegetables": {"concepts": "vegetables", "concept_list": ["vegetables"], "type": "cluster", "node_size": 18, "label": "vegetables"}, "local restaurants": {"concepts": "local restaurants", "concept_list": ["local restaurants"], "type": "cluster", "node_size": 18, "label": "local restaurants"}, "empowerment": {"concepts": "empowerment", "concept_list": ["empowerment"], "type": "cluster", "node_size": 18, "label": "empowerment"}, "eat": {"concepts": "eat", "concept_list": ["eat"], "type": "cluster", "node_size": 18, "label": "eat"}, "food waste hierarchy": {"concepts": "food waste hierarchy", "concept_list": ["food waste hierarchy"], "type": "cluster", "node_size": 18, "label": "food waste hierarchy"}, "midwest": {"concepts": "midwest", "concept_list": ["midwest"], "type": "cluster", "node_size": 18, "label": "midwest"}, "local production mandate": {"concepts": "local production mandate", "concept_list": ["local production mandate"], "type": "cluster", "node_size": 18, "label": "local production mandate"}, "high nutrition": {"concepts": "high nutrition", "concept_list": ["high nutrition"], "type": "cluster", "node_size": 18, "label": "high nutrition"}, "nutritious food": {"concepts": "nutritious food", "concept_list": ["nutritious food"], "type": "cluster", "node_size": 18, "label": "nutritious food"}, "inclusivity": {"concepts": "inclusivity", "concept_list": ["inclusivity"], "type": "cluster", "node_size": 18, "label": "inclusivity"}, "market demand": {"concepts": "market demand", "concept_list": ["market demand"], "type": "cluster", "node_size": 18, "label": "market demand"}, "affordability": {"concepts": "affordability", "concept_list": ["affordability"], "type": "cluster", "node_size": 18, "label": "affordability"}, "economic drivers": {"concepts": "economic drivers", "concept_list": ["economic drivers"], "type": "cluster", "node_size": 18, "label": "economic drivers"}, "building community": {"concepts": "building community", "concept_list": ["building community"], "type": "cluster", "node_size": 18, "label": "building community"}, "problem solving": {"concepts": "problem solving", "concept_list": ["problem solving"], "type": "cluster", "node_size": 18, "label": "problem solving"}, "farmers market": {"concepts": "farmers market", "concept_list": ["farmers market"], "type": "cluster", "node_size": 18, "label": "farmers market"}, "food education": {"concepts": "food education", "concept_list": ["food education"], "type": "cluster", "node_size": 18, "label": "food education"}, "food hub": {"concepts": "food hub", "concept_list": ["food hub"], "type": "cluster", "node_size": 18, "label": "food hub"}, "convenience stores": {"concepts": "convenience stores", "concept_list": ["convenience stores"], "type": "cluster", "node_size": 18, "label": "convenience stores"}, "cost of food": {"concepts": "cost of food", "concept_list": ["cost of food"], "type": "cluster", "node_size": 18, "label": "cost of food"}, "trust": {"concepts": "trust", "concept_list": ["trust"], "type": "cluster", "node_size": 18, "label": "trust"}, "local economy": {"concepts": "local economy", "concept_list": ["local economy"], "type": "cluster", "node_size": 18, "label": "local economy"}, "produce section": {"concepts": "produce section", "concept_list": ["produce section"], "type": "cluster", "node_size": 18, "label": "produce section"}, "mandates": {"concepts": "mandates", "concept_list": ["mandates"], "type": "cluster", "node_size": 18, "label": "mandates"}, "michigan": {"concepts": "michigan", "concept_list": ["michigan"], "type": "cluster", "node_size": 18, "label": "michigan"}, "parking": {"concepts": "parking", "concept_list": ["parking"], "type": "cluster", "node_size": 18, "label": "parking"}, "gas station": {"concepts": "gas station", "concept_list": ["gas station"], "type": "cluster", "node_size": 18, "label": "gas station"}, "infrastructure": {"concepts": "infrastructure", "concept_list": ["infrastructure"], "type": "cluster", "node_size": 18, "label": "infrastructure"}, "communication": {"concepts": "communication", "concept_list": ["communication"], "type": "cluster", "node_size": 18, "label": "communication"}, "local economic development": {"concepts": "local economic development", "concept_list": ["local economic development"], "type": "cluster", "node_size": 18, "label": "local economic development"}, "local foods": {"concepts": "local foods", "concept_list": ["local foods"], "type": "cluster", "node_size": 18, "label": "local foods"}, "health": {"concepts": "health", "concept_list": ["health"], "type": "cluster", "node_size": 18, "label": "health"}, "local food production": {"concepts": "local food production", "concept_list": ["local food production"], "type": "cluster", "node_size": 18, "label": "local food production"}, "comfort": {"concepts": "comfort", "concept_list": ["comfort"], "type": "cluster", "node_size": 18, "label": "comfort"}, "healthy initiatives": {"concepts": "healthy initiatives", "concept_list": ["healthy initiatives"], "type": "cluster", "node_size": 18, "label": "healthy initiatives"}, "farmers markets": {"concepts": "farmers markets", "concept_list": ["farmers markets"], "type": "cluster", "node_size": 18, "label": "farmers markets"}, "food shipping": {"concepts": "food shipping", "concept_list": ["food shipping"], "type": "cluster", "node_size": 18, "label": "food shipping"}, "finite resources": {"concepts": "finite resources", "concept_list": ["finite resources"], "type": "cluster", "node_size": 18, "label": "finite resources"}, "global agriculture": {"concepts": "global agriculture", "concept_list": ["global agriculture"], "type": "cluster", "node_size": 18, "label": "global agriculture"}, "grocery stores": {"concepts": "grocery stores", "concept_list": ["grocery stores"], "type": "cluster", "node_size": 18, "label": "grocery stores"}, "contract clauses": {"concepts": "contract clauses", "concept_list": ["contract clauses"], "type": "cluster", "node_size": 18, "label": "contract clauses"}, "food initiatives": {"concepts": "food initiatives", "concept_list": ["food initiatives"], "type": "cluster", "node_size": 18, "label": "food initiatives"}, "spoilage": {"concepts": "spoilage", "concept_list": ["spoilage"], "type": "cluster", "node_size": 18, "label": "spoilage"}, "food understanding": {"concepts": "food understanding", "concept_list": ["food understanding"], "type": "cluster", "node_size": 18, "label": "food understanding"}, "botany": {"concepts": "botany", "concept_list": ["botany"], "type": "cluster", "node_size": 18, "label": "botany"}, "foot transportation": {"concepts": "foot transportation", "concept_list": ["foot transportation"], "type": "cluster", "node_size": 18, "label": "foot transportation"}, "transportation": {"concepts": "transportation", "concept_list": ["transportation"], "type": "cluster", "node_size": 18, "label": "transportation"}, "production": {"concepts": "production", "concept_list": ["production"], "type": "cluster", "node_size": 18, "label": "production"}, "locally produced food": {"concepts": "locally produced food", "concept_list": ["locally produced food"], "type": "cluster", "node_size": 18, "label": "locally produced food"}, "genesee county": {"concepts": "genesee county", "concept_list": ["genesee county"], "type": "cluster", "node_size": 18, "label": "genesee county"}, "food production": {"concepts": "food production", "concept_list": ["food production"], "type": "cluster", "node_size": 18, "label": "food production"}, "food systems": {"concepts": "food systems", "concept_list": ["food systems"], "type": "cluster", "node_size": 18, "label": "food systems"}, "seeds": {"concepts": "seeds", "concept_list": ["seeds"], "type": "cluster", "node_size": 18, "label": "seeds"}, "michigan apples": {"concepts": "michigan apples", "concept_list": ["michigan apples"], "type": "cluster", "node_size": 18, "label": "michigan apples"}, "lemon thyme": {"concepts": "lemon thyme", "concept_list": ["lemon thyme"], "type": "cluster", "node_size": 18, "label": "lemon thyme"}, "community collaboration.": {"concepts": "community collaboration.", "concept_list": ["community collaboration."], "type": "cluster", "node_size": 18, "label": "community collaboration."}, "local ingredients": {"concepts": "local ingredients", "concept_list": ["local ingredients"], "type": "cluster", "node_size": 18, "label": "local ingredients"}, "garden kits": {"concepts": "garden kits", "concept_list": ["garden kits"], "type": "cluster", "node_size": 18, "label": "garden kits"}, "waste": {"concepts": "waste", "concept_list": ["waste"], "type": "cluster", "node_size": 18, "label": "waste"}, "food availability": {"concepts": "food availability", "concept_list": ["food availability"], "type": "cluster", "node_size": 18, "label": "food availability"}, "capturing": {"concepts": "capturing", "concept_list": ["capturing"], "type": "cluster", "node_size": 18, "label": "capturing"}, "garden seed packets": {"concepts": "garden seed packets", "concept_list": ["garden seed packets"], "type": "cluster", "node_size": 18, "label": "garden seed packets"}, "produce": {"concepts": "produce", "concept_list": ["produce"], "type": "cluster", "node_size": 18, "label": "produce"}, "composters": {"concepts": "composters", "concept_list": ["composters"], "type": "cluster", "node_size": 18, "label": "composters"}, "connection to land": {"concepts": "connection to land", "concept_list": ["connection to land"], "type": "cluster", "node_size": 18, "label": "connection to land"}, "lentils": {"concepts": "lentils", "concept_list": ["lentils"], "type": "cluster", "node_size": 18, "label": "lentils"}, "pledge": {"concepts": "pledge", "concept_list": ["pledge"], "type": "cluster", "node_size": 18, "label": "pledge"}, "flint residents": {"concepts": "flint residents", "concept_list": ["flint residents"], "type": "cluster", "node_size": 18, "label": "flint residents"}, "united states grown": {"concepts": "united states grown", "concept_list": ["united states grown"], "type": "cluster", "node_size": 18, "label": "united states grown"}, "mono food": {"concepts": "mono food", "concept_list": ["mono food"], "type": "cluster", "node_size": 18, "label": "mono food"}, "fast food": {"concepts": "fast food", "concept_list": ["fast food"], "type": "cluster", "node_size": 18, "label": "fast food"}, "dignity": {"concepts": "dignity", "concept_list": ["dignity"], "type": "cluster", "node_size": 18, "label": "dignity"}, "recycled organics": {"concepts": "recycled organics", "concept_list": ["recycled organics"], "type": "cluster", "node_size": 18, "label": "recycled organics"}, "walking": {"concepts": "walking", "concept_list": ["walking"], "type": "cluster", "node_size": 18, "label": "walking"}, "anaerobic digester": {"concepts": "anaerobic digester", "concept_list": ["anaerobic digester"], "type": "cluster", "node_size": 18, "label": "anaerobic digester"}, "transplants": {"concepts": "transplants", "concept_list": ["transplants"], "type": "cluster", "node_size": 18, "label": "transplants"}, "cultural diversity": {"concepts": "cultural diversity", "concept_list": ["cultural diversity"], "type": "cluster", "node_size": 18, "label": "cultural diversity"}, "grocery store options": {"concepts": "grocery store options", "concept_list": ["grocery store options"], "type": "cluster", "node_size": 18, "label": "grocery store options"}, "choices": {"concepts": "choices", "concept_list": ["choices"], "type": "cluster", "node_size": 18, "label": "choices"}, "local vendors": {"concepts": "local vendors", "concept_list": ["local vendors"], "type": "cluster", "node_size": 18, "label": "local vendors"}, "food access": {"concepts": "food access", "concept_list": ["food access"], "type": "cluster", "node_size": 18, "label": "food access"}, "food system value": {"concepts": "food system value", "concept_list": ["food system value"], "type": "cluster", "node_size": 18, "label": "food system value"}, "nutritious foods": {"concepts": "nutritious foods", "concept_list": ["nutritious foods"], "type": "cluster", "node_size": 18, "label": "nutritious foods"}, "hoophouses for health": {"concepts": "hoophouses for health", "concept_list": ["hoophouses for health"], "type": "cluster", "node_size": 18, "label": "hoophouses for health"}, "wasted food": {"concepts": "wasted food", "concept_list": ["wasted food"], "type": "cluster", "node_size": 18, "label": "wasted food"}, "community level": {"concepts": "community level", "concept_list": ["community level"], "type": "cluster", "node_size": 18, "label": "community level"}, "common good": {"concepts": "common good", "concept_list": ["common good"], "type": "cluster", "node_size": 18, "label": "common good"}, "circular economy": {"concepts": "circular economy", "concept_list": ["circular economy"], "type": "cluster", "node_size": 18, "label": "circular economy"}, "cultural values": {"concepts": "cultural values", "concept_list": ["cultural values"], "type": "cluster", "node_size": 18, "label": "cultural values"}, "bike riding": {"concepts": "bike riding", "concept_list": ["bike riding"], "type": "cluster", "node_size": 18, "label": "bike riding"}, "michigan produce": {"concepts": "michigan produce", "concept_list": ["michigan produce"], "type": "cluster", "node_size": 18, "label": "michigan produce"}, "local sourcing": {"concepts": "local sourcing", "concept_list": ["local sourcing"], "type": "cluster", "node_size": 18, "label": "local sourcing"}, "aquaculture": {"concepts": "aquaculture", "concept_list": ["aquaculture"], "type": "cluster", "node_size": 18, "label": "aquaculture"}, "grow": {"concepts": "grow", "concept_list": ["grow"], "type": "cluster", "node_size": 18, "label": "grow"}, "resellers": {"concepts": "resellers", "concept_list": ["resellers"], "type": "cluster", "node_size": 18, "label": "resellers"}, "quality": {"concepts": "quality", "concept_list": ["quality"], "type": "cluster", "node_size": 18, "label": "quality"}, "quality of life": {"concepts": "quality of life", "concept_list": ["quality of life"], "type": "cluster", "node_size": 18, "label": "quality of life"}, "chain restaurants": {"concepts": "chain restaurants", "concept_list": ["chain restaurants"], "type": "cluster", "node_size": 18, "label": "chain restaurants"}, "east corridor": {"concepts": "east corridor", "concept_list": ["east corridor"], "type": "cluster", "node_size": 18, "label": "east corridor"}, "transportation link": {"concepts": "transportation link", "concept_list": ["transportation link"], "type": "cluster", "node_size": 18, "label": "transportation link"}, "seasonality": {"concepts": "seasonality", "concept_list": ["seasonality"], "type": "cluster", "node_size": 18, "label": "seasonality"}, "partnerships": {"concepts": "partnerships", "concept_list": ["partnerships"], "type": "cluster", "node_size": 18, "label": "partnerships"}, "resources": {"concepts": "resources", "concept_list": ["resources"], "type": "cluster", "node_size": 18, "label": "resources"}, "nutrition": {"concepts": "nutrition", "concept_list": ["nutrition"], "type": "cluster", "node_size": 18, "label": "nutrition"}, "united states": {"concepts": "united states", "concept_list": ["united states"], "type": "cluster", "node_size": 18, "label": "united states"}, "healthier food": {"concepts": "healthier food", "concept_list": ["healthier food"], "type": "cluster", "node_size": 18, "label": "healthier food"}, "sectors": {"concepts": "sectors", "concept_list": ["sectors"], "type": "cluster", "node_size": 18, "label": "sectors"}, "food usage": {"concepts": "food usage", "concept_list": ["food usage"], "type": "cluster", "node_size": 18, "label": "food usage"}, "local produce": {"concepts": "local produce", "concept_list": ["local produce"], "type": "cluster", "node_size": 18, "label": "local produce"}, "food waste": {"concepts": "food waste", "concept_list": ["food waste"], "type": "cluster", "node_size": 18, "label": "food waste"}, "availability": {"concepts": "availability", "concept_list": ["availability"], "type": "cluster", "node_size": 18, "label": "availability"}, "composting": {"concepts": "composting", "concept_list": ["composting"], "type": "cluster", "node_size": 18, "label": "composting"}, "local infrastructure": {"concepts": "local infrastructure", "concept_list": ["local infrastructure"], "type": "cluster", "node_size": 18, "label": "local infrastructure"}, "local food": {"concepts": "local food", "concept_list": ["local food"], "type": "cluster", "node_size": 18, "label": "local food"}, "grocery store buyers": {"concepts": "grocery store buyers", "concept_list": ["grocery store buyers"], "type": "cluster", "node_size": 18, "label": "grocery store buyers"}, "lemon smell": {"concepts": "lemon smell", "concept_list": ["lemon smell"], "type": "cluster", "node_size": 18, "label": "lemon smell"}, "hierarchy of food": {"concepts": "hierarchy of food", "concept_list": ["hierarchy of food"], "type": "cluster", "node_size": 18, "label": "hierarchy of food"}, "compost": {"concepts": "compost", "concept_list": ["compost"], "type": "cluster", "node_size": 18, "label": "compost"}, "food budgets": {"concepts": "food budgets", "concept_list": ["food budgets"], "type": "cluster", "node_size": 18, "label": "food budgets"}, "respect for land": {"concepts": "respect for land", "concept_list": ["respect for land"], "type": "cluster", "node_size": 18, "label": "respect for land"}, "collaboration": {"concepts": "collaboration", "concept_list": ["collaboration"], "type": "cluster", "node_size": 18, "label": "collaboration"}, "access": {"concepts": "access", "concept_list": ["access"], "type": "cluster", "node_size": 18, "label": "access"}, "repeat": {"concepts": "repeat", "concept_list": ["repeat"], "type": "cluster", "node_size": 18, "label": "repeat"}, "local food economy": {"concepts": "local food economy", "concept_list": ["local food economy"], "type": "cluster", "node_size": 18, "label": "local food economy"}, "community empowerment": {"concepts": "community empowerment", "concept_list": ["community empowerment"], "type": "cluster", "node_size": 18, "label": "community empowerment"}, "creativity": {"concepts": "creativity", "concept_list": ["creativity"], "type": "cluster", "node_size": 18, "label": "creativity"}, "food": {"concepts": "food", "concept_list": ["food"], "type": "cluster", "node_size": 18, "label": "food"}, "midwest produce": {"concepts": "midwest produce", "concept_list": ["midwest produce"], "type": "cluster", "node_size": 18, "label": "midwest produce"}, "national agriculture": {"concepts": "national agriculture", "concept_list": ["national agriculture"], "type": "cluster", "node_size": 18, "label": "national agriculture"}, "edible flint": {"concepts": "edible flint", "concept_list": ["edible flint"], "type": "cluster", "node_size": 18, "label": "edible flint"}, "braiding sweetgrass": {"concepts": "braiding sweetgrass", "concept_list": ["braiding sweetgrass"], "type": "cluster", "node_size": 18, "label": "braiding sweetgrass"}, "local production": {"concepts": "local production", "concept_list": ["local production"], "type": "cluster", "node_size": 18, "label": "local production"}};
+        const conceptData = {};
+        const interClusterEdges = [["safety", "transportation link", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["latinx community", "local economy", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["latinx community", "trust", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["grocery store", "pledge", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["connections", "health", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["values", "connections", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["locally grown food", "local restaurants", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["locally grown food", "national agriculture", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["healthier options", "gas station", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["mission statement", "latinx community", {"weight": 1.0, "confidence": 0.8500000000000001, "type": "inter_cluster", "style": "solid"}], ["mission statement", "cultural values", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["mission statement", "grocery store buyers", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["mission statement", "seasonality", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["mission statement", "availability", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food security", "collaboration", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["food security", "contract clauses", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["flint", "nutrition", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["vegetables", "food budgets", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["eat", "high nutrition", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["eat", "comfort", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["eat", "grocery stores", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food waste hierarchy", "leverage points", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["local production mandate", "arab community", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["local production mandate", "empowerment", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["local production mandate", "genesee county", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["nutritious food", "production", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["nutritious food", "partnerships", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["inclusivity", "food system value", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["inclusivity", "united states", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["affordability", "nutritious food", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["affordability", "collaboration", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["economic drivers", "garden kits", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["economic drivers", "comfort", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["food education", "connection to land", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["convenience stores", "grocery store options", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["trust", "comfort", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["local economy", "food education", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["produce section", "arab community", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["michigan", "edible flint", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["parking", "local foods", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["gas station", "grocery store", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["gas station", "seeds", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["communication", "locally produced food", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["local economic development", "local infrastructure", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["local food production", "farmers market", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["local food production", "healthier options", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["comfort", "repeat", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["healthy initiatives", "foot transportation", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["healthy initiatives", "creativity", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["farmers markets", "composting", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food shipping", "affordability", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["food shipping", "local food", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["global agriculture", "local production", {"weight": -1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["global agriculture", "food education", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["contract clauses", "united states grown", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["spoilage", "respect for land", {"weight": -1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["spoilage", "finite resources", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food understanding", "common good", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["botany", "local economic development", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["botany", "resources", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["foot transportation", "food initiatives", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["foot transportation", "genesee county", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["transportation", "cultural diversity", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["production", "farmers markets", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["production", "grocery store options", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["production", "food understanding", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["locally produced food", "partnerships", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["locally produced food", "mono food", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["locally produced food", "bike riding", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["genesee county", "values", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food production", "fast food", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food production", "produce section", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["seeds", "market demand", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["seeds", "michigan apples", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["michigan apples", "food usage", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["lemon thyme", "building community", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["community collaboration.", "community level", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["community collaboration.", "midwest produce", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food availability", "local ingredients", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["garden seed packets", "trust", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["produce", "local restaurants", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["produce", "community level", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["composters", "transplants", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["connection to land", "building community", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["connection to land", "local ingredients", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["lentils", "midwest produce", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["lentils", "finite resources", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["pledge", "infrastructure", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["flint residents", "garden kits", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["flint residents", "inclusivity", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["united states grown", "edible flint", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["mono food", "availability", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["fast food", "transportation link", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["dignity", "high nutrition", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["recycled organics", "aquaculture", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["walking", "collaboration", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["anaerobic digester", "food security", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["anaerobic digester", "economic drivers", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["grocery store options", "food usage", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["grocery store options", "spoilage", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["grocery store options", "resellers", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["choices", "gas station", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["choices", "local economy", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["local vendors", "choices", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["local vendors", "midwest produce", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["local vendors", "problem solving", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["food access", "united states grown", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["food system value", "feedstock", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["food system value", "capturing", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["nutritious foods", "lentils", {"weight": 1.0, "confidence": 0.7375, "type": "inter_cluster", "style": "solid"}], ["nutritious foods", "midwest", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["nutritious foods", "common good", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["nutritious foods", "mandates", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["wasted food", "farmers market", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["common good", "farmers markets", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["circular economy", "nutritious foods", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["circular economy", "local sourcing", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["cultural values", "market demand", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["bike riding", "garden kits", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["michigan produce", "edible flint", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["local sourcing", "food usage", {"weight": 1.0, "confidence": 0.7666666666666666, "type": "inter_cluster", "style": "solid"}], ["grow", "nutritious foods", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["grow", "mono food", {"weight": -1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["grow", "michigan", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["resellers", "empowerment", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["quality", "food system value", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["chain restaurants", "fruits", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["chain restaurants", "locally grown food", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["east corridor", "bike riding", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["seasonality", "dignity", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["seasonality", "problem solving", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["partnerships", "food systems", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["resources", "united states grown", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["resources", "pledge", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["resources", "healthy initiatives", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["nutrition", "cost of food", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["united states", "community empowerment", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["sectors", "covid-19", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["food usage", "national agriculture", {"weight": 1.0, "confidence": 0.6625, "type": "inter_cluster", "style": "solid"}], ["food usage", "local produce", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food usage", "transportation", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["local produce", "healthier food", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["food waste", "grow", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["food waste", "leverage points", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["composting", "healthier options", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["composting", "local production", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["local infrastructure", "hoophouses for health", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["local food", "garden kits", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["local food", "aquaculture", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["lemon smell", "health", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["hierarchy of food", "food", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["hierarchy of food", "waste", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["hierarchy of food", "community collaboration.", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["compost", "quality of life", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["food budgets", "grocery store", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["access", "foot transportation", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["repeat", "connection to land", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["local food economy", "cultural diversity", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["community empowerment", "choices", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["community empowerment", "comfort", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["creativity", "local economy", {"weight": 1.0, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["creativity", "circular economy", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["creativity", "lemon thyme", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["food", "fruits", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["food", "food hub", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["midwest produce", "high nutrition", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["national agriculture", "michigan", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["braiding sweetgrass", "lentils", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["local production", "fruits", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

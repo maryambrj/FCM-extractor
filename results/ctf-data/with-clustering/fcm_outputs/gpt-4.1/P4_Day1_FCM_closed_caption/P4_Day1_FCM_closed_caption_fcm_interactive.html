@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"algorithm": {"concepts": "algorithm", "concept_list": ["algorithm"], "type": "cluster", "node_size": 18, "label": "algorithm"}, "balance checking": {"concepts": "balance checking", "concept_list": ["balance checking"], "type": "cluster", "node_size": 18, "label": "balance checking"}, "malloc": {"concepts": "malloc", "concept_list": ["malloc"], "type": "cluster", "node_size": 18, "label": "malloc"}, "fake flags": {"concepts": "fake flags", "concept_list": ["fake flags"], "type": "cluster", "node_size": 18, "label": "fake flags"}, "input": {"concepts": "input", "concept_list": ["input"], "type": "cluster", "node_size": 18, "label": "input"}, "time management": {"concepts": "time management", "concept_list": ["time management"], "type": "cluster", "node_size": 18, "label": "time management"}, "Reverse Engineering": {"concepts": "burp suite, standard output, standard input, standard in", "concept_list": ["burp suite", "standard output", "standard input", "standard in"], "type": "cluster", "node_size": 27, "label": "Reverse Engineering"}, "User Data Entry": {"concepts": "reversing challenge, ciphertext reversal", "concept_list": ["reversing challenge", "ciphertext reversal"], "type": "cluster", "node_size": 21, "label": "User Data Entry"}, "Black Box Analysis": {"concepts": "input acceptance, user data, user input, data input", "concept_list": ["input acceptance", "user data", "user input", "data input"], "type": "cluster", "node_size": 27, "label": "Black Box Analysis"}, "Display & Review": {"concepts": "black box, step three, directed network", "concept_list": ["black box", "step three", "directed network"], "type": "cluster", "node_size": 24, "label": "Display & Review"}, "Input/Output Handling": {"concepts": "display, examination", "concept_list": ["display", "examination"], "type": "cluster", "node_size": 21, "label": "Input/Output Handling"}, "Process Enablers": {"concepts": "enabling factors, organizational process, enablement, company", "concept_list": ["enabling factors", "organizational process", "enablement", "company"], "type": "cluster", "node_size": 27, "label": "Process Enablers"}, "Risk Analysis": {"concepts": "risk, response analysis", "concept_list": ["risk", "response analysis"], "type": "cluster", "node_size": 21, "label": "Risk Analysis"}, "Problem-Solving Process": {"concepts": "iteration, heap, blocker, language, tools, probability, input values, unexpected behavior, reversible operations, craftsmanship, heap analysis, efficiency, past experience, address randomization, reverse engineering, plaintext, symbols, ctf completion, assembly, pwntools, mathematical operations, screen, flag, problem framing, script crafting, user interaction, decision making, decoding, ctf description, technical surprise, causal pathway, ctfs, participant, exploit development, available tools, organizational learning, environment, decisions, discovery, cyber attackers, buffer sizes, virtualize, function statements, experimenter, information search, heap exploitation, c language, information, input statements, causal relationships, structure, protections, assumptions, problem-solving, python script, visualization, code reading, debuggers, bypass, ciphertext, python, analyze, pycryptodome, data acceptance, surprises, robust process, process restart, process impediments, response, tool, information gathering, plaintext analysis, approach, path selection, memory manipulation, output statements, organizational factors, ctf, robustness, external resources, random values, decision points, statements, random code, negative influence, previous experience, paths, libraries, input gathering, problem solving, feedback, informative response, cyber attacks, surprise, data gathering, hex values, encoding, clue, google results, blockers, stack canary, github, gather output", "concept_list": ["iteration", "heap", "blocker", "language", "tools", "probability", "input values", "unexpected behavior", "reversible operations", "craftsmanship", "heap analysis", "efficiency", "past experience", "address randomization", "reverse engineering", "plaintext", "symbols", "ctf completion", "assembly", "pwntools", "mathematical operations", "screen", "flag", "problem framing", "script crafting", "user interaction", "decision making", "decoding", "ctf description", "technical surprise", "causal pathway", "ctfs", "participant", "exploit development", "available tools", "organizational learning", "environment", "decisions", "discovery", "cyber attackers", "buffer sizes", "virtualize", "function statements", "experimenter", "information search", "heap exploitation", "c language", "information", "input statements", "causal relationships", "structure", "protections", "assumptions", "problem-solving", "python script", "visualization", "code reading", "debuggers", "bypass", "ciphertext", "python", "analyze", "pycryptodome", "data acceptance", "surprises", "robust process", "process restart", "process impediments", "response", "tool", "information gathering", "plaintext analysis", "approach", "path selection", "memory manipulation", "output statements", "organizational factors", "ctf", "robustness", "external resources", "random values", "decision points", "statements", "random code", "negative influence", "previous experience", "paths", "libraries", "input gathering", "problem solving", "feedback", "informative response", "cyber attacks", "surprise", "data gathering", "hex values", "encoding", "clue", "google results", "blockers", "stack canary", "github", "gather output"], "type": "cluster", "node_size": 324, "label": "Problem-Solving Process"}, "Code Analysis": {"concepts": "code patterns, execution, code understanding, code analysis, program execution, crash, root cause analysis, code interaction, executable type, source code analysis, non-executable stack, code interpretation, register overwrite, executable, source code examination, program crash, source code, code execution, code hooking, source code interactions, code examination, reading source code", "concept_list": ["code patterns", "execution", "code understanding", "code analysis", "program execution", "crash", "root cause analysis", "code interaction", "executable type", "source code analysis", "non-executable stack", "code interpretation", "register overwrite", "executable", "source code examination", "program crash", "source code", "code execution", "code hooking", "source code interactions", "code examination", "reading source code"], "type": "cluster", "node_size": 81, "label": "Code Analysis"}, "Task Management": {"concepts": "goal-based task analysis, task repetition, task efficiency, task switching, task re-approach, task breakdown, task analysis, task iteration", "concept_list": ["goal-based task analysis", "task repetition", "task efficiency", "task switching", "task re-approach", "task breakdown", "task analysis", "task iteration"], "type": "cluster", "node_size": 39, "label": "Task Management"}, "Vulnerability Detection": {"concepts": "coding vulnerability, vulnerabilities, vulnerability type, vulnerable coding, vulnerability identification, vulnerability, vulnerability assessment, vulnerability hunting, vulnerable functions, vulnerability mimicry, vulnerable program", "concept_list": ["coding vulnerability", "vulnerabilities", "vulnerability type", "vulnerable coding", "vulnerability identification", "vulnerability", "vulnerability assessment", "vulnerability hunting", "vulnerable functions", "vulnerability mimicry", "vulnerable program"], "type": "cluster", "node_size": 48, "label": "Vulnerability Detection"}, "Output Quality": {"concepts": "output generation, useful output, output, output structure, meaningful output, output patterns, informative output", "concept_list": ["output generation", "useful output", "output", "output structure", "meaningful output", "output patterns", "informative output"], "type": "cluster", "node_size": 36, "label": "Output Quality"}, "Knowledge Application": {"concepts": "knowledge application, description, clues, automation, vague meanings, technical expertise, fuzzing, conclusion jumping, operator understanding, fuzzers, knowledge, context, automation tools, insight, knowledge gaps, jumping to conclusions, technical understanding, understanding", "concept_list": ["knowledge application", "description", "clues", "automation", "vague meanings", "technical expertise", "fuzzing", "conclusion jumping", "operator understanding", "fuzzers", "knowledge", "context", "automation tools", "insight", "knowledge gaps", "jumping to conclusions", "technical understanding", "understanding"], "type": "cluster", "node_size": 69, "label": "Knowledge Application"}, "Misinterpretation & Beliefs": {"concepts": "mathematical reasoning, misleading belief, misinterpretation, skepticism, misleading patterns, beliefs, belief formation, error correction, artifice, corrective action, fuzzy cognitive map, misleading results, inconclusive results, impersonating cookie, misunderstanding, belief", "concept_list": ["mathematical reasoning", "misleading belief", "misinterpretation", "skepticism", "misleading patterns", "beliefs", "belief formation", "error correction", "artifice", "corrective action", "fuzzy cognitive map", "misleading results", "inconclusive results", "impersonating cookie", "misunderstanding", "belief"], "type": "cluster", "node_size": 63, "label": "Misinterpretation & Beliefs"}, "Cryptography & Encryption": {"concepts": "cryptographic libraries, cryptographic key, encryption, cryptography, encryption algorithm, encryption algorithms, encryption output, crypto, encryption patterns, crypto challenge", "concept_list": ["cryptographic libraries", "cryptographic key", "encryption", "cryptography", "encryption algorithm", "encryption algorithms", "encryption output", "crypto", "encryption patterns", "crypto challenge"], "type": "cluster", "node_size": 45, "label": "Cryptography & Encryption"}, "Progress Assessment": {"concepts": "perception of progress, decision-making, progress, semi-structured approach, proof of concept, man in the middle, o-tool", "concept_list": ["perception of progress", "decision-making", "progress", "semi-structured approach", "proof of concept", "man in the middle", "o-tool"], "type": "cluster", "node_size": 36, "label": "Progress Assessment"}, "Function Usage": {"concepts": "functions, function misuse, testing, role differentiation, misused functions, selection, library function", "concept_list": ["functions", "function misuse", "testing", "role differentiation", "misused functions", "selection", "library function"], "type": "cluster", "node_size": 36, "label": "Function Usage"}, "Request Handling": {"concepts": "request capture, get request, request response, request", "concept_list": ["request capture", "get request", "request response", "request"], "type": "cluster", "node_size": 27, "label": "Request Handling"}, "Server Responses": {"concepts": "server response, response packet, server interaction", "concept_list": ["server response", "response packet", "server interaction"], "type": "cluster", "node_size": 24, "label": "Server Responses"}, "Server Identification": {"concepts": "server, remote server", "concept_list": ["server", "remote server"], "type": "cluster", "node_size": 21, "label": "Server Identification"}, "Packet Analysis": {"concepts": "wireshark packet, packet", "concept_list": ["wireshark packet", "packet"], "type": "cluster", "node_size": 21, "label": "Packet Analysis"}, "Operating Systems": {"concepts": "operating system, system", "concept_list": ["operating system", "system"], "type": "cluster", "node_size": 21, "label": "Operating Systems"}, "System Complexity": {"concepts": "system differences, system complexity", "concept_list": ["system differences", "system complexity"], "type": "cluster", "node_size": 21, "label": "System Complexity"}, "Decompiling Tools": {"concepts": "decompile, emulate, decompilers", "concept_list": ["decompile", "emulate", "decompilers"], "type": "cluster", "node_size": 24, "label": "Decompiling Tools"}, "Stripped Binaries": {"concepts": "binary stripped, stripped binary, run binary, binary", "concept_list": ["binary stripped", "stripped binary", "run binary", "binary"], "type": "cluster", "node_size": 27, "label": "Stripped Binaries"}, "Binary Exploitation": {"concepts": "binary exploitation, binary analysis", "concept_list": ["binary exploitation", "binary analysis"], "type": "cluster", "node_size": 21, "label": "Binary Exploitation"}, "Byte Analysis": {"concepts": "byte values, frequency analysis", "concept_list": ["byte values", "frequency analysis"], "type": "cluster", "node_size": 21, "label": "Byte Analysis"}, "Information Leakage": {"concepts": "sensitive information, information leakage, information leak, malicious packet, malicious data", "concept_list": ["sensitive information", "information leakage", "information leak", "malicious packet", "malicious data"], "type": "cluster", "node_size": 30, "label": "Information Leakage"}, "Security Measures": {"concepts": "security measure, security measures, web security, stack protections", "concept_list": ["security measure", "security measures", "web security", "stack protections"], "type": "cluster", "node_size": 27, "label": "Security Measures"}, "Forensics Issues": {"concepts": "forensics challenges, forensics, checksec, check sec", "concept_list": ["forensics challenges", "forensics", "checksec", "check sec"], "type": "cluster", "node_size": 27, "label": "Forensics Issues"}, "Code Obfuscation": {"concepts": "obfuscated code, unobfuscate", "concept_list": ["obfuscated code", "unobfuscate"], "type": "cluster", "node_size": 21, "label": "Code Obfuscation"}, "JavaScript Scripting": {"concepts": "javascript, scripting, script", "concept_list": ["javascript", "scripting", "script"], "type": "cluster", "node_size": 24, "label": "JavaScript Scripting"}, "Code Structure Analysis": {"concepts": "file analysis, readability, code pathways", "concept_list": ["file analysis", "readability", "code pathways"], "type": "cluster", "node_size": 24, "label": "Code Structure Analysis"}, "File Input": {"concepts": "read from input, file, file command, format, file extensions", "concept_list": ["read from input", "file", "file command", "format", "file extensions"], "type": "cluster", "node_size": 30, "label": "File Input"}, "Programming Basics": {"concepts": "programming, programming language, program", "concept_list": ["programming", "programming language", "program"], "type": "cluster", "node_size": 24, "label": "Programming Basics"}, "Program Behavior": {"concepts": "program behavior, program interaction, program response", "concept_list": ["program behavior", "program interaction", "program response"], "type": "cluster", "node_size": 24, "label": "Program Behavior"}, "Subprocess Loops": {"concepts": "sub loops, subprocess loops", "concept_list": ["sub loops", "subprocess loops"], "type": "cluster", "node_size": 21, "label": "Subprocess Loops"}, "Feedback Loops": {"concepts": "feedback loops, feedback loop", "concept_list": ["feedback loops", "feedback loop"], "type": "cluster", "node_size": 21, "label": "Feedback Loops"}, "Biased Distraction Effects": {"concepts": "distraction, cognitive bias, negative outcomes", "concept_list": ["distraction", "cognitive bias", "negative outcomes"], "type": "cluster", "node_size": 24, "label": "Biased Distraction Effects"}, "Mindset Influences": {"concepts": "open mind, psychological factors, interaction, social factors, causal factor", "concept_list": ["open mind", "psychological factors", "interaction", "social factors", "causal factor"], "type": "cluster", "node_size": 30, "label": "Mindset Influences"}, "Failure States": {"concepts": "failure condition, failure", "concept_list": ["failure condition", "failure"], "type": "cluster", "node_size": 21, "label": "Failure States"}, "Success Criteria": {"concepts": "success factors, success, success condition", "concept_list": ["success factors", "success", "success condition"], "type": "cluster", "node_size": 24, "label": "Success Criteria"}, "Challenge Types": {"concepts": "challenge type, challenge category, pwn challenges, category", "concept_list": ["challenge type", "challenge category", "pwn challenges", "category"], "type": "cluster", "node_size": 27, "label": "Challenge Types"}, "Challenge Responses": {"concepts": "challenge, challenge response", "concept_list": ["challenge", "challenge response"], "type": "cluster", "node_size": 21, "label": "Challenge Responses"}, "Challenge Identification": {"concepts": "challenge understanding, challenge definition, challenge identification", "concept_list": ["challenge understanding", "challenge definition", "challenge identification"], "type": "cluster", "node_size": 24, "label": "Challenge Identification"}, "Pattern Recognition": {"concepts": "pattern recognition, identification of patterns, pattern identification", "concept_list": ["pattern recognition", "identification of patterns", "pattern identification"], "type": "cluster", "node_size": 24, "label": "Pattern Recognition"}, "Pattern Validation": {"concepts": "pattern validation, pattern misidentification", "concept_list": ["pattern validation", "pattern misidentification"], "type": "cluster", "node_size": 21, "label": "Pattern Validation"}, "Language Detection": {"concepts": "language detection, discovery process", "concept_list": ["language detection", "discovery process"], "type": "cluster", "node_size": 21, "label": "Language Detection"}, "Process Workflow": {"concepts": "workflow, process, iterative process", "concept_list": ["workflow", "process", "iterative process"], "type": "cluster", "node_size": 24, "label": "Process Workflow"}, "Process Steps": {"concepts": "step number four, process steps, process structure", "concept_list": ["step number four", "process steps", "process structure"], "type": "cluster", "node_size": 24, "label": "Process Steps"}, "Workflow Interruptions": {"concepts": "workflow restart, workflow interruption", "concept_list": ["workflow restart", "workflow interruption"], "type": "cluster", "node_size": 21, "label": "Workflow Interruptions"}, "Resource Management": {"concepts": "resource utilization, resource allocation", "concept_list": ["resource utilization", "resource allocation"], "type": "cluster", "node_size": 21, "label": "Resource Management"}, "Permission Control": {"concepts": "permissions, privileged permissions, privilege escalation", "concept_list": ["permissions", "privileged permissions", "privilege escalation"], "type": "cluster", "node_size": 24, "label": "Permission Control"}, "Exploit Development": {"concepts": "exploit, crafting exploits, exploit testing", "concept_list": ["exploit", "crafting exploits", "exploit testing"], "type": "cluster", "node_size": 24, "label": "Exploit Development"}, "Security Mitigation": {"concepts": "mitigation, virtualizing", "concept_list": ["mitigation", "virtualizing"], "type": "cluster", "node_size": 21, "label": "Security Mitigation"}};
+        const conceptData = {};
+        const interClusterEdges = [["algorithm", "Information Leakage", {"weight": 1.0, "confidence": 0.7250000000000001, "type": "inter_cluster", "style": "solid"}], ["balance checking", "Function Usage", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["balance checking", "Code Analysis", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["malloc", "Challenge Types", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["input", "Pattern Recognition", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["User Data Entry", "Knowledge Application", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["User Data Entry", "algorithm", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["User Data Entry", "Subprocess Loops", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Black Box Analysis", "input", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["Black Box Analysis", "Pattern Validation", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Display & Review", "Mindset Influences", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Input/Output Handling", "Security Mitigation", {"weight": 0.5, "confidence": 0.275, "type": "inter_cluster", "style": "solid"}], ["Process Enablers", "Code Obfuscation", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Problem-Solving Process", "Request Handling", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Problem-Solving Process", "time management", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Code Analysis", "Progress Assessment", {"weight": 1.0, "confidence": 0.7875000000000001, "type": "inter_cluster", "style": "solid"}], ["Task Management", "Success Criteria", {"weight": 1.0, "confidence": 0.7999999999999999, "type": "inter_cluster", "style": "solid"}], ["Vulnerability Detection", "Binary Exploitation", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["Vulnerability Detection", "System Complexity", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["Output Quality", "Success Criteria", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Output Quality", "Task Management", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Misinterpretation & Beliefs", "Program Behavior", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Progress Assessment", "Cryptography & Encryption", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Function Usage", "Failure States", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Function Usage", "Task Management", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Request Handling", "Process Steps", {"weight": 1.0, "confidence": 0.6999999999999998, "type": "inter_cluster", "style": "solid"}], ["Request Handling", "Feedback Loops", {"weight": 1.0, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["Request Handling", "Server Identification", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Request Handling", "Reverse Engineering", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Server Responses", "Challenge Identification", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Server Responses", "Problem-Solving Process", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["Server Identification", "Challenge Types", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Packet Analysis", "Biased Distraction Effects", {"weight": 1.0, "confidence": 0.6749999999999999, "type": "inter_cluster", "style": "solid"}], ["Packet Analysis", "time management", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Operating Systems", "Server Responses", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Operating Systems", "Problem-Solving Process", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["System Complexity", "Workflow Interruptions", {"weight": 1.0, "confidence": 0.6875, "type": "inter_cluster", "style": "solid"}], ["System Complexity", "Failure States", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Decompiling Tools", "System Complexity", {"weight": 1.0, "confidence": 0.6166666666666667, "type": "inter_cluster", "style": "solid"}], ["Decompiling Tools", "Knowledge Application", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Decompiling Tools", "Operating Systems", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Stripped Binaries", "Feedback Loops", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["Binary Exploitation", "Program Behavior", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["Binary Exploitation", "Programming Basics", {"weight": 1.0, "confidence": 0.7333333333333334, "type": "inter_cluster", "style": "solid"}], ["Byte Analysis", "Task Management", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Byte Analysis", "Binary Exploitation", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Security Measures", "Decompiling Tools", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Forensics Issues", "Information Leakage", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Code Obfuscation", "Pattern Validation", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Code Obfuscation", "Workflow Interruptions", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["JavaScript Scripting", "algorithm", {"weight": 1.0, "confidence": 0.6375000000000001, "type": "inter_cluster", "style": "solid"}], ["JavaScript Scripting", "Binary Exploitation", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["JavaScript Scripting", "Resource Management", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["JavaScript Scripting", "Challenge Identification", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Code Structure Analysis", "Binary Exploitation", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Code Structure Analysis", "Challenge Responses", {"weight": 1.0, "confidence": 0.7166666666666668, "type": "inter_cluster", "style": "solid"}], ["Code Structure Analysis", "Challenge Identification", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Code Structure Analysis", "Feedback Loops", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["File Input", "input", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["File Input", "Risk Analysis", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Programming Basics", "Code Analysis", {"weight": 1.0, "confidence": 0.8374999999999999, "type": "inter_cluster", "style": "solid"}], ["Program Behavior", "Progress Assessment", {"weight": 1.0, "confidence": 0.7333333333333334, "type": "inter_cluster", "style": "solid"}], ["Program Behavior", "Code Structure Analysis", {"weight": 1.0, "confidence": 0.6833333333333335, "type": "inter_cluster", "style": "solid"}], ["Program Behavior", "Knowledge Application", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Feedback Loops", "Resource Management", {"weight": 1.0, "confidence": 0.5833333333333334, "type": "inter_cluster", "style": "solid"}], ["Feedback Loops", "time management", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Biased Distraction Effects", "Input/Output Handling", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Mindset Influences", "Biased Distraction Effects", {"weight": -1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["Failure States", "Challenge Identification", {"weight": -0.75, "confidence": 0.525, "type": "inter_cluster", "style": "solid"}], ["Failure States", "Program Behavior", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Success Criteria", "Process Workflow", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Success Criteria", "input", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Success Criteria", "fake flags", {"weight": -1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["Challenge Types", "Operating Systems", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["Challenge Types", "Language Detection", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Challenge Responses", "Vulnerability Detection", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Challenge Identification", "Server Identification", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Pattern Recognition", "Mindset Influences", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Pattern Validation", "Biased Distraction Effects", {"weight": 1.0, "confidence": 0.8333333333333334, "type": "inter_cluster", "style": "solid"}], ["Language Detection", "Success Criteria", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["Process Workflow", "Byte Analysis", {"weight": 1.0, "confidence": 0.6333333333333333, "type": "inter_cluster", "style": "solid"}], ["Process Workflow", "Security Mitigation", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["Process Steps", "File Input", {"weight": 1.0, "confidence": 0.7333333333333334, "type": "inter_cluster", "style": "solid"}], ["Process Steps", "Permission Control", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Process Steps", "balance checking", {"weight": 1.0, "confidence": 0.6666666666666666, "type": "inter_cluster", "style": "solid"}], ["Process Steps", "Code Analysis", {"weight": 1.0, "confidence": 0.875, "type": "inter_cluster", "style": "solid"}], ["Process Steps", "Task Management", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Process Steps", "Binary Exploitation", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Workflow Interruptions", "Task Management", {"weight": -0.5, "confidence": 0.7375, "type": "inter_cluster", "style": "solid"}], ["Workflow Interruptions", "Server Responses", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Resource Management", "Security Mitigation", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Resource Management", "User Data Entry", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Exploit Development", "Pattern Validation", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Security Mitigation", "Challenge Responses", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Security Mitigation", "Process Steps", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {"Reverse Engineering": [], "User Data Entry": [], "Black Box Analysis": [], "Display & Review": [], "Input/Output Handling": [], "Process Enablers": [], "Risk Analysis": [], "Problem-Solving Process": [], "Code Analysis": [], "Task Management": [], "Vulnerability Detection": [], "Output Quality": [], "Knowledge Application": [], "Misinterpretation & Beliefs": [], "Cryptography & Encryption": [], "Progress Assessment": [], "Function Usage": [], "Request Handling": [], "Server Responses": [], "Server Identification": [], "Packet Analysis": [], "Operating Systems": [], "System Complexity": [], "Decompiling Tools": [], "Stripped Binaries": [], "Binary Exploitation": [], "Byte Analysis": [], "Information Leakage": [], "Security Measures": [], "Forensics Issues": [], "Code Obfuscation": [], "JavaScript Scripting": [], "Code Structure Analysis": [], "File Input": [], "Programming Basics": [], "Program Behavior": [], "Subprocess Loops": [], "Feedback Loops": [], "Biased Distraction Effects": [], "Mindset Influences": [], "Failure States": [], "Success Criteria": [], "Challenge Types": [], "Challenge Responses": [], "Challenge Identification": [], "Pattern Recognition": [], "Pattern Validation": [], "Language Detection": [], "Process Workflow": [], "Process Steps": [], "Workflow Interruptions": [], "Resource Management": [], "Permission Control": [], "Exploit Development": [], "Security Mitigation": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

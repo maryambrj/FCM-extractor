@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"mineral processing": {"concepts": "mineral processing", "concept_list": ["mineral processing"], "type": "cluster", "node_size": 18, "label": "mineral processing"}, "wealth sharing": {"concepts": "wealth sharing", "concept_list": ["wealth sharing"], "type": "cluster", "node_size": 18, "label": "wealth sharing"}, "tribal consultation": {"concepts": "tribal consultation", "concept_list": ["tribal consultation"], "type": "cluster", "node_size": 18, "label": "tribal consultation"}, "bird strikes": {"concepts": "bird strikes", "concept_list": ["bird strikes"], "type": "cluster", "node_size": 18, "label": "bird strikes"}, "indigenous tribes": {"concepts": "indigenous tribes", "concept_list": ["indigenous tribes"], "type": "cluster", "node_size": 18, "label": "indigenous tribes"}, "infrastructure cleanup": {"concepts": "infrastructure cleanup", "concept_list": ["infrastructure cleanup"], "type": "cluster", "node_size": 18, "label": "infrastructure cleanup"}, "cancer alley": {"concepts": "cancer alley", "concept_list": ["cancer alley"], "type": "cluster", "node_size": 18, "label": "cancer alley"}, "ammonia industry": {"concepts": "ammonia industry", "concept_list": ["ammonia industry"], "type": "cluster", "node_size": 18, "label": "ammonia industry"}, "pipelines": {"concepts": "pipelines", "concept_list": ["pipelines"], "type": "cluster", "node_size": 18, "label": "pipelines"}, "energy policy": {"concepts": "energy policy", "concept_list": ["energy policy"], "type": "cluster", "node_size": 18, "label": "energy policy"}, "natural resources": {"concepts": "natural resources", "concept_list": ["natural resources"], "type": "cluster", "node_size": 18, "label": "natural resources"}, "toxic materials": {"concepts": "toxic materials", "concept_list": ["toxic materials"], "type": "cluster", "node_size": 18, "label": "toxic materials"}, "class permits": {"concepts": "class permits", "concept_list": ["class permits"], "type": "cluster", "node_size": 18, "label": "class permits"}, "market-based approach": {"concepts": "market-based approach", "concept_list": ["market-based approach"], "type": "cluster", "node_size": 18, "label": "market-based approach"}, "population inflow": {"concepts": "population inflow", "concept_list": ["population inflow"], "type": "cluster", "node_size": 18, "label": "population inflow"}, "toxic infrastructure": {"concepts": "toxic infrastructure", "concept_list": ["toxic infrastructure"], "type": "cluster", "node_size": 18, "label": "toxic infrastructure"}, "wind development": {"concepts": "wind development", "concept_list": ["wind development"], "type": "cluster", "node_size": 18, "label": "wind development"}, "fisheries": {"concepts": "fisheries", "concept_list": ["fisheries"], "type": "cluster", "node_size": 18, "label": "fisheries"}, "carbon capture": {"concepts": "carbon capture", "concept_list": ["carbon capture"], "type": "cluster", "node_size": 18, "label": "carbon capture"}, "waste dumping": {"concepts": "waste dumping", "concept_list": ["waste dumping"], "type": "cluster", "node_size": 18, "label": "waste dumping"}, "industrial facilities": {"concepts": "industrial facilities", "concept_list": ["industrial facilities"], "type": "cluster", "node_size": 18, "label": "industrial facilities"}, "shrimp industry": {"concepts": "shrimp industry", "concept_list": ["shrimp industry"], "type": "cluster", "node_size": 18, "label": "shrimp industry"}, "injection wells": {"concepts": "injection wells", "concept_list": ["injection wells"], "type": "cluster", "node_size": 18, "label": "injection wells"}, "environmental racism": {"concepts": "environmental racism", "concept_list": ["environmental racism"], "type": "cluster", "node_size": 18, "label": "environmental racism"}, "carbon sequestration": {"concepts": "carbon sequestration", "concept_list": ["carbon sequestration"], "type": "cluster", "node_size": 18, "label": "carbon sequestration"}, "offshore wind operation": {"concepts": "offshore wind operation", "concept_list": ["offshore wind operation"], "type": "cluster", "node_size": 18, "label": "offshore wind operation"}, "workforce": {"concepts": "workforce", "concept_list": ["workforce"], "type": "cluster", "node_size": 18, "label": "workforce"}, "policy guardrails": {"concepts": "policy guardrails", "concept_list": ["policy guardrails"], "type": "cluster", "node_size": 18, "label": "policy guardrails"}, "renewable energy": {"concepts": "renewable energy", "concept_list": ["renewable energy"], "type": "cluster", "node_size": 18, "label": "renewable energy"}, "utility regulators": {"concepts": "utility regulators", "concept_list": ["utility regulators"], "type": "cluster", "node_size": 18, "label": "utility regulators"}, "justifiable fears": {"concepts": "justifiable fears", "concept_list": ["justifiable fears"], "type": "cluster", "node_size": 18, "label": "justifiable fears"}, "testing ground": {"concepts": "testing ground", "concept_list": ["testing ground"], "type": "cluster", "node_size": 18, "label": "testing ground"}, "community opposition": {"concepts": "community opposition", "concept_list": ["community opposition"], "type": "cluster", "node_size": 18, "label": "community opposition"}, "consultation": {"concepts": "consultation", "concept_list": ["consultation"], "type": "cluster", "node_size": 18, "label": "consultation"}, "state tribes": {"concepts": "state tribes", "concept_list": ["state tribes"], "type": "cluster", "node_size": 18, "label": "state tribes"}, "fisherman displacement": {"concepts": "fisherman displacement", "concept_list": ["fisherman displacement"], "type": "cluster", "node_size": 18, "label": "fisherman displacement"}, "gulf of mexico": {"concepts": "gulf of mexico", "concept_list": ["gulf of mexico"], "type": "cluster", "node_size": 18, "label": "gulf of mexico"}, "green the industrial sector": {"concepts": "green the industrial sector", "concept_list": ["green the industrial sector"], "type": "cluster", "node_size": 18, "label": "green the industrial sector"}, "quality jobs": {"concepts": "quality jobs", "concept_list": ["quality jobs"], "type": "cluster", "node_size": 18, "label": "quality jobs"}, "job training": {"concepts": "job training", "concept_list": ["job training"], "type": "cluster", "node_size": 18, "label": "job training"}, "public benefits": {"concepts": "public benefits", "concept_list": ["public benefits"], "type": "cluster", "node_size": 18, "label": "public benefits"}, "fish species": {"concepts": "fish species", "concept_list": ["fish species"], "type": "cluster", "node_size": 18, "label": "fish species"}, "physical infrastructure": {"concepts": "physical infrastructure", "concept_list": ["physical infrastructure"], "type": "cluster", "node_size": 18, "label": "physical infrastructure"}, "livelihood": {"concepts": "livelihood", "concept_list": ["livelihood"], "type": "cluster", "node_size": 18, "label": "livelihood"}, "governance process": {"concepts": "governance process", "concept_list": ["governance process"], "type": "cluster", "node_size": 18, "label": "governance process"}, "wetland loss": {"concepts": "wetland loss", "concept_list": ["wetland loss"], "type": "cluster", "node_size": 18, "label": "wetland loss"}, "leakage": {"concepts": "leakage", "concept_list": ["leakage"], "type": "cluster", "node_size": 18, "label": "leakage"}, "industrial decarbonization": {"concepts": "industrial decarbonization", "concept_list": ["industrial decarbonization"], "type": "cluster", "node_size": 18, "label": "industrial decarbonization"}, "natural ecosystem": {"concepts": "natural ecosystem", "concept_list": ["natural ecosystem"], "type": "cluster", "node_size": 18, "label": "natural ecosystem"}, "fishing restrictions": {"concepts": "fishing restrictions", "concept_list": ["fishing restrictions"], "type": "cluster", "node_size": 18, "label": "fishing restrictions"}, "offshore wind construction": {"concepts": "offshore wind construction", "concept_list": ["offshore wind construction"], "type": "cluster", "node_size": 18, "label": "offshore wind construction"}, "way of life": {"concepts": "way of life", "concept_list": ["way of life"], "type": "cluster", "node_size": 18, "label": "way of life"}, "manufacturing infrastructure": {"concepts": "manufacturing infrastructure", "concept_list": ["manufacturing infrastructure"], "type": "cluster", "node_size": 18, "label": "manufacturing infrastructure"}, "human health": {"concepts": "human health", "concept_list": ["human health"], "type": "cluster", "node_size": 18, "label": "human health"}, "power dynamics": {"concepts": "power dynamics", "concept_list": ["power dynamics"], "type": "cluster", "node_size": 18, "label": "power dynamics"}, "boat traffic": {"concepts": "boat traffic", "concept_list": ["boat traffic"], "type": "cluster", "node_size": 18, "label": "boat traffic"}, "public trust": {"concepts": "public trust", "concept_list": ["public trust"], "type": "cluster", "node_size": 18, "label": "public trust"}, "power purchasing": {"concepts": "power purchasing", "concept_list": ["power purchasing"], "type": "cluster", "node_size": 18, "label": "power purchasing"}, "cost distribution": {"concepts": "cost distribution", "concept_list": ["cost distribution"], "type": "cluster", "node_size": 18, "label": "cost distribution"}, "ecosystem services": {"concepts": "ecosystem services", "concept_list": ["ecosystem services"], "type": "cluster", "node_size": 18, "label": "ecosystem services"}, "public enterprises": {"concepts": "public enterprises", "concept_list": ["public enterprises"], "type": "cluster", "node_size": 18, "label": "public enterprises"}, "oil and gas": {"concepts": "oil and gas", "concept_list": ["oil and gas"], "type": "cluster", "node_size": 18, "label": "oil and gas"}, "ecosystems": {"concepts": "ecosystems", "concept_list": ["ecosystems"], "type": "cluster", "node_size": 18, "label": "ecosystems"}, "climate action": {"concepts": "climate action", "concept_list": ["climate action"], "type": "cluster", "node_size": 18, "label": "climate action"}, "cost benefit": {"concepts": "cost benefit", "concept_list": ["cost benefit"], "type": "cluster", "node_size": 18, "label": "cost benefit"}, "career path": {"concepts": "career path", "concept_list": ["career path"], "type": "cluster", "node_size": 18, "label": "career path"}, "epa": {"concepts": "epa", "concept_list": ["epa"], "type": "cluster", "node_size": 18, "label": "epa"}, "utility rates": {"concepts": "utility rates", "concept_list": ["utility rates"], "type": "cluster", "node_size": 18, "label": "utility rates"}, "stakeholder groups": {"concepts": "stakeholder groups", "concept_list": ["stakeholder groups"], "type": "cluster", "node_size": 18, "label": "stakeholder groups"}, "wind construction": {"concepts": "wind construction", "concept_list": ["wind construction"], "type": "cluster", "node_size": 18, "label": "wind construction"}, "frontline communities": {"concepts": "frontline communities", "concept_list": ["frontline communities"], "type": "cluster", "node_size": 18, "label": "frontline communities"}, "recipient of harm": {"concepts": "recipient of harm", "concept_list": ["recipient of harm"], "type": "cluster", "node_size": 18, "label": "recipient of harm"}, "offshore oil": {"concepts": "offshore oil", "concept_list": ["offshore oil"], "type": "cluster", "node_size": 18, "label": "offshore oil"}, "energy demand": {"concepts": "energy demand", "concept_list": ["energy demand"], "type": "cluster", "node_size": 18, "label": "energy demand"}, "turbines": {"concepts": "turbines", "concept_list": ["turbines"], "type": "cluster", "node_size": 18, "label": "turbines"}, "wetlands impacts": {"concepts": "wetlands impacts", "concept_list": ["wetlands impacts"], "type": "cluster", "node_size": 18, "label": "wetlands impacts"}, "oil wells": {"concepts": "oil wells", "concept_list": ["oil wells"], "type": "cluster", "node_size": 18, "label": "oil wells"}, "capital flow": {"concepts": "capital flow", "concept_list": ["capital flow"], "type": "cluster", "node_size": 18, "label": "capital flow"}, "energy burden": {"concepts": "energy burden", "concept_list": ["energy burden"], "type": "cluster", "node_size": 18, "label": "energy burden"}, "public sector": {"concepts": "public sector", "concept_list": ["public sector"], "type": "cluster", "node_size": 18, "label": "public sector"}, "community buy-in": {"concepts": "community buy-in", "concept_list": ["community buy-in"], "type": "cluster", "node_size": 18, "label": "community buy-in"}, "water quality": {"concepts": "water quality", "concept_list": ["water quality"], "type": "cluster", "node_size": 18, "label": "water quality"}, "coherent policy": {"concepts": "coherent policy", "concept_list": ["coherent policy"], "type": "cluster", "node_size": 18, "label": "coherent policy"}, "community benefit": {"concepts": "community benefit", "concept_list": ["community benefit"], "type": "cluster", "node_size": 18, "label": "community benefit"}, "energy markets": {"concepts": "energy markets", "concept_list": ["energy markets"], "type": "cluster", "node_size": 18, "label": "energy markets"}, "new businesses": {"concepts": "new businesses", "concept_list": ["new businesses"], "type": "cluster", "node_size": 18, "label": "new businesses"}, "increased jobs": {"concepts": "increased jobs", "concept_list": ["increased jobs"], "type": "cluster", "node_size": 18, "label": "increased jobs"}, "hydrogen industry": {"concepts": "hydrogen industry", "concept_list": ["hydrogen industry"], "type": "cluster", "node_size": 18, "label": "hydrogen industry"}, "offshore wind": {"concepts": "offshore wind", "concept_list": ["offshore wind"], "type": "cluster", "node_size": 18, "label": "offshore wind"}, "labor agreements": {"concepts": "labor agreements", "concept_list": ["labor agreements"], "type": "cluster", "node_size": 18, "label": "labor agreements"}, "environmental justice": {"concepts": "environmental justice", "concept_list": ["environmental justice"], "type": "cluster", "node_size": 18, "label": "environmental justice"}, "project financing": {"concepts": "project financing", "concept_list": ["project financing"], "type": "cluster", "node_size": 18, "label": "project financing"}, "green sector": {"concepts": "green sector", "concept_list": ["green sector"], "type": "cluster", "node_size": 18, "label": "green sector"}, "national standards": {"concepts": "national standards", "concept_list": ["national standards"], "type": "cluster", "node_size": 18, "label": "national standards"}, "interagency planning": {"concepts": "interagency planning", "concept_list": ["interagency planning"], "type": "cluster", "node_size": 18, "label": "interagency planning"}, "state recognized tribes": {"concepts": "state recognized tribes", "concept_list": ["state recognized tribes"], "type": "cluster", "node_size": 18, "label": "state recognized tribes"}, "federal recognized tribes": {"concepts": "federal recognized tribes", "concept_list": ["federal recognized tribes"], "type": "cluster", "node_size": 18, "label": "federal recognized tribes"}, "permitting process": {"concepts": "permitting process", "concept_list": ["permitting process"], "type": "cluster", "node_size": 18, "label": "permitting process"}, "economic impacts": {"concepts": "economic impacts", "concept_list": ["economic impacts"], "type": "cluster", "node_size": 18, "label": "economic impacts"}, "water bottoms": {"concepts": "water bottoms", "concept_list": ["water bottoms"], "type": "cluster", "node_size": 18, "label": "water bottoms"}, "indigenous sovereignty": {"concepts": "indigenous sovereignty", "concept_list": ["indigenous sovereignty"], "type": "cluster", "node_size": 18, "label": "indigenous sovereignty"}, "new industries": {"concepts": "new industries", "concept_list": ["new industries"], "type": "cluster", "node_size": 18, "label": "new industries"}, "energy transition": {"concepts": "energy transition", "concept_list": ["energy transition"], "type": "cluster", "node_size": 18, "label": "energy transition"}};
+        const conceptData = {};
+        const interClusterEdges = [["mineral processing", "utility rates", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["wealth sharing", "policy guardrails", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["wealth sharing", "ecosystem services", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["tribal consultation", "offshore wind construction", {"weight": 1.0, "confidence": 0.5833333333333334, "type": "inter_cluster", "style": "solid"}], ["bird strikes", "fisherman displacement", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["infrastructure cleanup", "quality jobs", {"weight": 1.0, "confidence": 0.5666666666666668, "type": "inter_cluster", "style": "solid"}], ["infrastructure cleanup", "turbines", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["cancer alley", "economic impacts", {"weight": -1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["ammonia industry", "toxic infrastructure", {"weight": 1.0, "confidence": 0.32499999999999996, "type": "inter_cluster", "style": "solid"}], ["ammonia industry", "utility rates", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["energy policy", "labor agreements", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["energy policy", "environmental justice", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["natural resources", "indigenous sovereignty", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["toxic materials", "fish species", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["toxic materials", "industrial facilities", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["class permits", "leakage", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["market-based approach", "frontline communities", {"weight": -1.0, "confidence": 0.575, "type": "inter_cluster", "style": "solid"}], ["toxic infrastructure", "offshore wind", {"weight": 1.0, "confidence": 0.2, "type": "inter_cluster", "style": "solid"}], ["wind development", "injection wells", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["fisheries", "cost benefit", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["carbon capture", "interagency planning", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["industrial facilities", "wind development", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["industrial facilities", "waste dumping", {"weight": 1.0, "confidence": 0.45, "type": "inter_cluster", "style": "solid"}], ["shrimp industry", "economic impacts", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["shrimp industry", "wind construction", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["policy guardrails", "human health", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["policy guardrails", "ecosystems", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["renewable energy", "community buy-in", {"weight": 1.0, "confidence": 0.525, "type": "inter_cluster", "style": "solid"}], ["renewable energy", "industrial facilities", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["renewable energy", "gulf of mexico", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["utility regulators", "community buy-in", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["consultation", "federal recognized tribes", {"weight": 1.0, "confidence": 0.5666666666666667, "type": "inter_cluster", "style": "solid"}], ["consultation", "indigenous tribes", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["consultation", "class permits", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["state tribes", "community buy-in", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["green the industrial sector", "injection wells", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["green the industrial sector", "carbon capture", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["green the industrial sector", "pipelines", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["quality jobs", "cost distribution", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["public benefits", "state tribes", {"weight": 0.6666666666666666, "confidence": 0.19999999999999998, "type": "inter_cluster", "style": "solid"}], ["fish species", "interagency planning", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["physical infrastructure", "wind construction", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["livelihood", "stakeholder groups", {"weight": 0.6666666666666666, "confidence": 0.26666666666666666, "type": "inter_cluster", "style": "solid"}], ["livelihood", "oil and gas", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["livelihood", "population inflow", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["governance process", "renewable energy", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["wetland loss", "community opposition", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["leakage", "national standards", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["industrial decarbonization", "fisheries", {"weight": 0.3333333333333333, "confidence": 0.09999999999999999, "type": "inter_cluster", "style": "solid"}], ["natural ecosystem", "oil wells", {"weight": -1.0, "confidence": 0.45, "type": "inter_cluster", "style": "solid"}], ["natural ecosystem", "policy guardrails", {"weight": 1.0, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["way of life", "wind construction", {"weight": -1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["manufacturing infrastructure", "livelihood", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["power dynamics", "policy guardrails", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["boat traffic", "human health", {"weight": -1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["public trust", "infrastructure cleanup", {"weight": 1.0, "confidence": 0.5333333333333333, "type": "inter_cluster", "style": "solid"}], ["public trust", "permitting process", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["power purchasing", "increased jobs", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["power purchasing", "energy transition", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["power purchasing", "permitting process", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["public enterprises", "public trust", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["climate action", "public enterprises", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["career path", "way of life", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["epa", "governance process", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["epa", "carbon sequestration", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["epa", "power dynamics", {"weight": 0.5, "confidence": 0.2, "type": "inter_cluster", "style": "solid"}], ["utility rates", "waste dumping", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["stakeholder groups", "ecosystems", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["wind construction", "community opposition", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["wind construction", "class permits", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["wind construction", "stakeholder groups", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["wind construction", "industrial decarbonization", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["frontline communities", "power purchasing", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["recipient of harm", "ecosystem services", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["offshore oil", "offshore wind operation", {"weight": -1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["energy demand", "new businesses", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["turbines", "physical infrastructure", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["turbines", "quality jobs", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["wetlands impacts", "fishing restrictions", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["oil wells", "wetlands impacts", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["capital flow", "project financing", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["energy burden", "policy guardrails", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["public sector", "environmental justice", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["community buy-in", "climate action", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["community buy-in", "job training", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["water quality", "wind construction", {"weight": -1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["community benefit", "workforce", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["community benefit", "public sector", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["community benefit", "mineral processing", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["energy markets", "increased jobs", {"weight": -0.5, "confidence": 0.15, "type": "inter_cluster", "style": "solid"}], ["new businesses", "shrimp industry", {"weight": -1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["hydrogen industry", "climate action", {"weight": 1.0, "confidence": 0.43333333333333335, "type": "inter_cluster", "style": "solid"}], ["offshore wind", "project financing", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["offshore wind", "ecosystem services", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["labor agreements", "pipelines", {"weight": -1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["project financing", "industrial decarbonization", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["project financing", "environmental racism", {"weight": -1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["project financing", "gulf of mexico", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["green sector", "oil wells", {"weight": -1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["national standards", "justifiable fears", {"weight": -1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["interagency planning", "testing ground", {"weight": -1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["federal recognized tribes", "power dynamics", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["federal recognized tribes", "human health", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["permitting process", "carbon sequestration", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["permitting process", "water bottoms", {"weight": 1.0, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["indigenous sovereignty", "state recognized tribes", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["indigenous sovereignty", "community buy-in", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["indigenous sovereignty", "coherent policy", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["new industries", "livelihood", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"shrimp losses": {"concepts": "shrimp losses", "concept_list": ["shrimp losses"], "type": "cluster", "node_size": 18, "label": "shrimp losses"}, "shrimp industry creation": {"concepts": "shrimp industry creation", "concept_list": ["shrimp industry creation"], "type": "cluster", "node_size": 18, "label": "shrimp industry creation"}, "safe havens": {"concepts": "safe havens", "concept_list": ["safe havens"], "type": "cluster", "node_size": 18, "label": "safe havens"}, "transmission": {"concepts": "transmission", "concept_list": ["transmission"], "type": "cluster", "node_size": 18, "label": "transmission"}, "shrimp industry": {"concepts": "shrimp industry", "concept_list": ["shrimp industry"], "type": "cluster", "node_size": 18, "label": "shrimp industry"}, "shrimp management": {"concepts": "shrimp management", "concept_list": ["shrimp management"], "type": "cluster", "node_size": 18, "label": "shrimp management"}, "wind power": {"concepts": "wind power", "concept_list": ["wind power"], "type": "cluster", "node_size": 18, "label": "wind power"}, "us market": {"concepts": "us market", "concept_list": ["us market"], "type": "cluster", "node_size": 18, "label": "us market"}, "shrimp compensation mechanisms": {"concepts": "shrimp compensation mechanisms", "concept_list": ["shrimp compensation mechanisms"], "type": "cluster", "node_size": 18, "label": "shrimp compensation mechanisms"}, "exclusion zones": {"concepts": "exclusion zones", "concept_list": ["exclusion zones"], "type": "cluster", "node_size": 18, "label": "exclusion zones"}, "fuel consumption": {"concepts": "fuel consumption", "concept_list": ["fuel consumption"], "type": "cluster", "node_size": 18, "label": "fuel consumption"}, "fisherman": {"concepts": "fisherman", "concept_list": ["fisherman"], "type": "cluster", "node_size": 18, "label": "fisherman"}, "shrimp fisher": {"concepts": "shrimp fisher", "concept_list": ["shrimp fisher"], "type": "cluster", "node_size": 18, "label": "shrimp fisher"}, "productivity": {"concepts": "productivity", "concept_list": ["productivity"], "type": "cluster", "node_size": 18, "label": "productivity"}, "shrimp industry support": {"concepts": "shrimp industry support", "concept_list": ["shrimp industry support"], "type": "cluster", "node_size": 18, "label": "shrimp industry support"}, "shrimp long-term effects": {"concepts": "shrimp long-term effects", "concept_list": ["shrimp long-term effects"], "type": "cluster", "node_size": 18, "label": "shrimp long-term effects"}, "technology advances": {"concepts": "technology advances", "concept_list": ["technology advances"], "type": "cluster", "node_size": 18, "label": "technology advances"}, "survival": {"concepts": "survival", "concept_list": ["survival"], "type": "cluster", "node_size": 18, "label": "survival"}, "transmission lines": {"concepts": "transmission lines", "concept_list": ["transmission lines"], "type": "cluster", "node_size": 18, "label": "transmission lines"}, "economic pressure": {"concepts": "economic pressure", "concept_list": ["economic pressure"], "type": "cluster", "node_size": 18, "label": "economic pressure"}, "management actions": {"concepts": "management actions", "concept_list": ["management actions"], "type": "cluster", "node_size": 18, "label": "management actions"}, "north sea": {"concepts": "north sea", "concept_list": ["north sea"], "type": "cluster", "node_size": 18, "label": "north sea"}, "organization": {"concepts": "organization", "concept_list": ["organization"], "type": "cluster", "node_size": 18, "label": "organization"}, "new industries": {"concepts": "new industries", "concept_list": ["new industries"], "type": "cluster", "node_size": 18, "label": "new industries"}, "compensation": {"concepts": "compensation", "concept_list": ["compensation"], "type": "cluster", "node_size": 18, "label": "compensation"}, "unit effort": {"concepts": "unit effort", "concept_list": ["unit effort"], "type": "cluster", "node_size": 18, "label": "unit effort"}, "physical structures": {"concepts": "physical structures", "concept_list": ["physical structures"], "type": "cluster", "node_size": 18, "label": "physical structures"}, "shrimp harvesters": {"concepts": "shrimp harvesters", "concept_list": ["shrimp harvesters"], "type": "cluster", "node_size": 18, "label": "shrimp harvesters"}, "external factors": {"concepts": "external factors", "concept_list": ["external factors"], "type": "cluster", "node_size": 18, "label": "external factors"}, "environmental intervention": {"concepts": "environmental intervention", "concept_list": ["environmental intervention"], "type": "cluster", "node_size": 18, "label": "environmental intervention"}, "profitability": {"concepts": "profitability", "concept_list": ["profitability"], "type": "cluster", "node_size": 18, "label": "profitability"}, "oil rigs": {"concepts": "oil rigs", "concept_list": ["oil rigs"], "type": "cluster", "node_size": 18, "label": "oil rigs"}, "management potential": {"concepts": "management potential", "concept_list": ["management potential"], "type": "cluster", "node_size": 18, "label": "management potential"}, "oil platforms": {"concepts": "oil platforms", "concept_list": ["oil platforms"], "type": "cluster", "node_size": 18, "label": "oil platforms"}, "interest groups": {"concepts": "interest groups", "concept_list": ["interest groups"], "type": "cluster", "node_size": 18, "label": "interest groups"}, "shrimp area": {"concepts": "shrimp area", "concept_list": ["shrimp area"], "type": "cluster", "node_size": 18, "label": "shrimp area"}, "production increase": {"concepts": "production increase", "concept_list": ["production increase"], "type": "cluster", "node_size": 18, "label": "production increase"}, "ecosystem impacts": {"concepts": "ecosystem impacts", "concept_list": ["ecosystem impacts"], "type": "cluster", "node_size": 18, "label": "ecosystem impacts"}, "industry support": {"concepts": "industry support", "concept_list": ["industry support"], "type": "cluster", "node_size": 18, "label": "industry support"}, "market competition": {"concepts": "market competition", "concept_list": ["market competition"], "type": "cluster", "node_size": 18, "label": "market competition"}, "scalar effects": {"concepts": "scalar effects", "concept_list": ["scalar effects"], "type": "cluster", "node_size": 18, "label": "scalar effects"}, "resource allocation": {"concepts": "resource allocation", "concept_list": ["resource allocation"], "type": "cluster", "node_size": 18, "label": "resource allocation"}, "fish aggregation": {"concepts": "fish aggregation", "concept_list": ["fish aggregation"], "type": "cluster", "node_size": 18, "label": "fish aggregation"}, "industry winners": {"concepts": "industry winners", "concept_list": ["industry winners"], "type": "cluster", "node_size": 18, "label": "industry winners"}, "shrimp resource management": {"concepts": "shrimp resource management", "concept_list": ["shrimp resource management"], "type": "cluster", "node_size": 18, "label": "shrimp resource management"}, "texas area": {"concepts": "texas area", "concept_list": ["texas area"], "type": "cluster", "node_size": 18, "label": "texas area"}, "world trade organization": {"concepts": "world trade organization", "concept_list": ["world trade organization"], "type": "cluster", "node_size": 18, "label": "world trade organization"}, "empirical analysis": {"concepts": "empirical analysis", "concept_list": ["empirical analysis"], "type": "cluster", "node_size": 18, "label": "empirical analysis"}, "government intervention": {"concepts": "government intervention", "concept_list": ["government intervention"], "type": "cluster", "node_size": 18, "label": "government intervention"}, "positive effects": {"concepts": "positive effects", "concept_list": ["positive effects"], "type": "cluster", "node_size": 18, "label": "positive effects"}, "communities": {"concepts": "communities", "concept_list": ["communities"], "type": "cluster", "node_size": 18, "label": "communities"}, "shrimp unit effort": {"concepts": "shrimp unit effort", "concept_list": ["shrimp unit effort"], "type": "cluster", "node_size": 18, "label": "shrimp unit effort"}, "short-term effects": {"concepts": "short-term effects", "concept_list": ["short-term effects"], "type": "cluster", "node_size": 18, "label": "short-term effects"}, "fish population": {"concepts": "fish population", "concept_list": ["fish population"], "type": "cluster", "node_size": 18, "label": "fish population"}, "tariffs": {"concepts": "tariffs", "concept_list": ["tariffs"], "type": "cluster", "node_size": 18, "label": "tariffs"}, "transmission process": {"concepts": "transmission process", "concept_list": ["transmission process"], "type": "cluster", "node_size": 18, "label": "transmission process"}, "magnetic fields": {"concepts": "magnetic fields", "concept_list": ["magnetic fields"], "type": "cluster", "node_size": 18, "label": "magnetic fields"}, "shrimp dumping": {"concepts": "shrimp dumping", "concept_list": ["shrimp dumping"], "type": "cluster", "node_size": 18, "label": "shrimp dumping"}, "development period": {"concepts": "development period", "concept_list": ["development period"], "type": "cluster", "node_size": 18, "label": "development period"}, "shrimp imports": {"concepts": "shrimp imports", "concept_list": ["shrimp imports"], "type": "cluster", "node_size": 18, "label": "shrimp imports"}, "problem sources": {"concepts": "problem sources", "concept_list": ["problem sources"], "type": "cluster", "node_size": 18, "label": "problem sources"}, "industry adaptation": {"concepts": "industry adaptation", "concept_list": ["industry adaptation"], "type": "cluster", "node_size": 18, "label": "industry adaptation"}, "insurance costs": {"concepts": "insurance costs", "concept_list": ["insurance costs"], "type": "cluster", "node_size": 18, "label": "insurance costs"}, "marine resources": {"concepts": "marine resources", "concept_list": ["marine resources"], "type": "cluster", "node_size": 18, "label": "marine resources"}, "shrimp magnetic impact": {"concepts": "shrimp magnetic impact", "concept_list": ["shrimp magnetic impact"], "type": "cluster", "node_size": 18, "label": "shrimp magnetic impact"}, "import duties": {"concepts": "import duties", "concept_list": ["import duties"], "type": "cluster", "node_size": 18, "label": "import duties"}, "wind farms": {"concepts": "wind farms", "concept_list": ["wind farms"], "type": "cluster", "node_size": 18, "label": "wind farms"}, "shrimp profitability": {"concepts": "shrimp profitability", "concept_list": ["shrimp profitability"], "type": "cluster", "node_size": 18, "label": "shrimp profitability"}, "long-term operation": {"concepts": "long-term operation", "concept_list": ["long-term operation"], "type": "cluster", "node_size": 18, "label": "long-term operation"}, "safety concerns": {"concepts": "safety concerns", "concept_list": ["safety concerns"], "type": "cluster", "node_size": 18, "label": "safety concerns"}, "shrimp regulatory measures": {"concepts": "shrimp regulatory measures", "concept_list": ["shrimp regulatory measures"], "type": "cluster", "node_size": 18, "label": "shrimp regulatory measures"}, "shrimp government support": {"concepts": "shrimp government support", "concept_list": ["shrimp government support"], "type": "cluster", "node_size": 18, "label": "shrimp government support"}, "dumping duties": {"concepts": "dumping duties", "concept_list": ["dumping duties"], "type": "cluster", "node_size": 18, "label": "dumping duties"}, "wind turbines": {"concepts": "wind turbines", "concept_list": ["wind turbines"], "type": "cluster", "node_size": 18, "label": "wind turbines"}, "fishermen": {"concepts": "fishermen", "concept_list": ["fishermen"], "type": "cluster", "node_size": 18, "label": "fishermen"}, "government support": {"concepts": "government support", "concept_list": ["government support"], "type": "cluster", "node_size": 18, "label": "government support"}, "marine traffic": {"concepts": "marine traffic", "concept_list": ["marine traffic"], "type": "cluster", "node_size": 18, "label": "marine traffic"}, "shrimp management potential": {"concepts": "shrimp management potential", "concept_list": ["shrimp management potential"], "type": "cluster", "node_size": 18, "label": "shrimp management potential"}, "vessels": {"concepts": "vessels", "concept_list": ["vessels"], "type": "cluster", "node_size": 18, "label": "vessels"}, "european countries": {"concepts": "european countries", "concept_list": ["european countries"], "type": "cluster", "node_size": 18, "label": "european countries"}, "fishing activities": {"concepts": "fishing activities", "concept_list": ["fishing activities"], "type": "cluster", "node_size": 18, "label": "fishing activities"}, "fish species": {"concepts": "fish species", "concept_list": ["fish species"], "type": "cluster", "node_size": 18, "label": "fish species"}, "strategic resource policy": {"concepts": "strategic resource policy", "concept_list": ["strategic resource policy"], "type": "cluster", "node_size": 18, "label": "strategic resource policy"}, "geography": {"concepts": "geography", "concept_list": ["geography"], "type": "cluster", "node_size": 18, "label": "geography"}, "scale": {"concepts": "scale", "concept_list": ["scale"], "type": "cluster", "node_size": 18, "label": "scale"}, "shrimp external factors": {"concepts": "shrimp external factors", "concept_list": ["shrimp external factors"], "type": "cluster", "node_size": 18, "label": "shrimp external factors"}, "regulations": {"concepts": "regulations", "concept_list": ["regulations"], "type": "cluster", "node_size": 18, "label": "regulations"}, "winners": {"concepts": "winners", "concept_list": ["winners"], "type": "cluster", "node_size": 18, "label": "winners"}, "environmental effects": {"concepts": "environmental effects", "concept_list": ["environmental effects"], "type": "cluster", "node_size": 18, "label": "environmental effects"}, "financial situation": {"concepts": "financial situation", "concept_list": ["financial situation"], "type": "cluster", "node_size": 18, "label": "financial situation"}, "shrimp environmental effects": {"concepts": "shrimp environmental effects", "concept_list": ["shrimp environmental effects"], "type": "cluster", "node_size": 18, "label": "shrimp environmental effects"}, "uncertainties": {"concepts": "uncertainties", "concept_list": ["uncertainties"], "type": "cluster", "node_size": 18, "label": "uncertainties"}, "negative effects": {"concepts": "negative effects", "concept_list": ["negative effects"], "type": "cluster", "node_size": 18, "label": "negative effects"}, "cheap imports": {"concepts": "cheap imports", "concept_list": ["cheap imports"], "type": "cluster", "node_size": 18, "label": "cheap imports"}, "shrimp fishermen": {"concepts": "shrimp fishermen", "concept_list": ["shrimp fishermen"], "type": "cluster", "node_size": 18, "label": "shrimp fishermen"}, "ecosystem services": {"concepts": "ecosystem services", "concept_list": ["ecosystem services"], "type": "cluster", "node_size": 18, "label": "ecosystem services"}, "energy sources": {"concepts": "energy sources", "concept_list": ["energy sources"], "type": "cluster", "node_size": 18, "label": "energy sources"}, "negative consequences": {"concepts": "negative consequences", "concept_list": ["negative consequences"], "type": "cluster", "node_size": 18, "label": "negative consequences"}, "stakeholder input": {"concepts": "stakeholder input", "concept_list": ["stakeholder input"], "type": "cluster", "node_size": 18, "label": "stakeholder input"}, "fish stocks": {"concepts": "fish stocks", "concept_list": ["fish stocks"], "type": "cluster", "node_size": 18, "label": "fish stocks"}, "shrimp catch": {"concepts": "shrimp catch", "concept_list": ["shrimp catch"], "type": "cluster", "node_size": 18, "label": "shrimp catch"}, "compensation mechanisms": {"concepts": "compensation mechanisms", "concept_list": ["compensation mechanisms"], "type": "cluster", "node_size": 18, "label": "compensation mechanisms"}, "financial assistance": {"concepts": "financial assistance", "concept_list": ["financial assistance"], "type": "cluster", "node_size": 18, "label": "financial assistance"}, "cost of energy": {"concepts": "cost of energy", "concept_list": ["cost of energy"], "type": "cluster", "node_size": 18, "label": "cost of energy"}, "commercial fisherman": {"concepts": "commercial fisherman", "concept_list": ["commercial fisherman"], "type": "cluster", "node_size": 18, "label": "commercial fisherman"}, "construction phase": {"concepts": "construction phase", "concept_list": ["construction phase"], "type": "cluster", "node_size": 18, "label": "construction phase"}, "shrimp aquaculture": {"concepts": "shrimp aquaculture", "concept_list": ["shrimp aquaculture"], "type": "cluster", "node_size": 18, "label": "shrimp aquaculture"}, "economies of scale": {"concepts": "economies of scale", "concept_list": ["economies of scale"], "type": "cluster", "node_size": 18, "label": "economies of scale"}, "noise": {"concepts": "noise", "concept_list": ["noise"], "type": "cluster", "node_size": 18, "label": "noise"}, "trade policy": {"concepts": "trade policy", "concept_list": ["trade policy"], "type": "cluster", "node_size": 18, "label": "trade policy"}, "shrimp economic pressure": {"concepts": "shrimp economic pressure", "concept_list": ["shrimp economic pressure"], "type": "cluster", "node_size": 18, "label": "shrimp economic pressure"}, "imports": {"concepts": "imports", "concept_list": ["imports"], "type": "cluster", "node_size": 18, "label": "imports"}, "trade barriers": {"concepts": "trade barriers", "concept_list": ["trade barriers"], "type": "cluster", "node_size": 18, "label": "trade barriers"}, "commercial fishing": {"concepts": "commercial fishing", "concept_list": ["commercial fishing"], "type": "cluster", "node_size": 18, "label": "commercial fishing"}, "installation": {"concepts": "installation", "concept_list": ["installation"], "type": "cluster", "node_size": 18, "label": "installation"}, "spawning rates": {"concepts": "spawning rates", "concept_list": ["spawning rates"], "type": "cluster", "node_size": 18, "label": "spawning rates"}, "income": {"concepts": "income", "concept_list": ["income"], "type": "cluster", "node_size": 18, "label": "income"}, "shrimp compensation": {"concepts": "shrimp compensation", "concept_list": ["shrimp compensation"], "type": "cluster", "node_size": 18, "label": "shrimp compensation"}, "ship traffic": {"concepts": "ship traffic", "concept_list": ["ship traffic"], "type": "cluster", "node_size": 18, "label": "ship traffic"}, "energy industry": {"concepts": "energy industry", "concept_list": ["energy industry"], "type": "cluster", "node_size": 18, "label": "energy industry"}, "regulatory measures": {"concepts": "regulatory measures", "concept_list": ["regulatory measures"], "type": "cluster", "node_size": 18, "label": "regulatory measures"}, "texas": {"concepts": "texas", "concept_list": ["texas"], "type": "cluster", "node_size": 18, "label": "texas"}, "shrimp industry pressure": {"concepts": "shrimp industry pressure", "concept_list": ["shrimp industry pressure"], "type": "cluster", "node_size": 18, "label": "shrimp industry pressure"}, "market signals": {"concepts": "market signals", "concept_list": ["market signals"], "type": "cluster", "node_size": 18, "label": "market signals"}, "shrimp productivity": {"concepts": "shrimp productivity", "concept_list": ["shrimp productivity"], "type": "cluster", "node_size": 18, "label": "shrimp productivity"}, "sound": {"concepts": "sound", "concept_list": ["sound"], "type": "cluster", "node_size": 18, "label": "sound"}, "shrimp production process": {"concepts": "shrimp production process", "concept_list": ["shrimp production process"], "type": "cluster", "node_size": 18, "label": "shrimp production process"}, "shrimp industry losers": {"concepts": "shrimp industry losers", "concept_list": ["shrimp industry losers"], "type": "cluster", "node_size": 18, "label": "shrimp industry losers"}, "industry evolution": {"concepts": "industry evolution", "concept_list": ["industry evolution"], "type": "cluster", "node_size": 18, "label": "industry evolution"}, "fishing exclusion": {"concepts": "fishing exclusion", "concept_list": ["fishing exclusion"], "type": "cluster", "node_size": 18, "label": "fishing exclusion"}, "catch per unit effort": {"concepts": "catch per unit effort", "concept_list": ["catch per unit effort"], "type": "cluster", "node_size": 18, "label": "catch per unit effort"}, "long-term effects": {"concepts": "long-term effects", "concept_list": ["long-term effects"], "type": "cluster", "node_size": 18, "label": "long-term effects"}, "shrimp production": {"concepts": "shrimp production", "concept_list": ["shrimp production"], "type": "cluster", "node_size": 18, "label": "shrimp production"}, "shrimp market": {"concepts": "shrimp market", "concept_list": ["shrimp market"], "type": "cluster", "node_size": 18, "label": "shrimp market"}, "shrimp short-term effects": {"concepts": "shrimp short-term effects", "concept_list": ["shrimp short-term effects"], "type": "cluster", "node_size": 18, "label": "shrimp short-term effects"}, "shrimp resource allocation": {"concepts": "shrimp resource allocation", "concept_list": ["shrimp resource allocation"], "type": "cluster", "node_size": 18, "label": "shrimp resource allocation"}, "development area": {"concepts": "development area", "concept_list": ["development area"], "type": "cluster", "node_size": 18, "label": "development area"}, "wto": {"concepts": "wto", "concept_list": ["wto"], "type": "cluster", "node_size": 18, "label": "wto"}, "capitalism": {"concepts": "capitalism", "concept_list": ["capitalism"], "type": "cluster", "node_size": 18, "label": "capitalism"}, "aquaculture production": {"concepts": "aquaculture production", "concept_list": ["aquaculture production"], "type": "cluster", "node_size": 18, "label": "aquaculture production"}, "support": {"concepts": "support", "concept_list": ["support"], "type": "cluster", "node_size": 18, "label": "support"}, "recreational fishing": {"concepts": "recreational fishing", "concept_list": ["recreational fishing"], "type": "cluster", "node_size": 18, "label": "recreational fishing"}, "density": {"concepts": "density", "concept_list": ["density"], "type": "cluster", "node_size": 18, "label": "density"}, "shrimp industry adaptation": {"concepts": "shrimp industry adaptation", "concept_list": ["shrimp industry adaptation"], "type": "cluster", "node_size": 18, "label": "shrimp industry adaptation"}, "fishing prohibition": {"concepts": "fishing prohibition", "concept_list": ["fishing prohibition"], "type": "cluster", "node_size": 18, "label": "fishing prohibition"}, "noise pollution": {"concepts": "noise pollution", "concept_list": ["noise pollution"], "type": "cluster", "node_size": 18, "label": "noise pollution"}, "aggregation sites": {"concepts": "aggregation sites", "concept_list": ["aggregation sites"], "type": "cluster", "node_size": 18, "label": "aggregation sites"}, "operation phase": {"concepts": "operation phase", "concept_list": ["operation phase"], "type": "cluster", "node_size": 18, "label": "operation phase"}, "communication": {"concepts": "communication", "concept_list": ["communication"], "type": "cluster", "node_size": 18, "label": "communication"}, "industry losers": {"concepts": "industry losers", "concept_list": ["industry losers"], "type": "cluster", "node_size": 18, "label": "industry losers"}, "property values": {"concepts": "property values", "concept_list": ["property values"], "type": "cluster", "node_size": 18, "label": "property values"}, "organizational change": {"concepts": "organizational change", "concept_list": ["organizational change"], "type": "cluster", "node_size": 18, "label": "organizational change"}, "economic force": {"concepts": "economic force", "concept_list": ["economic force"], "type": "cluster", "node_size": 18, "label": "economic force"}, "rapid expansion": {"concepts": "rapid expansion", "concept_list": ["rapid expansion"], "type": "cluster", "node_size": 18, "label": "rapid expansion"}, "offshore wind": {"concepts": "offshore wind", "concept_list": ["offshore wind"], "type": "cluster", "node_size": 18, "label": "offshore wind"}, "species": {"concepts": "species", "concept_list": ["species"], "type": "cluster", "node_size": 18, "label": "species"}, "recreational fisherman": {"concepts": "recreational fisherman", "concept_list": ["recreational fisherman"], "type": "cluster", "node_size": 18, "label": "recreational fisherman"}};
+        const conceptData = {};
+        const interClusterEdges = [["shrimp losses", "shrimp resource management", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["shrimp losses", "market competition", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["shrimp losses", "commercial fishing", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["shrimp industry creation", "geography", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["safe havens", "spawning rates", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["transmission", "safe havens", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["shrimp management", "shrimp area", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["shrimp management", "catch per unit effort", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["wind power", "shrimp unit effort", {"weight": -1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["wind power", "survival", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["wind power", "us market", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["exclusion zones", "shrimp imports", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["fuel consumption", "uncertainties", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["fisherman", "shrimp environmental effects", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["productivity", "resource allocation", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["shrimp industry support", "interest groups", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["technology advances", "shrimp industry support", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["economic pressure", "shrimp industry creation", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["management actions", "wind farms", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["management actions", "cost of energy", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["north sea", "new industries", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["new industries", "shrimp short-term effects", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["unit effort", "texas", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["physical structures", "profitability", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["physical structures", "shrimp compensation mechanisms", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["shrimp harvesters", "shrimp long-term effects", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["external factors", "new industries", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["external factors", "trade policy", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["external factors", "shrimp economic pressure", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["environmental intervention", "wind farms", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["environmental intervention", "shrimp industry pressure", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["environmental intervention", "vessels", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["environmental intervention", "insurance costs", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["environmental intervention", "government intervention", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["oil rigs", "fishing activities", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["management potential", "shrimp industry adaptation", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["oil platforms", "fish population", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["oil platforms", "safety concerns", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["interest groups", "compensation", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["shrimp area", "species", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["production increase", "scale", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["production increase", "shrimp fishermen", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["ecosystem impacts", "shrimp industry", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["ecosystem impacts", "scalar effects", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["industry support", "market signals", {"weight": 1.0, "confidence": 0.575, "type": "inter_cluster", "style": "solid"}], ["industry support", "commercial fishing", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["industry support", "shrimp compensation", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["fish aggregation", "fish stocks", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["industry winners", "resource allocation", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["shrimp resource management", "shrimp environmental effects", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["world trade organization", "financial assistance", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["positive effects", "aquaculture production", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["communities", "support", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["fish population", "winners", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["tariffs", "shrimp profitability", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["transmission process", "offshore wind", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["shrimp dumping", "cheap imports", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["development period", "shrimp government support", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["shrimp imports", "support", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["shrimp imports", "shrimp resource allocation", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["industry adaptation", "industry support", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["industry adaptation", "regulations", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["industry adaptation", "energy industry", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["marine resources", "shrimp profitability", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["shrimp magnetic impact", "energy sources", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["shrimp magnetic impact", "compensation mechanisms", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["long-term operation", "industry adaptation", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["safety concerns", "offshore wind", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["shrimp regulatory measures", "catch per unit effort", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["shrimp government support", "management potential", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["dumping duties", "management potential", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["dumping duties", "shrimp industry losers", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["wind turbines", "shrimp compensation mechanisms", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["fishermen", "fishing activities", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["fishermen", "rapid expansion", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["government support", "technology advances", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["government support", "shrimp industry", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["government support", "shrimp management", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["government support", "compensation mechanisms", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["government support", "regulations", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["shrimp management potential", "shrimp imports", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["shrimp management potential", "positive effects", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["european countries", "empirical analysis", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["fishing activities", "financial assistance", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["fish species", "marine traffic", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["strategic resource policy", "organization", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["scale", "shrimp fisher", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["shrimp external factors", "shrimp imports", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["shrimp external factors", "shrimp fishermen", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["shrimp external factors", "import duties", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["shrimp external factors", "strategic resource policy", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["regulations", "regulatory measures", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["regulations", "shrimp market", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["winners", "shrimp compensation", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["environmental effects", "wind power", {"weight": -1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["environmental effects", "spawning rates", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["shrimp environmental effects", "tariffs", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["shrimp environmental effects", "shrimp catch", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["negative effects", "shrimp harvesters", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["negative effects", "resource allocation", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["cheap imports", "shrimp industry", {"weight": -1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["ecosystem services", "shrimp industry adaptation", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["stakeholder input", "dumping duties", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["stakeholder input", "development period", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["shrimp catch", "shrimp aquaculture", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["compensation mechanisms", "texas area", {"weight": 0.5, "confidence": 0.325, "type": "inter_cluster", "style": "solid"}], ["cost of energy", "wind power", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["commercial fisherman", "shrimp profitability", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["construction phase", "organization", {"weight": -0.5, "confidence": 0.25, "type": "inter_cluster", "style": "solid"}], ["economies of scale", "us market", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["economies of scale", "recreational fisherman", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["noise", "strategic resource policy", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["shrimp economic pressure", "support", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["shrimp economic pressure", "communities", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["shrimp economic pressure", "interest groups", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["imports", "shrimp harvesters", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["trade barriers", "shrimp compensation mechanisms", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["installation", "fishing exclusion", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["spawning rates", "survival", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["income", "management potential", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["ship traffic", "compensation mechanisms", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["energy industry", "development area", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["energy industry", "management potential", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["energy industry", "transmission lines", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["regulatory measures", "problem sources", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["shrimp industry pressure", "recreational fishing", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["shrimp industry pressure", "negative effects", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["shrimp productivity", "economic force", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["sound", "short-term effects", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["sound", "industry losers", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["shrimp production process", "industry support", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["industry evolution", "negative consequences", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["industry evolution", "shrimp management", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["industry evolution", "us market", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["catch per unit effort", "geography", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["long-term effects", "magnetic fields", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["shrimp production", "density", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["shrimp short-term effects", "species", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["shrimp resource allocation", "scalar effects", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["wto", "organizational change", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["capitalism", "industry losers", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["capitalism", "financial situation", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["aquaculture production", "catch per unit effort", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["density", "shrimp industry adaptation", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["fishing prohibition", "economic pressure", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["noise pollution", "survival", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["aggregation sites", "installation", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["operation phase", "transmission process", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["communication", "empirical analysis", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["industry losers", "problem sources", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["property values", "new industries", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["economic force", "trade policy", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["offshore wind", "economies of scale", {"weight": 1.0, "confidence": 0.875, "type": "inter_cluster", "style": "solid"}], ["offshore wind", "wind turbines", {"weight": 1.0, "confidence": 0.95, "type": "inter_cluster", "style": "solid"}], ["recreational fisherman", "shrimp unit effort", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

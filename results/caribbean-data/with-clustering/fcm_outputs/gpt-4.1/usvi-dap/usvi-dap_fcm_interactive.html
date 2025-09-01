@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"projects": {"concepts": "projects", "concept_list": ["projects"], "type": "cluster", "node_size": 18, "label": "projects"}, "leadership resignation": {"concepts": "leadership resignation", "concept_list": ["leadership resignation"], "type": "cluster", "node_size": 18, "label": "leadership resignation"}, "coral reef fish": {"concepts": "coral reef fish", "concept_list": ["coral reef fish"], "type": "cluster", "node_size": 18, "label": "coral reef fish"}, "roy crabtre": {"concepts": "roy crabtre, strife, wahoo, sargassum, mahogany run, bar jacket, waves", "concept_list": ["roy crabtre", "strife", "wahoo", "sargassum", "mahogany run", "bar jacket", "waves"], "type": "cluster", "node_size": 36, "label": "roy crabtre"}, "hearings": {"concepts": "hearings", "concept_list": ["hearings"], "type": "cluster", "node_size": 18, "label": "hearings"}, "Community Tensions": {"concepts": "gill nets, rapid catch, catch reports, mounds", "concept_list": ["gill nets", "rapid catch", "catch reports", "mounds"], "type": "cluster", "node_size": 27, "label": "Community Tensions"}, "Health Concerns": {"concepts": "tensions, public hearings", "concept_list": ["tensions", "public hearings"], "type": "cluster", "node_size": 21, "label": "Health Concerns"}, "Literacy Challenges": {"concepts": "medical: health, run-off", "concept_list": ["medical: health", "run-off"], "type": "cluster", "node_size": 21, "label": "Literacy Challenges"}, "Staff Team": {"concepts": "illiteracy, assistant director", "concept_list": ["illiteracy", "assistant director"], "type": "cluster", "node_size": 21, "label": "Staff Team"}, "Fisher Community Dynamics": {"concepts": "st. thomas fishermen's association, fishers' reputation, commercial fishers, fishers' contribution, fishers' resources, fishers' security, fishers' right, fishermen livelihoods, fishers' reflection, fishers' claim, fishers' heritage, fishers' expansion, fishers' entitlement, fishers' regulation, fishers' administration, fishers' challenge, fishers' launching, fishers' access, professional fishers, fishers' excellence, fishers' pocketbook, fishery disbandment, fishers' care, fishers' organization, fishers' issue, fishers' education, fishery plan, fishers' transformation, fishers' boost, fishery, fishers' compliance, fishers' integration, fishers' innovation, fishers' coordination, fishers' unity, fishers' status, fishers' resolution, fishers' upgrade, fishers' interview, fishers' contract, fishers' infrastructure, fishers' revision, fishers' advocacy, fishers' mission, fishers' danger, fishers' experimentation, fishers' forum, fishers' consultation, fishers' damage, fishers' export, fishers' recognition, fishers' enforcement, fishers' project, fishers' negotiation, registered fishermen, fishers' problem, fishermen, fishers' group, fishery regulations, fishers' market, fishers' platform, fishers' quality, fishers' production, fishers' behavior, fishers' livelihood, fishers' adjustment, fishers' participation, fishers' target, fishers' import, fishers' transaction, fishers' association, fishers' survey, fishers' involvement, fishers' observation, fishers' commitment, fishers' effort, fishers' sensitivity, fisheries, fishers' advice, fishers' value, fishers' governance, fishers' invention, fishers' impact, fishers' hardship, fishers' obligation, fishers' research, fishers' learning, fishers' review, fishers' community, fishers' communication, fishers' trade, fishers' representation, fishers' coaching, fishers' harm, fishers' effectiveness, fishers' protection, fishers' function, fishers' constraint, fishers' maintenance, fishers' satisfaction, fishers' demand, fishers' location, fishers' disservice, fishers' plan, fishers' success, fishers' scheme, fishers' equipment, fishery effort, fishers' dedication, fishers' income, fishers' performance, fishers' objective, fishers' conservation, fishers' transition, fishers' economy, fishers' monitoring, fishers' progress, fishers group, fishers' consumption, fishers' initiative, fishers' partnership, fishers' voice, fishers' growth, commercial fisheries, fishers' preference, fishers' productivity, fishers' statistics, fisherman, fishers' responsibility, fishers' supervision, fisheries manager, fishery managers, fishers' restoration, fishers' rules, fisheries dependence, fishers' reporting, fishers' rivalry, fishers' fall, fishers' study, fishers' identity, commercial fisherman, fishers' control, fishers' conference, fishers' change, fishers' advancement, fishery cooperation, fishers' strife, fishers' opportunity, fishers' deal, fishers' solidarity, fishers' creativity, fishers' opinion, fishers' drop, fishers' engagement, fishers' exclusion, fishers' sustainability, fishers' discovery, fishers' decrease, fishers' cooperation, fishers' guidance, fishers' alliance, fishers' program, fishery advisory council, fishers' improvement, fishers' practice, fishers' duty, fishers' knowledge, fishers' barrier, fishers' technology, fishers' recovery, fishers' adaptation, fishers' skills, fishers' vision, fishers' decline, fishers' vulnerability, fishers' competition, fishers' training, fishers' supply, fishers' motivation, fishery crash, fishers' seminar, fishers' distribution, fishers' policy, fishers' data, fishers' loss, fishers' surge, fishers' conflict, fishers' potential, fishers' preservation, fishers' exposure, fishers, fishers' arrangement, fishers' culture, fishers' trust, fishers' dispute, fishers' action, fishers' rehabilitation, fishers' threat, fishery sustainability, organizational: st. thomas fishermen's association, fishers' rise, fishers' relationship, fishers' meeting, fishers' agreement, fishers' limitation, fishers' analysis, fishery management, fishers' support, fishers' settlement, fishers' tradition, fishers' leadership, fishers' law, fishers' input, fishers' goal, fishers' escalation, fishery data, fishers' management, fishery decision making, fishers' decision, fishers' direction, line fisherman, fishers' reduction, fishers' achievement, fishers' concerns, fishers' peak, fishers' health, fishers' documentation, fishers' development, fishers' efficiency, fishers' choice, fishers' selling, fishers' exploration, fishers' aid, fishers' priority, fishers' update, fishers' mentoring, fisherman's association, fishers' safety, fishery voice, fishers' evaluation, fishers' assessment, fishers' service, fishers' inclusion, fishers' assistance, fishers' enhancement, fishers' feedback, fishers' restriction, fishers' help, fishery rules, fishers' network, fishers' investment, usvi fisheries, fishers' increase, recreational fishers, fishers' risk, fishers' interest, fishers' modification, fishers' interaction, fishers' strategy, fishers' experience, fishers' resilience, fishers' empowerment, fishers' role, fishers' well-being, fishers' benefit, fishers' capacity, fishers' exchange, fishers' standard, fishery advisory committee, fishers' workshop, fishers' collaboration", "concept_list": ["st. thomas fishermen's association", "fishers' reputation", "commercial fishers", "fishers' contribution", "fishers' resources", "fishers' security", "fishers' right", "fishermen livelihoods", "fishers' reflection", "fishers' claim", "fishers' heritage", "fishers' expansion", "fishers' entitlement", "fishers' regulation", "fishers' administration", "fishers' challenge", "fishers' launching", "fishers' access", "professional fishers", "fishers' excellence", "fishers' pocketbook", "fishery disbandment", "fishers' care", "fishers' organization", "fishers' issue", "fishers' education", "fishery plan", "fishers' transformation", "fishers' boost", "fishery", "fishers' compliance", "fishers' integration", "fishers' innovation", "fishers' coordination", "fishers' unity", "fishers' status", "fishers' resolution", "fishers' upgrade", "fishers' interview", "fishers' contract", "fishers' infrastructure", "fishers' revision", "fishers' advocacy", "fishers' mission", "fishers' danger", "fishers' experimentation", "fishers' forum", "fishers' consultation", "fishers' damage", "fishers' export", "fishers' recognition", "fishers' enforcement", "fishers' project", "fishers' negotiation", "registered fishermen", "fishers' problem", "fishermen", "fishers' group", "fishery regulations", "fishers' market", "fishers' platform", "fishers' quality", "fishers' production", "fishers' behavior", "fishers' livelihood", "fishers' adjustment", "fishers' participation", "fishers' target", "fishers' import", "fishers' transaction", "fishers' association", "fishers' survey", "fishers' involvement", "fishers' observation", "fishers' commitment", "fishers' effort", "fishers' sensitivity", "fisheries", "fishers' advice", "fishers' value", "fishers' governance", "fishers' invention", "fishers' impact", "fishers' hardship", "fishers' obligation", "fishers' research", "fishers' learning", "fishers' review", "fishers' community", "fishers' communication", "fishers' trade", "fishers' representation", "fishers' coaching", "fishers' harm", "fishers' effectiveness", "fishers' protection", "fishers' function", "fishers' constraint", "fishers' maintenance", "fishers' satisfaction", "fishers' demand", "fishers' location", "fishers' disservice", "fishers' plan", "fishers' success", "fishers' scheme", "fishers' equipment", "fishery effort", "fishers' dedication", "fishers' income", "fishers' performance", "fishers' objective", "fishers' conservation", "fishers' transition", "fishers' economy", "fishers' monitoring", "fishers' progress", "fishers group", "fishers' consumption", "fishers' initiative", "fishers' partnership", "fishers' voice", "fishers' growth", "commercial fisheries", "fishers' preference", "fishers' productivity", "fishers' statistics", "fisherman", "fishers' responsibility", "fishers' supervision", "fisheries manager", "fishery managers", "fishers' restoration", "fishers' rules", "fisheries dependence", "fishers' reporting", "fishers' rivalry", "fishers' fall", "fishers' study", "fishers' identity", "commercial fisherman", "fishers' control", "fishers' conference", "fishers' change", "fishers' advancement", "fishery cooperation", "fishers' strife", "fishers' opportunity", "fishers' deal", "fishers' solidarity", "fishers' creativity", "fishers' opinion", "fishers' drop", "fishers' engagement", "fishers' exclusion", "fishers' sustainability", "fishers' discovery", "fishers' decrease", "fishers' cooperation", "fishers' guidance", "fishers' alliance", "fishers' program", "fishery advisory council", "fishers' improvement", "fishers' practice", "fishers' duty", "fishers' knowledge", "fishers' barrier", "fishers' technology", "fishers' recovery", "fishers' adaptation", "fishers' skills", "fishers' vision", "fishers' decline", "fishers' vulnerability", "fishers' competition", "fishers' training", "fishers' supply", "fishers' motivation", "fishery crash", "fishers' seminar", "fishers' distribution", "fishers' policy", "fishers' data", "fishers' loss", "fishers' surge", "fishers' conflict", "fishers' potential", "fishers' preservation", "fishers' exposure", "fishers", "fishers' arrangement", "fishers' culture", "fishers' trust", "fishers' dispute", "fishers' action", "fishers' rehabilitation", "fishers' threat", "fishery sustainability", "organizational: st. thomas fishermen's association", "fishers' rise", "fishers' relationship", "fishers' meeting", "fishers' agreement", "fishers' limitation", "fishers' analysis", "fishery management", "fishers' support", "fishers' settlement", "fishers' tradition", "fishers' leadership", "fishers' law", "fishers' input", "fishers' goal", "fishers' escalation", "fishery data", "fishers' management", "fishery decision making", "fishers' decision", "fishers' direction", "line fisherman", "fishers' reduction", "fishers' achievement", "fishers' concerns", "fishers' peak", "fishers' health", "fishers' documentation", "fishers' development", "fishers' efficiency", "fishers' choice", "fishers' selling", "fishers' exploration", "fishers' aid", "fishers' priority", "fishers' update", "fishers' mentoring", "fisherman's association", "fishers' safety", "fishery voice", "fishers' evaluation", "fishers' assessment", "fishers' service", "fishers' inclusion", "fishers' assistance", "fishers' enhancement", "fishers' feedback", "fishers' restriction", "fishers' help", "fishery rules", "fishers' network", "fishers' investment", "usvi fisheries", "fishers' increase", "recreational fishers", "fishers' risk", "fishers' interest", "fishers' modification", "fishers' interaction", "fishers' strategy", "fishers' experience", "fishers' resilience", "fishers' empowerment", "fishers' role", "fishers' well-being", "fishers' benefit", "fishers' capacity", "fishers' exchange", "fishers' standard", "fishery advisory committee", "fishers' workshop", "fishers' collaboration"], "type": "cluster", "node_size": 828, "label": "Fisher Community Dynamics"}, "Resource Governance & Conflict": {"concepts": "habitat protection, boaters, ocean, fad deployment, ground swells, dirt, compensation, passive catch, st. john, financial hardship, resource governance, hostility, studies, habitat degradation, sewage, fuel truck, public meeting, conflict, muddy bottoms, low tide, rocky beaches, blue runners, ecosystem services, protections, technical expertise, ocean floor, meeting, environmental damage, mechanic shops, resource management committee, hein bank, mandahl pond, swell, investigation, politics, economic effect, us virgin islands, virgin islands, protesting, sewage dumping, protection, st., st. croix, institutional trust, la nina, public participation, fad program, policy outcomes, fads, board members, anchors, communication channels, natural habitat, habitat loss, swells, damage, public engagement, governor, caves, environmental education, fac board, nursery, sandy beaches, feedback, radio show, environmental changes, lobster nursery, gill net ban, environmental hardship, economic impact, conflict management, trust, governance structure, brown swells, senator, nicole angeli, mesh size regulation, fad maintenance, governor meetings, resource protection, regulation, biologist, ground swell, public perception, mesh size, no take zones, nurseries, public discourse, buoys, problem solving, interagency collaboration, st. thomas, market demand, governance, board, official receipts, participation, language barriers, regulatory change, fish sales, officials, high tide, public trust, public outreach, tide changes, environmental outreach, acls, conflict resolution, habitat, group, bush, senators, offshore fads, meetings, environmental trust, catch report, sctld, conflicts, stone anchors, fish licenses, sewer pipes, economic downturn, social dynamics, anchor damage, user groups, socializing", "concept_list": ["habitat protection", "boaters", "ocean", "fad deployment", "ground swells", "dirt", "compensation", "passive catch", "st. john", "financial hardship", "resource governance", "hostility", "studies", "habitat degradation", "sewage", "fuel truck", "public meeting", "conflict", "muddy bottoms", "low tide", "rocky beaches", "blue runners", "ecosystem services", "protections", "technical expertise", "ocean floor", "meeting", "environmental damage", "mechanic shops", "resource management committee", "hein bank", "mandahl pond", "swell", "investigation", "politics", "economic effect", "us virgin islands", "virgin islands", "protesting", "sewage dumping", "protection", "st.", "st. croix", "institutional trust", "la nina", "public participation", "fad program", "policy outcomes", "fads", "board members", "anchors", "communication channels", "natural habitat", "habitat loss", "swells", "damage", "public engagement", "governor", "caves", "environmental education", "fac board", "nursery", "sandy beaches", "feedback", "radio show", "environmental changes", "lobster nursery", "gill net ban", "environmental hardship", "economic impact", "conflict management", "trust", "governance structure", "brown swells", "senator", "nicole angeli", "mesh size regulation", "fad maintenance", "governor meetings", "resource protection", "regulation", "biologist", "ground swell", "public perception", "mesh size", "no take zones", "nurseries", "public discourse", "buoys", "problem solving", "interagency collaboration", "st. thomas", "market demand", "governance", "board", "official receipts", "participation", "language barriers", "regulatory change", "fish sales", "officials", "high tide", "public trust", "public outreach", "tide changes", "environmental outreach", "acls", "conflict resolution", "habitat", "group", "bush", "senators", "offshore fads", "meetings", "environmental trust", "catch report", "sctld", "conflicts", "stone anchors", "fish licenses", "sewer pipes", "economic downturn", "social dynamics", "anchor damage", "user groups", "socializing"], "type": "cluster", "node_size": 393, "label": "Resource Governance & Conflict"}, "Environmental Stewardship": {"concepts": "environmental research, environmental stakeholders, environmental degradation, environmental governance, environmental sustainability, environmental organizations, carbon managers, environmental change, environmental concern, environmental management, environmental advocacy, environmental stewardship, environmental science, resource sustainability, environmental impact, environmental monitoring, environmental health, environmental policy, pollution, environmental protection, environmental crisis, environmental collaboration, environmental regulation, relationship, environment, environmental conflict, environmental communication, radio communication, environmental stressors, working relationship, environmental relationships, environmental administration", "concept_list": ["environmental research", "environmental stakeholders", "environmental degradation", "environmental governance", "environmental sustainability", "environmental organizations", "carbon managers", "environmental change", "environmental concern", "environmental management", "environmental advocacy", "environmental stewardship", "environmental science", "resource sustainability", "environmental impact", "environmental monitoring", "environmental health", "environmental policy", "pollution", "environmental protection", "environmental crisis", "environmental collaboration", "environmental regulation", "relationship", "environment", "environmental conflict", "environmental communication", "radio communication", "environmental stressors", "working relationship", "environmental relationships", "environmental administration"], "type": "cluster", "node_size": 111, "label": "Environmental Stewardship"}, "Marine Substrates": {"concepts": "mud, soil, sand, sauna, reef, coral, marina, algae, gravel", "concept_list": ["mud", "soil", "sand", "sauna", "reef", "coral", "marina", "algae", "gravel"], "type": "cluster", "node_size": 42, "label": "Marine Substrates"}, "Coastal Ecosystems": {"concepts": "weed, grass beds, weed growth, botany bay, mangroves, coastal currents, coastal communities, coastal runoff, usvi coastal communities, turtlegrass, social: coastal communities", "concept_list": ["weed", "grass beds", "weed growth", "botany bay", "mangroves", "coastal currents", "coastal communities", "coastal runoff", "usvi coastal communities", "turtlegrass", "social: coastal communities"], "type": "cluster", "node_size": 48, "label": "Coastal Ecosystems"}, "Agricultural Activities": {"concepts": "agriculture, farmer's market, farming", "concept_list": ["agriculture", "farmer's market", "farming"], "type": "cluster", "node_size": 24, "label": "Agricultural Activities"}, "Environmental Agencies": {"concepts": "division of wildlife, department of planning and natural resources", "concept_list": ["division of wildlife", "department of planning and natural resources"], "type": "cluster", "node_size": 21, "label": "Environmental Agencies"}, "Regulatory Procedures": {"concepts": "lawmaking, rulemaking, procedural rules, permitting process, regulatory process, policy authority, regulatory authority, jurisdiction, court, higher authorities, regulatory enforcement, environmental enforcement, policy enforcement, federal compliance, enforcement, compliance, policy compliance", "concept_list": ["lawmaking", "rulemaking", "procedural rules", "permitting process", "regulatory process", "policy authority", "regulatory authority", "jurisdiction", "court", "higher authorities", "regulatory enforcement", "environmental enforcement", "policy enforcement", "federal compliance", "enforcement", "compliance", "policy compliance"], "type": "cluster", "node_size": 66, "label": "Regulatory Procedures"}, "Policy Processes": {"concepts": "administrative process, administrative challenges, policy coordination, policy development, policy negotiation, policy process", "concept_list": ["administrative process", "administrative challenges", "policy coordination", "policy development", "policy negotiation", "policy process"], "type": "cluster", "node_size": 33, "label": "Policy Processes"}, "Policy Legitimacy": {"concepts": "policy reversal, policy acceptance, policy transparency, sunscreen law, policy implementation, regulatory legitimacy, policy impact, policy legitimacy, policy responsiveness", "concept_list": ["policy reversal", "policy acceptance", "policy transparency", "sunscreen law", "policy implementation", "regulatory legitimacy", "policy impact", "policy legitimacy", "policy responsiveness"], "type": "cluster", "node_size": 42, "label": "Policy Legitimacy"}, "Community Engagement": {"concepts": "community relations, community representation, community engagement, community relationships, community", "concept_list": ["community relations", "community representation", "community engagement", "community relationships", "community"], "type": "cluster", "node_size": 30, "label": "Community Engagement"}, "Transparent Outreach": {"concepts": "transparency, outreach", "concept_list": ["transparency", "outreach"], "type": "cluster", "node_size": 21, "label": "Transparent Outreach"}, "Community Conflict": {"concepts": "community tensions, community strife, community dependence, livelihoods, community income", "concept_list": ["community tensions", "community strife", "community dependence", "livelihoods", "community income"], "type": "cluster", "node_size": 30, "label": "Community Conflict"}, "Climate Concerns": {"concepts": "climate change, local climate, climate, ecosystem, fire island, land, land allocation, land use, runoff, storm damage, storm, storm impact, weather", "concept_list": ["climate change", "local climate", "climate", "ecosystem", "fire island", "land", "land allocation", "land use", "runoff", "storm damage", "storm", "storm impact", "weather"], "type": "cluster", "node_size": 54, "label": "Climate Concerns"}, "Scientific Research": {"concepts": "scientific input, scientific basis, scientific research, research studies", "concept_list": ["scientific input", "scientific basis", "scientific research", "research studies"], "type": "cluster", "node_size": 27, "label": "Scientific Research"}, "Scientific Personnel": {"concepts": "researchers, scientists, scientist", "concept_list": ["researchers", "scientists", "scientist"], "type": "cluster", "node_size": 24, "label": "Scientific Personnel"}, "Fish Populations": {"concepts": "juvenile habitats, juvenile beds, dpnr fish and wildlife, fish and wildlife director, fish populations, trout reduction, juvenile habitat, fish and wildlife, juvenile fish, fish abundance, fish population", "concept_list": ["juvenile habitats", "juvenile beds", "dpnr fish and wildlife", "fish and wildlife director", "fish populations", "trout reduction", "juvenile habitat", "fish and wildlife", "juvenile fish", "fish abundance", "fish population"], "type": "cluster", "node_size": 48, "label": "Fish Populations"}, "Organizational Governance": {"concepts": "lobster decrease, bill clinton, committees, committee membership, commissioner, national park, chairman, official organization, advisory panel, council meetings, advisory committee, vice president, council discussions, council, lobster, council member, issue resolution", "concept_list": ["lobster decrease", "bill clinton", "committees", "committee membership", "commissioner", "national park", "chairman", "official organization", "advisory panel", "council meetings", "advisory committee", "vice president", "council discussions", "council", "lobster", "council member", "issue resolution"], "type": "cluster", "node_size": 66, "label": "Organizational Governance"}, "Stakeholder Engagement": {"concepts": "stakeholder, stakeholder advocacy, stakeholder involvement, stakeholder integration, stakeholder empowerment, stakeholder agency, stakeholder autonomy, stakeholder rights, stakeholder networks, stakeholder satisfaction, stakeholder concerns, stakeholder diversity, stakeholder participation, stakeholder opposition, stakeholder exclusion, stakeholder alignment, stakeholder capacity, stakeholder communication, stakeholder conflict, stakeholder power, advocacy, stakeholder trust, stakeholder impact, stakeholder disagreement, stakeholder adaptation, stakeholder influence, stakeholder representation, stakeholder engagement, stakeholder relations, stakeholder consultation, stakeholder voice, stakeholder resistance, stakeholder collaboration, stakeholders", "concept_list": ["stakeholder", "stakeholder advocacy", "stakeholder involvement", "stakeholder integration", "stakeholder empowerment", "stakeholder agency", "stakeholder autonomy", "stakeholder rights", "stakeholder networks", "stakeholder satisfaction", "stakeholder concerns", "stakeholder diversity", "stakeholder participation", "stakeholder opposition", "stakeholder exclusion", "stakeholder alignment", "stakeholder capacity", "stakeholder communication", "stakeholder conflict", "stakeholder power", "advocacy", "stakeholder trust", "stakeholder impact", "stakeholder disagreement", "stakeholder adaptation", "stakeholder influence", "stakeholder representation", "stakeholder engagement", "stakeholder relations", "stakeholder consultation", "stakeholder voice", "stakeholder resistance", "stakeholder collaboration", "stakeholders"], "type": "cluster", "node_size": 117, "label": "Stakeholder Engagement"}, "Organizational Dynamics": {"concepts": "organizational performance, organizational communication, organizational culture, organizational innovation, organizational accountability, organizational dysfunction, organizational change, organizational legitimacy, organizational identity, organizational fairness, organizational authority, organizational adaptation, organizational memory, accountability, organizational effectiveness, organizational structure, hierarchical escalation, organizational politics, organizational roles, organizational dynamics, organizational continuity, organizational learning, organizational resilience", "concept_list": ["organizational performance", "organizational communication", "organizational culture", "organizational innovation", "organizational accountability", "organizational dysfunction", "organizational change", "organizational legitimacy", "organizational identity", "organizational fairness", "organizational authority", "organizational adaptation", "organizational memory", "accountability", "organizational effectiveness", "organizational structure", "hierarchical escalation", "organizational politics", "organizational roles", "organizational dynamics", "organizational continuity", "organizational learning", "organizational resilience"], "type": "cluster", "node_size": 84, "label": "Organizational Dynamics"}, "Fishing Activities": {"concepts": "fish sale, fishing permits, net fishing, no fishing zones, line fishing, offshore fishing, fishing industry, gear replacement, fishing communities, oil dumping, recreational fishing, fishing pressure, fishing tags, fishing gear, fishing effort, sport fishing, fishing livelihoods, illegal fishing, commercial fishing", "concept_list": ["fish sale", "fishing permits", "net fishing", "no fishing zones", "line fishing", "offshore fishing", "fishing industry", "gear replacement", "fishing communities", "oil dumping", "recreational fishing", "fishing pressure", "fishing tags", "fishing gear", "fishing effort", "sport fishing", "fishing livelihoods", "illegal fishing", "commercial fishing"], "type": "cluster", "node_size": 72, "label": "Fishing Activities"}, "Management Structure": {"concepts": "upper management, managers, team players, sector division, management plan, management, sectoral management, management class, management process, staff, team", "concept_list": ["upper management", "managers", "team players", "sector division", "management plan", "management", "sectoral management", "management class", "management process", "staff", "team"], "type": "cluster", "node_size": 48, "label": "Management Structure"}, "Regulatory Bodies": {"concepts": "ssc, dpr, usvi codes, bvi, usvi, dpnr, dap, noaa", "concept_list": ["ssc", "dpr", "usvi codes", "bvi", "usvi", "dpnr", "dap", "noaa"], "type": "cluster", "node_size": 39, "label": "Regulatory Bodies"}, "Fish Catch Limits": {"concepts": "fish catch, sea urchins, bass whaler, air fish, goldfish, fish aggregating devices, annual catch limits, catch limits, hatcheries, long spine sea urchins, big fish, small fish", "concept_list": ["fish catch", "sea urchins", "bass whaler", "air fish", "goldfish", "fish aggregating devices", "annual catch limits", "catch limits", "hatcheries", "long spine sea urchins", "big fish", "small fish"], "type": "cluster", "node_size": 51, "label": "Fish Catch Limits"}, "Government Involvement": {"concepts": "intergovernmental relations, government support, government employment, local government, federal funding, government management, fundraisers, federal government, government officials, government funding", "concept_list": ["intergovernmental relations", "government support", "government employment", "local government", "federal funding", "government management", "fundraisers", "federal government", "government officials", "government funding"], "type": "cluster", "node_size": 45, "label": "Government Involvement"}, "Resource Decision-Making": {"concepts": "decision making, resource users, policy fairness, decision process, organizational decision-making, resource allocation, resource management, decision makers, decision-making, resource depletion, decision fairness, environmental decision-making, resource division, fairness", "concept_list": ["decision making", "resource users", "policy fairness", "decision process", "organizational decision-making", "resource allocation", "resource management", "decision makers", "decision-making", "resource depletion", "decision fairness", "environmental decision-making", "resource division", "fairness"], "type": "cluster", "node_size": 57, "label": "Resource Decision-Making"}, "Community Involvement": {"concepts": "involvement, middle class, temperature, concern, data analysis, representative, roles, town hall, dolphin, campaign, dock, ice age, pocketbook, engines, age, dependency, processes, maintenance, income, representation, younger generation, vessels, divers, nutrients, licenses, dock prices, skin dive, clarification process, data, yellow tail, washington, charters, dysfunction, recognition, tourism, ban, toxins buildup, dock access, docking facilities, information flow, particles, pressure, refinery, licensing, diving, onshore, under reporting, article, bonitos, restaurant demand, snorkelers, currents, american yacht harbor, yellowtail, south america, update, trunk, eggs, current, shelf system, education, refinery closure, quotas, conception models, toxins, limbs, resignation letter, process, emails, limited entry, launching point", "concept_list": ["involvement", "middle class", "temperature", "concern", "data analysis", "representative", "roles", "town hall", "dolphin", "campaign", "dock", "ice age", "pocketbook", "engines", "age", "dependency", "processes", "maintenance", "income", "representation", "younger generation", "vessels", "divers", "nutrients", "licenses", "dock prices", "skin dive", "clarification process", "data", "yellow tail", "washington", "charters", "dysfunction", "recognition", "tourism", "ban", "toxins buildup", "dock access", "docking facilities", "information flow", "particles", "pressure", "refinery", "licensing", "diving", "onshore", "under reporting", "article", "bonitos", "restaurant demand", "snorkelers", "currents", "american yacht harbor", "yellowtail", "south america", "update", "trunk", "eggs", "current", "shelf system", "education", "refinery closure", "quotas", "conception models", "toxins", "limbs", "resignation letter", "process", "emails", "limited entry", "launching point"], "type": "cluster", "node_size": 228, "label": "Community Involvement"}, "Marine Conservation": {"concepts": "marine science, cruise ships, marine biodiversity, marine protection, cargo ships, shoreline, marine policy, marine park, marine environment, marine ecosystem, inshore marine reserve, east end marine park, marine conservation, marine reserves, federal waters, marine resources, shoreline management, marine habitat, sandy bay, local waters", "concept_list": ["marine science", "cruise ships", "marine biodiversity", "marine protection", "cargo ships", "shoreline", "marine policy", "marine park", "marine environment", "marine ecosystem", "inshore marine reserve", "east end marine park", "marine conservation", "marine reserves", "federal waters", "marine resources", "shoreline management", "marine habitat", "sandy bay", "local waters"], "type": "cluster", "node_size": 75, "label": "Marine Conservation"}, "Policy Administration": {"concepts": "programs, regulations, compensation policy, permits, administration changes, policy feedback, insurance, plans, administration, policy", "concept_list": ["programs", "regulations", "compensation policy", "permits", "administration changes", "policy feedback", "insurance", "plans", "administration", "policy"], "type": "cluster", "node_size": 45, "label": "Policy Administration"}, "Trap Fishermen": {"concepts": "trap fisherman, trap fishermen, trap boats", "concept_list": ["trap fisherman", "trap fishermen", "trap boats"], "type": "cluster", "node_size": 24, "label": "Trap Fishermen"}, "Trap Management": {"concepts": "fish traps, trap reduction plan", "concept_list": ["fish traps", "trap reduction plan"], "type": "cluster", "node_size": 21, "label": "Trap Management"}, "Trap Reduction": {"concepts": "trap reduction, trap fishing", "concept_list": ["trap reduction", "trap fishing"], "type": "cluster", "node_size": 21, "label": "Trap Reduction"}, "Water Temperature": {"concepts": "cold water, water temperatures, water warming, warm water, warmer waters, deep water, shallow water, water depth, rain, rainfall", "concept_list": ["cold water", "water temperatures", "water warming", "warm water", "warmer waters", "deep water", "shallow water", "water depth", "rain", "rainfall"], "type": "cluster", "node_size": 45, "label": "Water Temperature"}, "Specific Hurricanes": {"concepts": "hurricane hugo, hurricane marilyn, hurricane maria, hurricanes, hurricane, hurricane alley", "concept_list": ["hurricane hugo", "hurricane marilyn", "hurricane maria", "hurricanes", "hurricane", "hurricane alley"], "type": "cluster", "node_size": 33, "label": "Specific Hurricanes"}, "Disaster Funding": {"concepts": "hurricane relief, hurricane recovery, disaster money, crisis response, official disaster money", "concept_list": ["hurricane relief", "hurricane recovery", "disaster money", "crisis response", "official disaster money"], "type": "cluster", "node_size": 30, "label": "Disaster Funding"}, "Hurricane Response": {"concepts": "hurricane path, disaster relief, hurricane irma", "concept_list": ["hurricane path", "disaster relief", "hurricane irma"], "type": "cluster", "node_size": 24, "label": "Hurricane Response"}, "Leadership Changes": {"concepts": "leadership, organizational leadership, leadership transition", "concept_list": ["leadership", "organizational leadership", "leadership transition"], "type": "cluster", "node_size": 24, "label": "Leadership Changes"}, "Leadership Challenges": {"concepts": "leadership conflict, leadership turnover, environmental leadership", "concept_list": ["leadership conflict", "leadership turnover", "environmental leadership"], "type": "cluster", "node_size": 24, "label": "Leadership Challenges"}, "Coral Reefs": {"concepts": "reefs, coral reefs, coral reef, healthy coral reefs, coastal reefs", "concept_list": ["reefs", "coral reefs", "coral reef", "healthy coral reefs", "coastal reefs"], "type": "cluster", "node_size": 30, "label": "Coral Reefs"}, "Coral Decline": {"concepts": "reef health, reef damage, coral death, dead coral, coral bleaching", "concept_list": ["reef health", "reef damage", "coral death", "dead coral", "coral bleaching"], "type": "cluster", "node_size": 30, "label": "Coral Decline"}, "Reef Threats": {"concepts": "reef fishing, stone coral disease, inshore reefs", "concept_list": ["reef fishing", "stone coral disease", "inshore reefs"], "type": "cluster", "node_size": 24, "label": "Reef Threats"}, "Coastal Access": {"concepts": "beaches, boat", "concept_list": ["beaches", "boat"], "type": "cluster", "node_size": 21, "label": "Coastal Access"}, "Teamwork": {"concepts": "collaboration, cooperation", "concept_list": ["collaboration", "cooperation"], "type": "cluster", "node_size": 21, "label": "Teamwork"}, "Public Communication": {"concepts": "communication, public communication", "concept_list": ["communication", "public communication"], "type": "cluster", "node_size": 21, "label": "Public Communication"}, "Information Sharing": {"concepts": "information sharing, information dissemination", "concept_list": ["information sharing", "information dissemination"], "type": "cluster", "node_size": 21, "label": "Information Sharing"}, "Puerto Rico Climate": {"concepts": "puerto rico, el nino", "concept_list": ["puerto rico", "el nino"], "type": "cluster", "node_size": 21, "label": "Puerto Rico Climate"}};
+        const conceptData = {};
+        const interClusterEdges = [["projects", "Community Engagement", {"weight": 1.0, "confidence": 0.6666666666666666, "type": "inter_cluster", "style": "solid"}], ["projects", "Marine Conservation", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["leadership resignation", "Leadership Challenges", {"weight": 1.0, "confidence": 0.8500000000000001, "type": "inter_cluster", "style": "solid"}], ["roy crabtre", "Information Sharing", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["roy crabtre", "Leadership Changes", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["roy crabtre", "Organizational Governance", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["hearings", "Stakeholder Engagement", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Community Tensions", "Fish Populations", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Staff Team", "Community Engagement", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Fisher Community Dynamics", "Coral Reefs", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["Fisher Community Dynamics", "Environmental Agencies", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["Resource Governance & Conflict", "Climate Concerns", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Environmental Stewardship", "Coral Reefs", {"weight": 1.0, "confidence": 0.8333333333333334, "type": "inter_cluster", "style": "solid"}], ["Environmental Stewardship", "projects", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["Environmental Stewardship", "Regulatory Bodies", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Environmental Stewardship", "Coastal Access", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Marine Substrates", "coral reef fish", {"weight": -0.2, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Coastal Ecosystems", "projects", {"weight": 1.0, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["Policy Processes", "Resource Governance & Conflict", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Policy Processes", "Literacy Challenges", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Policy Processes", "Environmental Stewardship", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Policy Legitimacy", "Trap Management", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["Policy Legitimacy", "Management Structure", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Policy Legitimacy", "Scientific Personnel", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Transparent Outreach", "Policy Administration", {"weight": 1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["Transparent Outreach", "Fish Populations", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Fish Populations", "Marine Substrates", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Stakeholder Engagement", "Public Communication", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Regulatory Bodies", "hearings", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Fish Catch Limits", "Trap Reduction", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Fish Catch Limits", "Regulatory Bodies", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Fish Catch Limits", "Organizational Dynamics", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Government Involvement", "Agricultural Activities", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Resource Decision-Making", "Transparent Outreach", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Resource Decision-Making", "Community Involvement", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Community Involvement", "Public Communication", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Community Involvement", "projects", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Community Involvement", "Community Conflict", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Community Involvement", "Scientific Research", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Marine Conservation", "Marine Substrates", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Policy Administration", "Fishing Activities", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Trap Fishermen", "Specific Hurricanes", {"weight": -0.6666666666666666, "confidence": 0.5833333333333334, "type": "inter_cluster", "style": "solid"}], ["Trap Management", "Regulatory Procedures", {"weight": 1.0, "confidence": 0.8250000000000001, "type": "inter_cluster", "style": "solid"}], ["Trap Management", "roy crabtre", {"weight": 0.5, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["Water Temperature", "Environmental Stewardship", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Specific Hurricanes", "Disaster Funding", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["Specific Hurricanes", "Water Temperature", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["Specific Hurricanes", "Health Concerns", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Hurricane Response", "Leadership Challenges", {"weight": 1.0, "confidence": 0.6166666666666667, "type": "inter_cluster", "style": "solid"}], ["Hurricane Response", "Regulatory Procedures", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["Hurricane Response", "Coastal Ecosystems", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["Leadership Changes", "Fishing Activities", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["Leadership Challenges", "Teamwork", {"weight": -1.0, "confidence": 0.725, "type": "inter_cluster", "style": "solid"}], ["Leadership Challenges", "Fish Populations", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Coral Reefs", "Health Concerns", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["Coral Reefs", "Trap Reduction", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Coral Decline", "Fish Populations", {"weight": -0.5, "confidence": 0.875, "type": "inter_cluster", "style": "solid"}], ["Coral Decline", "Stakeholder Engagement", {"weight": 0.3333333333333333, "confidence": 0.7666666666666666, "type": "inter_cluster", "style": "solid"}], ["Coral Decline", "Climate Concerns", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["Reef Threats", "Resource Governance & Conflict", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["Teamwork", "Trap Fishermen", {"weight": 1.0, "confidence": 0.7875000000000001, "type": "inter_cluster", "style": "solid"}], ["Public Communication", "Community Involvement", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["Public Communication", "hearings", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Information Sharing", "Scientific Research", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["Puerto Rico Climate", "Resource Governance & Conflict", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {"roy crabtre": [], "Community Tensions": [], "Health Concerns": [], "Literacy Challenges": [], "Staff Team": [], "Fisher Community Dynamics": [], "Resource Governance & Conflict": [], "Environmental Stewardship": [], "Marine Substrates": [], "Coastal Ecosystems": [], "Agricultural Activities": [], "Environmental Agencies": [], "Regulatory Procedures": [], "Policy Processes": [], "Policy Legitimacy": [], "Community Engagement": [], "Transparent Outreach": [], "Community Conflict": [], "Climate Concerns": [], "Scientific Research": [], "Scientific Personnel": [], "Fish Populations": [], "Organizational Governance": [], "Stakeholder Engagement": [], "Organizational Dynamics": [], "Fishing Activities": [], "Management Structure": [], "Regulatory Bodies": [], "Fish Catch Limits": [], "Government Involvement": [], "Resource Decision-Making": [], "Community Involvement": [], "Marine Conservation": [], "Policy Administration": [], "Trap Fishermen": [], "Trap Management": [], "Trap Reduction": [], "Water Temperature": [], "Specific Hurricanes": [], "Disaster Funding": [], "Hurricane Response": [], "Leadership Changes": [], "Leadership Challenges": [], "Coral Reefs": [], "Coral Decline": [], "Reef Threats": [], "Coastal Access": [], "Teamwork": [], "Public Communication": [], "Information Sharing": [], "Puerto Rico Climate": []};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

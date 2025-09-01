@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"ocean management": {"concepts": "ocean management", "concept_list": ["ocean management"], "type": "cluster", "node_size": 18, "label": "ocean management"}, "seasonal migration": {"concepts": "seasonal migration", "concept_list": ["seasonal migration"], "type": "cluster", "node_size": 18, "label": "seasonal migration"}, "industry collaboration": {"concepts": "industry collaboration", "concept_list": ["industry collaboration"], "type": "cluster", "node_size": 18, "label": "industry collaboration"}, "observational networks": {"concepts": "observational networks", "concept_list": ["observational networks"], "type": "cluster", "node_size": 18, "label": "observational networks"}, "eventic environment": {"concepts": "eventic environment", "concept_list": ["eventic environment"], "type": "cluster", "node_size": 18, "label": "eventic environment"}, "management actions": {"concepts": "management actions", "concept_list": ["management actions"], "type": "cluster", "node_size": 18, "label": "management actions"}, "essential ocean variables": {"concepts": "essential ocean variables", "concept_list": ["essential ocean variables"], "type": "cluster", "node_size": 18, "label": "essential ocean variables"}, "installation vessels": {"concepts": "installation vessels", "concept_list": ["installation vessels"], "type": "cluster", "node_size": 18, "label": "installation vessels"}, "surface temperature": {"concepts": "surface temperature", "concept_list": ["surface temperature"], "type": "cluster", "node_size": 18, "label": "surface temperature"}, "pelicans": {"concepts": "pelicans", "concept_list": ["pelicans"], "type": "cluster", "node_size": 18, "label": "pelicans"}, "oil and gas platforms": {"concepts": "oil and gas platforms", "concept_list": ["oil and gas platforms"], "type": "cluster", "node_size": 18, "label": "oil and gas platforms"}, "grouper fisheries": {"concepts": "grouper fisheries", "concept_list": ["grouper fisheries"], "type": "cluster", "node_size": 18, "label": "grouper fisheries"}, "continental shelf": {"concepts": "continental shelf", "concept_list": ["continental shelf"], "type": "cluster", "node_size": 18, "label": "continental shelf"}, "salinity": {"concepts": "salinity", "concept_list": ["salinity"], "type": "cluster", "node_size": 18, "label": "salinity"}, "public data access": {"concepts": "public data access", "concept_list": ["public data access"], "type": "cluster", "node_size": 18, "label": "public data access"}, "environmental studies": {"concepts": "environmental studies", "concept_list": ["environmental studies"], "type": "cluster", "node_size": 18, "label": "environmental studies"}, "avian diversity": {"concepts": "avian diversity", "concept_list": ["avian diversity"], "type": "cluster", "node_size": 18, "label": "avian diversity"}, "offshore wind": {"concepts": "offshore wind", "concept_list": ["offshore wind"], "type": "cluster", "node_size": 18, "label": "offshore wind"}, "operational awareness": {"concepts": "operational awareness", "concept_list": ["operational awareness"], "type": "cluster", "node_size": 18, "label": "operational awareness"}, "ecosystem understanding": {"concepts": "ecosystem understanding", "concept_list": ["ecosystem understanding"], "type": "cluster", "node_size": 18, "label": "ecosystem understanding"}, "vertical wind profiles": {"concepts": "vertical wind profiles", "concept_list": ["vertical wind profiles"], "type": "cluster", "node_size": 18, "label": "vertical wind profiles"}, "monitoring programs": {"concepts": "monitoring programs", "concept_list": ["monitoring programs"], "type": "cluster", "node_size": 18, "label": "monitoring programs"}, "ocean observation": {"concepts": "ocean observation", "concept_list": ["ocean observation"], "type": "cluster", "node_size": 18, "label": "ocean observation"}, "bottom fisheries": {"concepts": "bottom fisheries", "concept_list": ["bottom fisheries"], "type": "cluster", "node_size": 18, "label": "bottom fisheries"}, "offshore platforms": {"concepts": "offshore platforms", "concept_list": ["offshore platforms"], "type": "cluster", "node_size": 18, "label": "offshore platforms"}, "environmental management": {"concepts": "environmental management", "concept_list": ["environmental management"], "type": "cluster", "node_size": 18, "label": "environmental management"}, "wind turbines": {"concepts": "wind turbines", "concept_list": ["wind turbines"], "type": "cluster", "node_size": 18, "label": "wind turbines"}, "platform operators": {"concepts": "platform operators", "concept_list": ["platform operators"], "type": "cluster", "node_size": 18, "label": "platform operators"}, "data reliability": {"concepts": "data reliability", "concept_list": ["data reliability"], "type": "cluster", "node_size": 18, "label": "data reliability"}, "monitoring technology": {"concepts": "monitoring technology", "concept_list": ["monitoring technology"], "type": "cluster", "node_size": 18, "label": "monitoring technology"}, "operational support": {"concepts": "operational support", "concept_list": ["operational support"], "type": "cluster", "node_size": 18, "label": "operational support"}, "oil and natural gas platforms": {"concepts": "oil and natural gas platforms", "concept_list": ["oil and natural gas platforms"], "type": "cluster", "node_size": 18, "label": "oil and natural gas platforms"}, "construction phase": {"concepts": "construction phase", "concept_list": ["construction phase"], "type": "cluster", "node_size": 18, "label": "construction phase"}, "biological impacts": {"concepts": "biological impacts", "concept_list": ["biological impacts"], "type": "cluster", "node_size": 18, "label": "biological impacts"}, "regulatory compliance": {"concepts": "regulatory compliance", "concept_list": ["regulatory compliance"], "type": "cluster", "node_size": 18, "label": "regulatory compliance"}, "data sharing": {"concepts": "data sharing", "concept_list": ["data sharing"], "type": "cluster", "node_size": 18, "label": "data sharing"}, "passive acoustic monitoring": {"concepts": "passive acoustic monitoring", "concept_list": ["passive acoustic monitoring"], "type": "cluster", "node_size": 18, "label": "passive acoustic monitoring"}, "temperature": {"concepts": "temperature", "concept_list": ["temperature"], "type": "cluster", "node_size": 18, "label": "temperature"}, "temperature measurement": {"concepts": "temperature measurement", "concept_list": ["temperature measurement"], "type": "cluster", "node_size": 18, "label": "temperature measurement"}, "platform sensors": {"concepts": "platform sensors", "concept_list": ["platform sensors"], "type": "cluster", "node_size": 18, "label": "platform sensors"}, "meteorological data": {"concepts": "meteorological data", "concept_list": ["meteorological data"], "type": "cluster", "node_size": 18, "label": "meteorological data"}, "acoustic disturbances": {"concepts": "acoustic disturbances", "concept_list": ["acoustic disturbances"], "type": "cluster", "node_size": 18, "label": "acoustic disturbances"}, "sustainable operations": {"concepts": "sustainable operations", "concept_list": ["sustainable operations"], "type": "cluster", "node_size": 18, "label": "sustainable operations"}, "acoustic data": {"concepts": "acoustic data", "concept_list": ["acoustic data"], "type": "cluster", "node_size": 18, "label": "acoustic data"}, "sensors": {"concepts": "sensors", "concept_list": ["sensors"], "type": "cluster", "node_size": 18, "label": "sensors"}, "shrimp fisheries": {"concepts": "shrimp fisheries", "concept_list": ["shrimp fisheries"], "type": "cluster", "node_size": 18, "label": "shrimp fisheries"}, "adcps": {"concepts": "adcps", "concept_list": ["adcps"], "type": "cluster", "node_size": 18, "label": "adcps"}, "transboundary migrants": {"concepts": "transboundary migrants", "concept_list": ["transboundary migrants"], "type": "cluster", "node_size": 18, "label": "transboundary migrants"}, "ocean observing system": {"concepts": "ocean observing system", "concept_list": ["ocean observing system"], "type": "cluster", "node_size": 18, "label": "ocean observing system"}, "permitting requirements": {"concepts": "permitting requirements", "concept_list": ["permitting requirements"], "type": "cluster", "node_size": 18, "label": "permitting requirements"}, "social dynamics": {"concepts": "social dynamics", "concept_list": ["social dynamics"], "type": "cluster", "node_size": 18, "label": "social dynamics"}, "platform mooring": {"concepts": "platform mooring", "concept_list": ["platform mooring"], "type": "cluster", "node_size": 18, "label": "platform mooring"}, "current measurement": {"concepts": "current measurement", "concept_list": ["current measurement"], "type": "cluster", "node_size": 18, "label": "current measurement"}, "satellite monitoring": {"concepts": "satellite monitoring", "concept_list": ["satellite monitoring"], "type": "cluster", "node_size": 18, "label": "satellite monitoring"}, "hydrogen production": {"concepts": "hydrogen production", "concept_list": ["hydrogen production"], "type": "cluster", "node_size": 18, "label": "hydrogen production"}, "permit requirements": {"concepts": "permit requirements", "concept_list": ["permit requirements"], "type": "cluster", "node_size": 18, "label": "permit requirements"}, "species identification": {"concepts": "species identification", "concept_list": ["species identification"], "type": "cluster", "node_size": 18, "label": "species identification"}, "gulf of mexico": {"concepts": "gulf of mexico", "concept_list": ["gulf of mexico"], "type": "cluster", "node_size": 18, "label": "gulf of mexico"}, "platforms of opportunity": {"concepts": "platforms of opportunity", "concept_list": ["platforms of opportunity"], "type": "cluster", "node_size": 18, "label": "platforms of opportunity"}, "gliders": {"concepts": "gliders", "concept_list": ["gliders"], "type": "cluster", "node_size": 18, "label": "gliders"}, "depth profiles": {"concepts": "depth profiles", "concept_list": ["depth profiles"], "type": "cluster", "node_size": 18, "label": "depth profiles"}, "offshore wind management": {"concepts": "offshore wind management", "concept_list": ["offshore wind management"], "type": "cluster", "node_size": 18, "label": "offshore wind management"}, "observation programs": {"concepts": "observation programs", "concept_list": ["observation programs"], "type": "cluster", "node_size": 18, "label": "observation programs"}, "texas": {"concepts": "texas", "concept_list": ["texas"], "type": "cluster", "node_size": 18, "label": "texas"}, "physical platform": {"concepts": "physical platform", "concept_list": ["physical platform"], "type": "cluster", "node_size": 18, "label": "physical platform"}, "organizational behavior": {"concepts": "organizational behavior", "concept_list": ["organizational behavior"], "type": "cluster", "node_size": 18, "label": "organizational behavior"}, "sensor networks": {"concepts": "sensor networks", "concept_list": ["sensor networks"], "type": "cluster", "node_size": 18, "label": "sensor networks"}, "underwater diversity": {"concepts": "underwater diversity", "concept_list": ["underwater diversity"], "type": "cluster", "node_size": 18, "label": "underwater diversity"}, "data collection": {"concepts": "data collection", "concept_list": ["data collection"], "type": "cluster", "node_size": 18, "label": "data collection"}, "operation phase": {"concepts": "operation phase", "concept_list": ["operation phase"], "type": "cluster", "node_size": 18, "label": "operation phase"}, "hummingbirds": {"concepts": "hummingbirds", "concept_list": ["hummingbirds"], "type": "cluster", "node_size": 18, "label": "hummingbirds"}, "technology investment": {"concepts": "technology investment", "concept_list": ["technology investment"], "type": "cluster", "node_size": 18, "label": "technology investment"}, "migratory birds": {"concepts": "migratory birds", "concept_list": ["migratory birds"], "type": "cluster", "node_size": 18, "label": "migratory birds"}, "bottom temperature": {"concepts": "bottom temperature", "concept_list": ["bottom temperature"], "type": "cluster", "node_size": 18, "label": "bottom temperature"}, "radar": {"concepts": "radar", "concept_list": ["radar"], "type": "cluster", "node_size": 18, "label": "radar"}, "ocean observing": {"concepts": "ocean observing", "concept_list": ["ocean observing"], "type": "cluster", "node_size": 18, "label": "ocean observing"}, "environmental monitoring": {"concepts": "environmental monitoring", "concept_list": ["environmental monitoring"], "type": "cluster", "node_size": 18, "label": "environmental monitoring"}, "operational monitoring": {"concepts": "operational monitoring", "concept_list": ["operational monitoring"], "type": "cluster", "node_size": 18, "label": "operational monitoring"}, "salinity measurement": {"concepts": "salinity measurement", "concept_list": ["salinity measurement"], "type": "cluster", "node_size": 18, "label": "salinity measurement"}, "water quality": {"concepts": "water quality", "concept_list": ["water quality"], "type": "cluster", "node_size": 18, "label": "water quality"}, "national weather service": {"concepts": "national weather service", "concept_list": ["national weather service"], "type": "cluster", "node_size": 18, "label": "national weather service"}, "offshore wind regulations": {"concepts": "offshore wind regulations", "concept_list": ["offshore wind regulations"], "type": "cluster", "node_size": 18, "label": "offshore wind regulations"}, "noise pollution": {"concepts": "noise pollution", "concept_list": ["noise pollution"], "type": "cluster", "node_size": 18, "label": "noise pollution"}, "offshore wind development": {"concepts": "offshore wind development", "concept_list": ["offshore wind development"], "type": "cluster", "node_size": 18, "label": "offshore wind development"}, "sensor deployment": {"concepts": "sensor deployment", "concept_list": ["sensor deployment"], "type": "cluster", "node_size": 18, "label": "sensor deployment"}, "regional associations": {"concepts": "regional associations", "concept_list": ["regional associations"], "type": "cluster", "node_size": 18, "label": "regional associations"}, "data management": {"concepts": "data management", "concept_list": ["data management"], "type": "cluster", "node_size": 18, "label": "data management"}, "springwells": {"concepts": "springwells", "concept_list": ["springwells"], "type": "cluster", "node_size": 18, "label": "springwells"}, "vertical wind profile": {"concepts": "vertical wind profile", "concept_list": ["vertical wind profile"], "type": "cluster", "node_size": 18, "label": "vertical wind profile"}, "real-time data": {"concepts": "real-time data", "concept_list": ["real-time data"], "type": "cluster", "node_size": 18, "label": "real-time data"}, "louisiana": {"concepts": "louisiana", "concept_list": ["louisiana"], "type": "cluster", "node_size": 18, "label": "louisiana"}, "colonial water birds": {"concepts": "colonial water birds", "concept_list": ["colonial water birds"], "type": "cluster", "node_size": 18, "label": "colonial water birds"}, "brine release": {"concepts": "brine release", "concept_list": ["brine release"], "type": "cluster", "node_size": 18, "label": "brine release"}, "characterization": {"concepts": "characterization", "concept_list": ["characterization"], "type": "cluster", "node_size": 18, "label": "characterization"}, "subsurface currents": {"concepts": "subsurface currents", "concept_list": ["subsurface currents"], "type": "cluster", "node_size": 18, "label": "subsurface currents"}};
+        const conceptData = {};
+        const interClusterEdges = [["ocean management", "satellite monitoring", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["seasonal migration", "oil and gas platforms", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["seasonal migration", "radar", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["industry collaboration", "regional associations", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["industry collaboration", "offshore platforms", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["eventic environment", "colonial water birds", {"weight": 1.0, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["eventic environment", "ecosystem understanding", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["management actions", "temperature measurement", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["management actions", "offshore wind", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["installation vessels", "operational monitoring", {"weight": 1.0, "confidence": 0.6999999999999998, "type": "inter_cluster", "style": "solid"}], ["grouper fisheries", "environmental monitoring", {"weight": 1.0, "confidence": 0.6000000000000001, "type": "inter_cluster", "style": "solid"}], ["continental shelf", "ocean management", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["continental shelf", "eventic environment", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["public data access", "environmental studies", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["public data access", "adcps", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["environmental studies", "vertical wind profiles", {"weight": 1.0, "confidence": 0.7833333333333332, "type": "inter_cluster", "style": "solid"}], ["environmental studies", "hummingbirds", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["avian diversity", "social dynamics", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["operational awareness", "current measurement", {"weight": 1.0, "confidence": 0.7749999999999999, "type": "inter_cluster", "style": "solid"}], ["ecosystem understanding", "platform mooring", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["ecosystem understanding", "salinity measurement", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["monitoring programs", "offshore wind", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["ocean observation", "meteorological data", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["bottom fisheries", "biological impacts", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["offshore platforms", "physical platform", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["environmental management", "depth profiles", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["environmental management", "hydrogen production", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["wind turbines", "technology investment", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["wind turbines", "operational support", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["platform operators", "operational monitoring", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["platform operators", "data reliability", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["data reliability", "data management", {"weight": 1.0, "confidence": 0.875, "type": "inter_cluster", "style": "solid"}], ["data reliability", "technology investment", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["monitoring technology", "salinity measurement", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["construction phase", "ocean observing", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["biological impacts", "shrimp fisheries", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["regulatory compliance", "installation vessels", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["data sharing", "ocean observing system", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["data sharing", "observation programs", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["temperature", "monitoring technology", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["temperature", "salinity", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["temperature measurement", "ocean observing system", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["temperature measurement", "adcps", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["platform sensors", "observation programs", {"weight": 1.0, "confidence": 0.8666666666666667, "type": "inter_cluster", "style": "solid"}], ["acoustic disturbances", "underwater diversity", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["acoustic disturbances", "eventic environment", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["sustainable operations", "environmental monitoring", {"weight": 1.0, "confidence": 0.8500000000000001, "type": "inter_cluster", "style": "solid"}], ["sustainable operations", "ocean observation", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["acoustic data", "observational networks", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["acoustic data", "real-time data", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["acoustic data", "springwells", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["acoustic data", "management actions", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["sensors", "continental shelf", {"weight": 1.0, "confidence": 0.6799999999999999, "type": "inter_cluster", "style": "solid"}], ["adcps", "ocean management", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["transboundary migrants", "offshore wind management", {"weight": 1.0, "confidence": 0.675, "type": "inter_cluster", "style": "solid"}], ["ocean observing system", "sensor deployment", {"weight": 1.0, "confidence": 0.875, "type": "inter_cluster", "style": "solid"}], ["permitting requirements", "bottom temperature", {"weight": 0.6, "confidence": 0.4699999999999999, "type": "inter_cluster", "style": "solid"}], ["permitting requirements", "offshore platforms", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["social dynamics", "offshore wind management", {"weight": 1.0, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["platform mooring", "offshore wind", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["platform mooring", "subsurface currents", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["current measurement", "offshore wind management", {"weight": 1.0, "confidence": 0.7833333333333333, "type": "inter_cluster", "style": "solid"}], ["satellite monitoring", "wind turbines", {"weight": 0.6666666666666666, "confidence": 0.4666666666666666, "type": "inter_cluster", "style": "solid"}], ["satellite monitoring", "current measurement", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["permit requirements", "oil and natural gas platforms", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["permit requirements", "underwater diversity", {"weight": 0.5, "confidence": 0.25, "type": "inter_cluster", "style": "solid"}], ["gulf of mexico", "current measurement", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["platforms of opportunity", "ecosystem understanding", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["gliders", "current measurement", {"weight": 1.0, "confidence": 0.8500000000000001, "type": "inter_cluster", "style": "solid"}], ["gliders", "environmental management", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["offshore wind management", "passive acoustic monitoring", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["observation programs", "colonial water birds", {"weight": 1.0, "confidence": 0.6833333333333332, "type": "inter_cluster", "style": "solid"}], ["observation programs", "avian diversity", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["texas", "permit requirements", {"weight": 0.5, "confidence": 0.35, "type": "inter_cluster", "style": "solid"}], ["texas", "essential ocean variables", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["physical platform", "data sharing", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["physical platform", "salinity measurement", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["physical platform", "noise pollution", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["organizational behavior", "industry collaboration", {"weight": 1.0, "confidence": 0.7000000000000001, "type": "inter_cluster", "style": "solid"}], ["sensor networks", "data reliability", {"weight": 1.0, "confidence": 0.875, "type": "inter_cluster", "style": "solid"}], ["sensor networks", "salinity measurement", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["sensor networks", "pelicans", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["underwater diversity", "permitting requirements", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["operation phase", "management actions", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["operation phase", "offshore platforms", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["hummingbirds", "observation programs", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["technology investment", "data management", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["migratory birds", "oil and gas platforms", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["migratory birds", "monitoring technology", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["bottom temperature", "subsurface currents", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["radar", "platforms of opportunity", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["ocean observing", "species identification", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["ocean observing", "satellite monitoring", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["ocean observing", "regulatory compliance", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["environmental monitoring", "operational monitoring", {"weight": 1.0, "confidence": 0.8250000000000001, "type": "inter_cluster", "style": "solid"}], ["environmental monitoring", "offshore platforms", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["salinity measurement", "ocean observing", {"weight": 1.0, "confidence": 0.8166666666666668, "type": "inter_cluster", "style": "solid"}], ["salinity measurement", "offshore wind management", {"weight": 1.0, "confidence": 0.7666666666666666, "type": "inter_cluster", "style": "solid"}], ["salinity measurement", "sensors", {"weight": 1.0, "confidence": 0.875, "type": "inter_cluster", "style": "solid"}], ["salinity measurement", "data collection", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["water quality", "environmental monitoring", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["national weather service", "temperature measurement", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["national weather service", "observational networks", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["offshore wind regulations", "temperature", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["offshore wind regulations", "operational awareness", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["noise pollution", "offshore platforms", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["offshore wind development", "offshore wind regulations", {"weight": 1.0, "confidence": 0.8333333333333334, "type": "inter_cluster", "style": "solid"}], ["regional associations", "surface temperature", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["regional associations", "offshore wind regulations", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["data management", "sensors", {"weight": 1.0, "confidence": 0.7833333333333333, "type": "inter_cluster", "style": "solid"}], ["data management", "bottom temperature", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["data management", "current measurement", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["data management", "satellite monitoring", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["vertical wind profile", "sensor deployment", {"weight": 1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["real-time data", "essential ocean variables", {"weight": 1.0, "confidence": 0.825, "type": "inter_cluster", "style": "solid"}], ["real-time data", "platform operators", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["louisiana", "brine release", {"weight": 0.5, "confidence": 0.4, "type": "inter_cluster", "style": "solid"}], ["colonial water birds", "physical platform", {"weight": 1.0, "confidence": 0.7250000000000001, "type": "inter_cluster", "style": "solid"}], ["colonial water birds", "transboundary migrants", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["colonial water birds", "offshore wind regulations", {"weight": 1.0, "confidence": 0.5, "type": "inter_cluster", "style": "solid"}], ["brine release", "ecosystem understanding", {"weight": 1.0, "confidence": 0.6666666666666666, "type": "inter_cluster", "style": "solid"}], ["brine release", "technology investment", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["characterization", "wind turbines", {"weight": 1.0, "confidence": 0.8333333333333334, "type": "inter_cluster", "style": "solid"}], ["subsurface currents", "adcps", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["subsurface currents", "monitoring programs", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>

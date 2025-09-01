@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hierarchical FCM Visualization (Unconnected nodes removed)</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        #network { 
+            width: 100%; 
+            height: 600px; 
+            border: 2px solid #ccc; 
+            background: white;
+            border-radius: 8px;
+        }
+        
+        #controls {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary { background: #4A90E2; color: white; }
+        .btn-primary:hover { background: #357ABD; }
+        
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        
+        #current-view {
+            font-weight: bold;
+            color: #333;
+            margin-left: 10px;
+        }
+        
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 2px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fuzzy Cognitive Map - Hierarchical View</h1>
+    
+    <div id="controls">
+        <button class="btn btn-secondary" id="back-btn" onclick="showClusterView()" style="display: none;">
+            ← Back to Clusters
+        </button>
+        <span id="current-view">Cluster Overview</span>
+        <div style="float: right;">
+            <label>Min Confidence: </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.1" value="0.3" 
+                   onchange="updateConfidenceFilter(this.value)">
+            <span id="confidence-value">0.3</span>
+        </div>
+    </div>
+    
+    <div id="network"></div>
+    
+    <div id="legend">
+        <h4>Legend</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4A90E2;"></div>
+            <span>Clusters</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #FF9500;"></div>
+            <span>Concepts</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #28A745;"></div>
+            <span>Positive relationship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background: #DC3545;"></div>
+            <span>Negative relationship</span>
+        </div>
+        <div style="margin-top: 10px; font-style: italic; color: #666;">
+            Click clusters to explore internal concepts
+        </div>
+    </div>
+
+    <script>
+        // Embedded data
+        const clusterData = {"raptors": {"concepts": "raptors", "concept_list": ["raptors"], "type": "cluster", "node_size": 18, "label": "raptors"}, "trophic flux": {"concepts": "trophic flux", "concept_list": ["trophic flux"], "type": "cluster", "node_size": 18, "label": "trophic flux"}, "frigate birds": {"concepts": "frigate birds", "concept_list": ["frigate birds"], "type": "cluster", "node_size": 18, "label": "frigate birds"}, "radar": {"concepts": "radar", "concept_list": ["radar"], "type": "cluster", "node_size": 18, "label": "radar"}, "horizontal mixing": {"concepts": "horizontal mixing", "concept_list": ["horizontal mixing"], "type": "cluster", "node_size": 18, "label": "horizontal mixing"}, "snowball methodology": {"concepts": "snowball methodology", "concept_list": ["snowball methodology"], "type": "cluster", "node_size": 18, "label": "snowball methodology"}, "species survival": {"concepts": "species survival", "concept_list": ["species survival"], "type": "cluster", "node_size": 18, "label": "species survival"}, "management actions": {"concepts": "management actions", "concept_list": ["management actions"], "type": "cluster", "node_size": 18, "label": "management actions"}, "bats": {"concepts": "bats", "concept_list": ["bats"], "type": "cluster", "node_size": 18, "label": "bats"}, "trawlers": {"concepts": "trawlers", "concept_list": ["trawlers"], "type": "cluster", "node_size": 18, "label": "trawlers"}, "continental shelf": {"concepts": "continental shelf", "concept_list": ["continental shelf"], "type": "cluster", "node_size": 18, "label": "continental shelf"}, "frasers dolphin": {"concepts": "frasers dolphin", "concept_list": ["frasers dolphin"], "type": "cluster", "node_size": 18, "label": "frasers dolphin"}, "construction phase": {"concepts": "construction phase", "concept_list": ["construction phase"], "type": "cluster", "node_size": 18, "label": "construction phase"}, "current flow": {"concepts": "current flow", "concept_list": ["current flow"], "type": "cluster", "node_size": 18, "label": "current flow"}, "seabirds": {"concepts": "seabirds", "concept_list": ["seabirds"], "type": "cluster", "node_size": 18, "label": "seabirds"}, "surface interaction": {"concepts": "surface interaction", "concept_list": ["surface interaction"], "type": "cluster", "node_size": 18, "label": "surface interaction"}, "sea floor": {"concepts": "sea floor", "concept_list": ["sea floor"], "type": "cluster", "node_size": 18, "label": "sea floor"}, "recreational tourism": {"concepts": "recreational tourism", "concept_list": ["recreational tourism"], "type": "cluster", "node_size": 18, "label": "recreational tourism"}, "diving birds": {"concepts": "diving birds", "concept_list": ["diving birds"], "type": "cluster", "node_size": 18, "label": "diving birds"}, "oil and gas rigs": {"concepts": "oil and gas rigs", "concept_list": ["oil and gas rigs"], "type": "cluster", "node_size": 18, "label": "oil and gas rigs"}, "flux": {"concepts": "flux", "concept_list": ["flux"], "type": "cluster", "node_size": 18, "label": "flux"}, "freeport": {"concepts": "freeport", "concept_list": ["freeport"], "type": "cluster", "node_size": 18, "label": "freeport"}, "tuna school": {"concepts": "tuna school", "concept_list": ["tuna school"], "type": "cluster", "node_size": 18, "label": "tuna school"}, "brown pelican": {"concepts": "brown pelican", "concept_list": ["brown pelican"], "type": "cluster", "node_size": 18, "label": "brown pelican"}, "cormorants": {"concepts": "cormorants", "concept_list": ["cormorants"], "type": "cluster", "node_size": 18, "label": "cormorants"}, "marine birds": {"concepts": "marine birds", "concept_list": ["marine birds"], "type": "cluster", "node_size": 18, "label": "marine birds"}, "feeding areas": {"concepts": "feeding areas", "concept_list": ["feeding areas"], "type": "cluster", "node_size": 18, "label": "feeding areas"}, "wind energy areas": {"concepts": "wind energy areas", "concept_list": ["wind energy areas"], "type": "cluster", "node_size": 18, "label": "wind energy areas"}, "apex predators": {"concepts": "apex predators", "concept_list": ["apex predators"], "type": "cluster", "node_size": 18, "label": "apex predators"}, "wind energy area": {"concepts": "wind energy area", "concept_list": ["wind energy area"], "type": "cluster", "node_size": 18, "label": "wind energy area"}, "trophic connections": {"concepts": "trophic connections", "concept_list": ["trophic connections"], "type": "cluster", "node_size": 18, "label": "trophic connections"}, "wind farms": {"concepts": "wind farms", "concept_list": ["wind farms"], "type": "cluster", "node_size": 18, "label": "wind farms"}, "flow": {"concepts": "flow", "concept_list": ["flow"], "type": "cluster", "node_size": 18, "label": "flow"}, "industrialized seas": {"concepts": "industrialized seas", "concept_list": ["industrialized seas"], "type": "cluster", "node_size": 18, "label": "industrialized seas"}, "curtailment": {"concepts": "curtailment", "concept_list": ["curtailment"], "type": "cluster", "node_size": 18, "label": "curtailment"}, "fish habitat": {"concepts": "fish habitat", "concept_list": ["fish habitat"], "type": "cluster", "node_size": 18, "label": "fish habitat"}, "bird migrations": {"concepts": "bird migrations", "concept_list": ["bird migrations"], "type": "cluster", "node_size": 18, "label": "bird migrations"}, "gis intersection": {"concepts": "gis intersection", "concept_list": ["gis intersection"], "type": "cluster", "node_size": 18, "label": "gis intersection"}, "ecosystem interactions": {"concepts": "ecosystem interactions", "concept_list": ["ecosystem interactions"], "type": "cluster", "node_size": 18, "label": "ecosystem interactions"}, "smart siding": {"concepts": "smart siding", "concept_list": ["smart siding"], "type": "cluster", "node_size": 18, "label": "smart siding"}, "shorebirds": {"concepts": "shorebirds", "concept_list": ["shorebirds"], "type": "cluster", "node_size": 18, "label": "shorebirds"}, "gas": {"concepts": "gas", "concept_list": ["gas"], "type": "cluster", "node_size": 18, "label": "gas"}, "tuna grounds": {"concepts": "tuna grounds", "concept_list": ["tuna grounds"], "type": "cluster", "node_size": 18, "label": "tuna grounds"}, "underwater acoustic impacts": {"concepts": "underwater acoustic impacts", "concept_list": ["underwater acoustic impacts"], "type": "cluster", "node_size": 18, "label": "underwater acoustic impacts"}, "turbine blades": {"concepts": "turbine blades", "concept_list": ["turbine blades"], "type": "cluster", "node_size": 18, "label": "turbine blades"}, "sea ducks": {"concepts": "sea ducks", "concept_list": ["sea ducks"], "type": "cluster", "node_size": 18, "label": "sea ducks"}, "attraction": {"concepts": "attraction", "concept_list": ["attraction"], "type": "cluster", "node_size": 18, "label": "attraction"}, "gulf of mexico wilderness area": {"concepts": "gulf of mexico wilderness area", "concept_list": ["gulf of mexico wilderness area"], "type": "cluster", "node_size": 18, "label": "gulf of mexico wilderness area"}, "marine mammal community": {"concepts": "marine mammal community", "concept_list": ["marine mammal community"], "type": "cluster", "node_size": 18, "label": "marine mammal community"}, "texas arc": {"concepts": "texas arc", "concept_list": ["texas arc"], "type": "cluster", "node_size": 18, "label": "texas arc"}, "operations phase": {"concepts": "operations phase", "concept_list": ["operations phase"], "type": "cluster", "node_size": 18, "label": "operations phase"}, "tropical environments": {"concepts": "tropical environments", "concept_list": ["tropical environments"], "type": "cluster", "node_size": 18, "label": "tropical environments"}, "displacement": {"concepts": "displacement", "concept_list": ["displacement"], "type": "cluster", "node_size": 18, "label": "displacement"}, "bird migration": {"concepts": "bird migration", "concept_list": ["bird migration"], "type": "cluster", "node_size": 18, "label": "bird migration"}, "conceptual models": {"concepts": "conceptual models", "concept_list": ["conceptual models"], "type": "cluster", "node_size": 18, "label": "conceptual models"}, "tree inhabiting bats": {"concepts": "tree inhabiting bats", "concept_list": ["tree inhabiting bats"], "type": "cluster", "node_size": 18, "label": "tree inhabiting bats"}, "endangered species": {"concepts": "endangered species", "concept_list": ["endangered species"], "type": "cluster", "node_size": 18, "label": "endangered species"}, "offshore structures": {"concepts": "offshore structures", "concept_list": ["offshore structures"], "type": "cluster", "node_size": 18, "label": "offshore structures"}, "avoidance": {"concepts": "avoidance", "concept_list": ["avoidance"], "type": "cluster", "node_size": 18, "label": "avoidance"}, "benthic communities": {"concepts": "benthic communities", "concept_list": ["benthic communities"], "type": "cluster", "node_size": 18, "label": "benthic communities"}, "bird hot spot": {"concepts": "bird hot spot", "concept_list": ["bird hot spot"], "type": "cluster", "node_size": 18, "label": "bird hot spot"}, "western planning areas": {"concepts": "western planning areas", "concept_list": ["western planning areas"], "type": "cluster", "node_size": 18, "label": "western planning areas"}, "royal terns": {"concepts": "royal terns", "concept_list": ["royal terns"], "type": "cluster", "node_size": 18, "label": "royal terns"}, "lease areas": {"concepts": "lease areas", "concept_list": ["lease areas"], "type": "cluster", "node_size": 18, "label": "lease areas"}, "submarine mammals": {"concepts": "submarine mammals", "concept_list": ["submarine mammals"], "type": "cluster", "node_size": 18, "label": "submarine mammals"}, "breeding birds": {"concepts": "breeding birds", "concept_list": ["breeding birds"], "type": "cluster", "node_size": 18, "label": "breeding birds"}, "bird watching": {"concepts": "bird watching", "concept_list": ["bird watching"], "type": "cluster", "node_size": 18, "label": "bird watching"}, "shipping light": {"concepts": "shipping light", "concept_list": ["shipping light"], "type": "cluster", "node_size": 18, "label": "shipping light"}, "deepwater horizon": {"concepts": "deepwater horizon", "concept_list": ["deepwater horizon"], "type": "cluster", "node_size": 18, "label": "deepwater horizon"}, "waterfowl": {"concepts": "waterfowl", "concept_list": ["waterfowl"], "type": "cluster", "node_size": 18, "label": "waterfowl"}, "thermal videography": {"concepts": "thermal videography", "concept_list": ["thermal videography"], "type": "cluster", "node_size": 18, "label": "thermal videography"}, "noise disturbance": {"concepts": "noise disturbance", "concept_list": ["noise disturbance"], "type": "cluster", "node_size": 18, "label": "noise disturbance"}, "delta": {"concepts": "delta", "concept_list": ["delta"], "type": "cluster", "node_size": 18, "label": "delta"}, "migratory bird branch": {"concepts": "migratory bird branch", "concept_list": ["migratory bird branch"], "type": "cluster", "node_size": 18, "label": "migratory bird branch"}, "wind energy": {"concepts": "wind energy", "concept_list": ["wind energy"], "type": "cluster", "node_size": 18, "label": "wind energy"}, "stakeholder community": {"concepts": "stakeholder community", "concept_list": ["stakeholder community"], "type": "cluster", "node_size": 18, "label": "stakeholder community"}, "migration": {"concepts": "migration", "concept_list": ["migration"], "type": "cluster", "node_size": 18, "label": "migration"}, "perception": {"concepts": "perception", "concept_list": ["perception"], "type": "cluster", "node_size": 18, "label": "perception"}, "land birds": {"concepts": "land birds", "concept_list": ["land birds"], "type": "cluster", "node_size": 18, "label": "land birds"}, "schooling fish": {"concepts": "schooling fish", "concept_list": ["schooling fish"], "type": "cluster", "node_size": 18, "label": "schooling fish"}, "black turns": {"concepts": "black turns", "concept_list": ["black turns"], "type": "cluster", "node_size": 18, "label": "black turns"}, "tuna": {"concepts": "tuna", "concept_list": ["tuna"], "type": "cluster", "node_size": 18, "label": "tuna"}, "structural hazard": {"concepts": "structural hazard", "concept_list": ["structural hazard"], "type": "cluster", "node_size": 18, "label": "structural hazard"}, "implementation": {"concepts": "implementation", "concept_list": ["implementation"], "type": "cluster", "node_size": 18, "label": "implementation"}, "fishermen": {"concepts": "fishermen", "concept_list": ["fishermen"], "type": "cluster", "node_size": 18, "label": "fishermen"}, "vertical mixing": {"concepts": "vertical mixing", "concept_list": ["vertical mixing"], "type": "cluster", "node_size": 18, "label": "vertical mixing"}, "habitat": {"concepts": "habitat", "concept_list": ["habitat"], "type": "cluster", "node_size": 18, "label": "habitat"}, "gulf of mexico": {"concepts": "gulf of mexico", "concept_list": ["gulf of mexico"], "type": "cluster", "node_size": 18, "label": "gulf of mexico"}, "food aggregation sites": {"concepts": "food aggregation sites", "concept_list": ["food aggregation sites"], "type": "cluster", "node_size": 18, "label": "food aggregation sites"}, "wind development": {"concepts": "wind development", "concept_list": ["wind development"], "type": "cluster", "node_size": 18, "label": "wind development"}, "arctic birds": {"concepts": "arctic birds", "concept_list": ["arctic birds"], "type": "cluster", "node_size": 18, "label": "arctic birds"}, "movement density": {"concepts": "movement density", "concept_list": ["movement density"], "type": "cluster", "node_size": 18, "label": "movement density"}, "wind turbines": {"concepts": "wind turbines", "concept_list": ["wind turbines"], "type": "cluster", "node_size": 18, "label": "wind turbines"}, "minhagen": {"concepts": "minhagen", "concept_list": ["minhagen"], "type": "cluster", "node_size": 18, "label": "minhagen"}, "demographic impacts": {"concepts": "demographic impacts", "concept_list": ["demographic impacts"], "type": "cluster", "node_size": 18, "label": "demographic impacts"}, "louisiana": {"concepts": "louisiana", "concept_list": ["louisiana"], "type": "cluster", "node_size": 18, "label": "louisiana"}, "loons": {"concepts": "loons", "concept_list": ["loons"], "type": "cluster", "node_size": 18, "label": "loons"}, "subtropical birds": {"concepts": "subtropical birds", "concept_list": ["subtropical birds"], "type": "cluster", "node_size": 18, "label": "subtropical birds"}, "seabird species": {"concepts": "seabird species", "concept_list": ["seabird species"], "type": "cluster", "node_size": 18, "label": "seabird species"}, "oil and gas platforms": {"concepts": "oil and gas platforms", "concept_list": ["oil and gas platforms"], "type": "cluster", "node_size": 18, "label": "oil and gas platforms"}, "lighting during construction": {"concepts": "lighting during construction", "concept_list": ["lighting during construction"], "type": "cluster", "node_size": 18, "label": "lighting during construction"}, "substrate configuration": {"concepts": "substrate configuration", "concept_list": ["substrate configuration"], "type": "cluster", "node_size": 18, "label": "substrate configuration"}, "bird enthusiasts": {"concepts": "bird enthusiasts", "concept_list": ["bird enthusiasts"], "type": "cluster", "node_size": 18, "label": "bird enthusiasts"}, "energetic cost": {"concepts": "energetic cost", "concept_list": ["energetic cost"], "type": "cluster", "node_size": 18, "label": "energetic cost"}, "outer banks": {"concepts": "outer banks", "concept_list": ["outer banks"], "type": "cluster", "node_size": 18, "label": "outer banks"}, "california current system": {"concepts": "california current system", "concept_list": ["california current system"], "type": "cluster", "node_size": 18, "label": "california current system"}, "human dimensions": {"concepts": "human dimensions", "concept_list": ["human dimensions"], "type": "cluster", "node_size": 18, "label": "human dimensions"}, "offshore wind": {"concepts": "offshore wind", "concept_list": ["offshore wind"], "type": "cluster", "node_size": 18, "label": "offshore wind"}, "iea philosophy.": {"concepts": "iea philosophy.", "concept_list": ["iea philosophy."], "type": "cluster", "node_size": 18, "label": "iea philosophy."}, "flying fish": {"concepts": "flying fish", "concept_list": ["flying fish"], "type": "cluster", "node_size": 18, "label": "flying fish"}, "feeding tuna": {"concepts": "feeding tuna", "concept_list": ["feeding tuna"], "type": "cluster", "node_size": 18, "label": "feeding tuna"}, "orcas": {"concepts": "orcas", "concept_list": ["orcas"], "type": "cluster", "node_size": 18, "label": "orcas"}, "offshore renewable wind": {"concepts": "offshore renewable wind", "concept_list": ["offshore renewable wind"], "type": "cluster", "node_size": 18, "label": "offshore renewable wind"}, "tropical birds": {"concepts": "tropical birds", "concept_list": ["tropical birds"], "type": "cluster", "node_size": 18, "label": "tropical birds"}, "eastern gulf": {"concepts": "eastern gulf", "concept_list": ["eastern gulf"], "type": "cluster", "node_size": 18, "label": "eastern gulf"}, "mississippi delta": {"concepts": "mississippi delta", "concept_list": ["mississippi delta"], "type": "cluster", "node_size": 18, "label": "mississippi delta"}, "state jurisdictional waters": {"concepts": "state jurisdictional waters", "concept_list": ["state jurisdictional waters"], "type": "cluster", "node_size": 18, "label": "state jurisdictional waters"}, "fitness consequences": {"concepts": "fitness consequences", "concept_list": ["fitness consequences"], "type": "cluster", "node_size": 18, "label": "fitness consequences"}, "stratification": {"concepts": "stratification", "concept_list": ["stratification"], "type": "cluster", "node_size": 18, "label": "stratification"}, "digital aerial surveys": {"concepts": "digital aerial surveys", "concept_list": ["digital aerial surveys"], "type": "cluster", "node_size": 18, "label": "digital aerial surveys"}, "audubon": {"concepts": "audubon", "concept_list": ["audubon"], "type": "cluster", "node_size": 18, "label": "audubon"}, "reporting system": {"concepts": "reporting system", "concept_list": ["reporting system"], "type": "cluster", "node_size": 18, "label": "reporting system"}, "noaa": {"concepts": "noaa", "concept_list": ["noaa"], "type": "cluster", "node_size": 18, "label": "noaa"}, "collision": {"concepts": "collision", "concept_list": ["collision"], "type": "cluster", "node_size": 18, "label": "collision"}, "parallel effort": {"concepts": "parallel effort", "concept_list": ["parallel effort"], "type": "cluster", "node_size": 18, "label": "parallel effort"}, "acoustic disturbances": {"concepts": "acoustic disturbances", "concept_list": ["acoustic disturbances"], "type": "cluster", "node_size": 18, "label": "acoustic disturbances"}, "public perception": {"concepts": "public perception", "concept_list": ["public perception"], "type": "cluster", "node_size": 18, "label": "public perception"}, "tuna mediated pathway": {"concepts": "tuna mediated pathway", "concept_list": ["tuna mediated pathway"], "type": "cluster", "node_size": 18, "label": "tuna mediated pathway"}, "discards": {"concepts": "discards", "concept_list": ["discards"], "type": "cluster", "node_size": 18, "label": "discards"}, "indicator selection": {"concepts": "indicator selection", "concept_list": ["indicator selection"], "type": "cluster", "node_size": 18, "label": "indicator selection"}, "wind generating capacity": {"concepts": "wind generating capacity", "concept_list": ["wind generating capacity"], "type": "cluster", "node_size": 18, "label": "wind generating capacity"}, "trophic pathways": {"concepts": "trophic pathways", "concept_list": ["trophic pathways"], "type": "cluster", "node_size": 18, "label": "trophic pathways"}};
+        const conceptData = {};
+        const interClusterEdges = [["radar", "wind energy areas", {"weight": 1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["horizontal mixing", "surface interaction", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["snowball methodology", "lease areas", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["continental shelf", "fishermen", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["frasers dolphin", "wind farms", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["construction phase", "breeding birds", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["current flow", "trophic flux", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["seabirds", "iea philosophy.", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["seabirds", "operations phase", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["surface interaction", "wind turbines", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["sea floor", "wind generating capacity", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["sea floor", "public perception", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["recreational tourism", "land birds", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["diving birds", "avoidance", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["flux", "trophic pathways", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["freeport", "state jurisdictional waters", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["brown pelican", "wind farms", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["cormorants", "oil and gas rigs", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["marine birds", "horizontal mixing", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["feeding areas", "loons", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["feeding areas", "subtropical birds", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["apex predators", "tuna mediated pathway", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["wind energy area", "food aggregation sites", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["trophic connections", "oil and gas rigs", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["wind farms", "flux", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["flow", "discards", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["curtailment", "construction phase", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["bird migrations", "food aggregation sites", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["smart siding", "parallel effort", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["shorebirds", "turbine blades", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["shorebirds", "demographic impacts", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["shorebirds", "oil and gas platforms", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["gas", "texas arc", {"weight": 0.5, "confidence": 0.325, "type": "inter_cluster", "style": "solid"}], ["gas", "bats", {"weight": -0.5, "confidence": 0.275, "type": "inter_cluster", "style": "solid"}], ["underwater acoustic impacts", "diving birds", {"weight": -1.0, "confidence": 0.8125, "type": "inter_cluster", "style": "solid"}], ["underwater acoustic impacts", "offshore wind", {"weight": -1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["turbine blades", "western planning areas", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["attraction", "flying fish", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["gulf of mexico wilderness area", "tuna grounds", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["marine mammal community", "flux", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["operations phase", "stakeholder community", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["operations phase", "gulf of mexico wilderness area", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["tropical environments", "wind energy", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["displacement", "management actions", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["bird migration", "state jurisdictional waters", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["conceptual models", "offshore wind", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["tree inhabiting bats", "attraction", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["endangered species", "cormorants", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["benthic communities", "structural hazard", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["bird hot spot", "bird enthusiasts", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["bird hot spot", "marine birds", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["royal terns", "lighting during construction", {"weight": -1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["submarine mammals", "wind energy areas", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["breeding birds", "ecosystem interactions", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["bird watching", "indicator selection", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["shipping light", "avoidance", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["shipping light", "movement density", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["deepwater horizon", "diving birds", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["waterfowl", "surface interaction", {"weight": 1.0, "confidence": 0.6499999999999999, "type": "inter_cluster", "style": "solid"}], ["noise disturbance", "frigate birds", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["delta", "tuna school", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["delta", "gulf of mexico", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["migratory bird branch", "attraction", {"weight": 0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["wind energy", "gulf of mexico", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["wind energy", "breeding birds", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["perception", "construction phase", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["perception", "black turns", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["perception", "substrate configuration", {"weight": -1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["schooling fish", "marine birds", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["black turns", "wind farms", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["tuna", "feeding areas", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["structural hazard", "offshore renewable wind", {"weight": -1.0, "confidence": 0.775, "type": "inter_cluster", "style": "solid"}], ["implementation", "energetic cost", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["fishermen", "noaa", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["fishermen", "offshore wind", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["vertical mixing", "thermal videography", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["food aggregation sites", "raptors", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["wind development", "gis intersection", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["wind development", "lease areas", {"weight": 1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["wind development", "gas", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["minhagen", "tuna grounds", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["demographic impacts", "sea ducks", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["louisiana", "seabird species", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["seabird species", "tuna", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["seabird species", "offshore wind", {"weight": -1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["seabird species", "oil and gas rigs", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["oil and gas platforms", "vertical mixing", {"weight": 1.0, "confidence": 0.625, "type": "inter_cluster", "style": "solid"}], ["substrate configuration", "trophic flux", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["outer banks", "trawlers", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["california current system", "iea philosophy.", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["human dimensions", "shorebirds", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["offshore wind", "conceptual models", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["offshore wind", "collision", {"weight": -1.0, "confidence": 0.9, "type": "inter_cluster", "style": "solid"}], ["iea philosophy.", "royal terns", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["flying fish", "fish habitat", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["feeding tuna", "indicator selection", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["orcas", "perception", {"weight": 1.0, "confidence": 0.55, "type": "inter_cluster", "style": "solid"}], ["offshore renewable wind", "lease areas", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["tropical birds", "tuna school", {"weight": 1.0, "confidence": 0.8, "type": "inter_cluster", "style": "solid"}], ["eastern gulf", "digital aerial surveys", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["mississippi delta", "species survival", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["state jurisdictional waters", "turbine blades", {"weight": -1.0, "confidence": 0.6999999999999998, "type": "inter_cluster", "style": "solid"}], ["state jurisdictional waters", "conceptual models", {"weight": -0.5, "confidence": 0.3, "type": "inter_cluster", "style": "solid"}], ["fitness consequences", "bats", {"weight": -0.6666666666666666, "confidence": 0.45, "type": "inter_cluster", "style": "solid"}], ["stratification", "habitat", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["digital aerial surveys", "offshore structures", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["digital aerial surveys", "outer banks", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["reporting system", "migration", {"weight": 1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["collision", "brown pelican", {"weight": -1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["collision", "arctic birds", {"weight": -0.5, "confidence": 0.375, "type": "inter_cluster", "style": "solid"}], ["parallel effort", "seabirds", {"weight": 1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}], ["acoustic disturbances", "marine mammal community", {"weight": -1.0, "confidence": 0.85, "type": "inter_cluster", "style": "solid"}], ["acoustic disturbances", "audubon", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["acoustic disturbances", "cormorants", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["public perception", "recreational tourism", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["public perception", "underwater acoustic impacts", {"weight": -1.0, "confidence": 0.65, "type": "inter_cluster", "style": "solid"}], ["public perception", "industrialized seas", {"weight": -1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["discards", "oil and gas rigs", {"weight": 1.0, "confidence": 0.75, "type": "inter_cluster", "style": "solid"}], ["indicator selection", "recreational tourism", {"weight": 1.0, "confidence": 0.6, "type": "inter_cluster", "style": "solid"}], ["trophic pathways", "deepwater horizon", {"weight": -1.0, "confidence": 0.7, "type": "inter_cluster", "style": "solid"}]];
+        const clusterConcepts = {};
+        const clusterEdges = {};
+        
+        let network;
+        let currentView = 'clusters';
+        let currentCluster = null;
+        let minConfidence = 0.3;
+        
+        // Network options
+        const options = {
+            nodes: {
+                font: { color: 'white', size: 14 },
+                borderWidth: 2,
+                shadow: true
+            },
+            edges: {
+                arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+                shadow: true,
+                smooth: { type: 'continuous' }
+            },
+            physics: {
+                stabilization: { iterations: 100 },
+                barnesHut: {
+                    gravitationalConstant: -8000,
+                    springConstant: 0.001,
+                    springLength: 200
+                }
+            },
+            interaction: {
+                hover: true,
+                selectConnectedEdges: false
+            }
+        };
+        
+        function initNetwork() {
+            const container = document.getElementById('network');
+            const data = getClusterViewData();
+            network = new vis.Network(container, data, options);
+            
+            // Handle cluster clicks for drill-down
+            network.on("click", function(params) {
+                if (params.nodes.length > 0 && currentView === 'clusters') {
+                    const clickedNode = params.nodes[0];
+                    if (clusterConcepts[clickedNode]) {
+                        showClusterDetail(clickedNode);
+                    }
+                }
+            });
+        }
+        
+        function getClusterViewData() {
+            const nodes = [];
+            const edges = [];
+            
+            // Add cluster nodes
+            Object.entries(clusterData).forEach(([clusterId, data]) => {
+                const concepts = data.concepts || [];
+                const conceptsStr = Array.isArray(concepts) ? concepts.join(', ') : concepts;
+                
+                nodes.push({
+                    id: clusterId,
+                    label: clusterId,
+                    title: `Cluster: ${clusterId}\nConcepts: ${conceptsStr}\nClick to explore internal relationships`,
+                    color: '#4A90E2',
+                    size: 25 + (conceptsStr.split(',').length * 2),
+                    font: { color: 'white' }
+                });
+            });
+            
+            // Add inter-cluster edges
+            interClusterEdges.forEach(([source, target, edgeData]) => {
+                const confidence = edgeData.confidence || 1.0;
+                const weight = edgeData.weight || 0;
+                
+                if (confidence >= minConfidence) {
+                    edges.push({
+                        from: source,
+                        to: target,
+                        color: weight > 0 ? '#28A745' : '#DC3545',
+                        width: Math.abs(weight) * 3 + 1,
+                        title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                        dashes: false
+                    });
+                }
+            });
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function getClusterDetailData(clusterId) {
+            const nodes = [];
+            const edges = [];
+            
+            // Add concept nodes for this cluster
+            if (clusterConcepts[clusterId]) {
+                clusterConcepts[clusterId].forEach(([conceptId, data]) => {
+                    nodes.push({
+                        id: conceptId,
+                        label: conceptId,
+                        title: `Concept: ${conceptId}\nFrom cluster: ${clusterId}`,
+                        color: '#FF9500',
+                        size: 20,
+                        font: { color: 'white' }
+                    });
+                });
+            }
+            
+            // Add intra-cluster edges
+            if (clusterEdges[clusterId]) {
+                clusterEdges[clusterId].forEach(([source, target, edgeData]) => {
+                    const confidence = edgeData.confidence || 1.0;
+                    const weight = edgeData.weight || 0;
+                    
+                    if (confidence >= minConfidence) {
+                        edges.push({
+                            from: source,
+                            to: target,
+                            color: weight > 0 ? '#28A745' : '#DC3545',
+                            width: Math.abs(weight) * 3 + 1,
+                            title: `${source} → ${target}\nWeight: ${weight}\nConfidence: ${confidence.toFixed(2)}`,
+                            dashes: true
+                        });
+                    }
+                });
+            }
+            
+            return { nodes: nodes, edges: edges };
+        }
+        
+        function showClusterView() {
+            currentView = 'clusters';
+            currentCluster = null;
+            const data = getClusterViewData();
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'none';
+            document.getElementById('current-view').textContent = 'Cluster Overview';
+        }
+        
+        function showClusterDetail(clusterId) {
+            currentView = 'concepts';
+            currentCluster = clusterId;
+            const data = getClusterDetailData(clusterId);
+            network.setData(data);
+            
+            document.getElementById('back-btn').style.display = 'inline-block';
+            document.getElementById('current-view').textContent = `Inside Cluster: ${clusterId}`;
+        }
+        
+        function updateConfidenceFilter(value) {
+            minConfidence = parseFloat(value);
+            document.getElementById('confidence-value').textContent = value;
+            
+            // Refresh current view
+            if (currentView === 'clusters') {
+                showClusterView();
+            } else {
+                showClusterDetail(currentCluster);
+            }
+        }
+        
+        // Initialize the network when page loads
+        window.onload = function() {
+            initNetwork();
+        };
+    </script>
+</body>
+</html>
