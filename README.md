@@ -8,7 +8,7 @@ A comprehensive Python toolkit for extracting Fuzzy Cognitive Maps (FCMs) from i
 
 1. **Clone the repository:**
 ```bash
-git clone https://github.com/berijani/fcm-extractor.git
+git clone https://github.com/maryambrj/FCM-extractor.git
 cd fcm-extractor
 ```
 
