@@ -41,7 +41,7 @@ class ClusterMetadata:
     summary: Optional[str] = None              # LLM-generated description
     embedding_centroid: Optional[np.ndarray] = None # Mean embedding
     confidence: float = 0.0                    # Naming/clustering confidence
-    size: int = 0                             # Number of concepts
+    size: int = 0                              # Number of concepts
     
     def __post_init__(self):
         self.size = len(self.concepts)

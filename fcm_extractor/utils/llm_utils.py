@@ -16,7 +16,12 @@ def is_reasoning_model(model_name: str) -> bool:
 
 def uses_max_completion_tokens(model_name: str) -> bool:
     """Check if model uses max_completion_tokens instead of max_tokens"""
-    return model_name.startswith(("o3",))
+    return model_name.startswith((
+        "o3",           # OpenAI o3 reasoning family
+        "o1",           # OpenAI o1 reasoning family
+        "gpt-4.1",      # New GPT-4.1 family (uses max_completion_tokens)
+        "gpt-5"         # GPT-5 family also expects max_completion_tokens
+    ))
 
 def supports_temperature(model_name: str) -> bool:
     """Check if model supports temperature parameter"""

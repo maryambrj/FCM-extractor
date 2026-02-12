@@ -15,7 +15,7 @@ edge inference, and post-processing steps.
 # model = "gpt-4.1-2025-04-14"
 # model = "gpt-4.1-mini-2025-04-14"
 # model = "gpt-4o-2024-05-13"
-model = "gpt-5-chat-latest"
+model = "gpt-5.1-2025-11-13"
 
 CONCEPT_EXTRACTION_MODEL = model
 META_PROMPTING_MODEL = model
@@ -31,7 +31,7 @@ META_PROMPTING_TEMPERATURE = 0.5        # Higher = more creative meta-prompting
 # =============================================================================
 
 # Primary clustering method selection
-CLUSTERING_METHOD = "no_clustering" 
+CLUSTERING_METHOD = "hybrid" 
 # Options:
 # - "llm_only": Use LLM for all clustering decisions
 # - "hybrid": Combine embedding-based and LLM-based clustering
@@ -61,7 +61,7 @@ DIMENSIONALITY_REDUCTION = "umap"
 # Options: "tsne", "umap", "pca", "none"
 
 # LLM-based clustering settings
-USE_LLM_CLUSTERING = False              # Whether to use LLM for semantic clustering
+USE_LLM_CLUSTERING = True              # Whether to use LLM for semantic clustering
 CLUSTER_NAMING_BATCH_SIZE = 5           # Concepts per batch for cluster naming
 
 # =============================================================================
@@ -118,7 +118,7 @@ POST_CLUSTERING_REQUIRE_MINIMUM_SIMILARITY = True  # Require threshold to be met
 # Edge inference settings
 EDGE_CONFIDENCE_THRESHOLD = 0.5        # Minimum confidence for edges (0.0-1.0)
 USE_CONFIDENCE_FILTERING = False        # Whether to filter edges by confidence
-ENABLE_INTRA_CLUSTER_EDGES = False     # Whether to infer edges within clusters
+ENABLE_INTRA_CLUSTER_EDGES = True     # Whether to infer edges within clusters
 
 # Batch sizes for API efficiency
 EDGE_INFERENCE_BATCH_SIZE = 5          # Batch size for intra-cluster edges
