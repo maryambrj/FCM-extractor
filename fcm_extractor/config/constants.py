@@ -15,7 +15,8 @@ edge inference, and post-processing steps.
 # model = "gpt-4.1-2025-04-14"
 # model = "gpt-4.1-mini-2025-04-14"
 # model = "gpt-4o-2024-05-13"
-model = "gpt-5.1-2025-11-13"
+# model = "gpt-5.1-2025-11-13"
+model = "gpt-5.2-2025-12-11"
 
 CONCEPT_EXTRACTION_MODEL = model
 META_PROMPTING_MODEL = model
@@ -31,7 +32,7 @@ META_PROMPTING_TEMPERATURE = 0.5        # Higher = more creative meta-prompting
 # =============================================================================
 
 # Primary clustering method selection
-CLUSTERING_METHOD = "hybrid" 
+CLUSTERING_METHOD = "no_clustering" 
 # Options:
 # - "llm_only": Use LLM for all clustering decisions
 # - "hybrid": Combine embedding-based and LLM-based clustering
@@ -61,7 +62,7 @@ DIMENSIONALITY_REDUCTION = "umap"
 # Options: "tsne", "umap", "pca", "none"
 
 # LLM-based clustering settings
-USE_LLM_CLUSTERING = True              # Whether to use LLM for semantic clustering
+USE_LLM_CLUSTERING = False              # Whether to use LLM for semantic clustering
 CLUSTER_NAMING_BATCH_SIZE = 5           # Concepts per batch for cluster naming
 
 # =============================================================================
@@ -116,9 +117,9 @@ POST_CLUSTERING_REQUIRE_MINIMUM_SIMILARITY = True  # Require threshold to be met
 # =============================================================================
 
 # Edge inference settings
-EDGE_CONFIDENCE_THRESHOLD = 0.5        # Minimum confidence for edges (0.0-1.0)
-USE_CONFIDENCE_FILTERING = False        # Whether to filter edges by confidence
-ENABLE_INTRA_CLUSTER_EDGES = True     # Whether to infer edges within clusters
+EDGE_CONFIDENCE_THRESHOLD = 0.7        # Minimum confidence for edges (0.0-1.0)
+USE_CONFIDENCE_FILTERING = True        # Whether to filter edges by confidence
+ENABLE_INTRA_CLUSTER_EDGES = False     # Whether to infer edges within clusters
 
 # Batch sizes for API efficiency
 EDGE_INFERENCE_BATCH_SIZE = 5          # Batch size for intra-cluster edges
@@ -135,8 +136,8 @@ CONCEPT_EXTRACTION_N_PROMPTS = 2        # Number of extraction prompts to run
 # ACO (ANT COLONY OPTIMIZATION) PARAMETERS
 # =============================================================================
 
-ACO_MAX_ITERATIONS = 5    #3              # Number of ACO iterations
-ACO_SAMPLES_PER_ITERATION = 50     #30     # Number of edges to sample per iteration
+ACO_MAX_ITERATIONS = 3                  # Number of ACO iterations
+ACO_SAMPLES_PER_ITERATION = 50          # Number of edges to sample per iteration
 ACO_EVAPORATION_RATE = 0.15             # Pheromone evaporation rate (0.0-1.0)
 ACO_INITIAL_PHEROMONE = 0.01            # Initial pheromone level for all edges
 ACO_CONVERGENCE_THRESHOLD = 0.03        # Convergence threshold for early stopping
@@ -148,8 +149,8 @@ ACO_GUARANTEE_COVERAGE = True           # Ensure all edges tested at least once
 
 DEFAULT_INTERVIEW_FILE = "BD006.docx"   # Default file when no specific file given
 PROCESS_ALL_FILES = False            
-INTERVIEWS_DIRECTORY = "../interviews"  # (.docx, .doc, .txt)
-OUTPUT_DIRECTORY = "../fcm_outputs"   
+INTERVIEWS_DIRECTORY = "../results/red-snapper-raw/interviews"  # (.docx, .doc, .txt)
+OUTPUT_DIRECTORY = "../results/red-snapper-raw/without-clustering/fcm_outputs/testt"   
 
 # Backward compatibility
 INTERVIEW_FILE_NAME = DEFAULT_INTERVIEW_FILE
@@ -178,7 +179,7 @@ EVALUATION_INCLUDE_INTRA_CLUSTER_NODES = False  # Include concept nodes in evalu
 # META-PROMPTING SETTINGS
 # =============================================================================
 
-META_PROMPTING_ENABLED = True          # Use dynamic prompts vs fixed prompts
+META_PROMPTING_ENABLED = False          # Use dynamic prompts vs fixed prompts
 
 # Dynamic prompting settings (advanced meta-prompting)
 DYNAMIC_PROMPTING_ENABLED = True       # Enable dynamic prompt generation (requires META_PROMPTING_ENABLED)
@@ -191,18 +192,54 @@ DYNAMIC_PROMPTING_TRACK_PERFORMANCE = True # Track prompt performance for learni
 # =============================================================================
 
 DEFAULT_CONCEPT_EXTRACTION_PROMPT = (
-    "Extract only the most important and salient key concepts or entities from the following text. "
+    "Provide a brief, one-sentence explanation of the core themes found in the text. "
+    "Then, following that explanation, extract only the most important and salient key concepts or entities. "
     "Be selective and avoid minor, redundant, or overly specific concepts. "
-    "Return ONLY a comma-separated list with no bullets, numbers, asterisks, markdown, explanations, or long phrases. "
+    "The final extraction must be a comma-separated list with no bullets, numbers, asterisks, markdown, or long phrases. "
     "Each concept should be normalized to lowercase and contain no special characters or formatting."
 )
 
+# (
+#     "Extract only the most important and salient key concepts or entities from the following text. "
+#     "Be selective and avoid minor, redundant, or overly specific concepts. "
+#     "Return ONLY a comma-separated list with no bullets, numbers, asterisks, markdown, explanations, or long phrases. "
+#     "Each concept should be normalized to lowercase and contain no special characters or formatting."
+# )
+
+
+
+# """You are an expert at analyzing text and extracting causal relationships for Fuzzy Cognitive Maps (FCMs).
+
+# An FCM consists of:
+# 1. NODES: Concepts that can increase or decrease (quantitatively or qualitatively)
+# 2. EDGES: Directed causal relationships showing how an increase in one concept affects another
+
+# Examples:
+# - ("rainfall", "crop yield", "+") - more rain increases crop yield
+# - ("pollution", "air quality", "-") - more pollution decreases air quality
+# - ("economic growth", "employment", "+") - growth increases employment
+# - ("food insecurity", "health outcomes", "-") - more food insecurity decreases health
+
+# Analyze the following text and extract all concepts (nodes) at a consistent level of abstraction for a Fuzzy Cognitive Map.
+
+# Important:
+# 1. Node names should be noun phrases (e.g., "water quality" not "improving water quality")
+# 2. Be consistent with node naming - use the same name when referring to the same concept
+# 3. Include ALL relevant concepts, even if there are many.
+# 4. Return ONLY a comma-separated list. 
+# 5. Each concept should be normalized to lowercase and contain no special characters or formatting.
+# """
+
+
+
 DEFAULT_EDGE_INFERENCE_PROMPT = (
     "Analyze causal relationships between concept pairs based on the text. "
-    "Look for words like: causes, leads to, results in, affects, influences, correlates, associated with, depends on, drives, impacts.\n\n"
+    "For each pair, first provide a brief 'Reasoning' sentence citing evidence from the text. "
+    "Then, provide the relationship in the required format.\n\n"
     "Text: {text}\n\n"
     "Pairs: {pairs}\n\n"
-    "For each pair, respond ONLY in this format:\n"
+    "Format for each pair:\n"
+    "Pair X Reasoning: [Briefly explain the logic and evidence]\n"
     "Pair X: concept1 -> concept2 (positive/negative, confidence: 0.XX)\n"
     "OR\n"
     "Pair X: no relationship\n\n"
@@ -214,17 +251,63 @@ DEFAULT_EDGE_INFERENCE_PROMPT = (
     "- Look for words like: causes, leads to, results in, affects, influences, correlates, associated with, depends on, drives, impacts"
 )
 
+# DEFAULT_EDGE_INFERENCE_PROMPT = (
+#     "Analyze causal relationships between concept pairs based on the text. "
+#     "Look for words like: causes, leads to, results in, affects, influences, correlates, associated with, depends on, drives, impacts.\n\n"
+#     "Text: {text}\n\n"
+#     "Pairs: {pairs}\n\n"
+#     "For each pair, respond ONLY in this format:\n"
+#     "Pair X: concept1 -> concept2 (positive/negative, confidence: 0.XX)\n"
+#     "OR\n"
+#     "Pair X: no relationship\n\n"
+#     "Guidelines:\n"
+#     "- positive: when concept1 increases/improves/enables concept2\n"
+#     "- negative: when concept1 decreases/hinders/prevents concept2\n"
+#     "- confidence: how certain you are (0.0-1.00)\n"
+#     "- Consider indirect relationships and implications\n"
+#     "- Look for words like: causes, leads to, results in, affects, influences, correlates, associated with, depends on, drives, impacts"
+# )
+
+# """You are an expert at analyzing text and extracting causal relationships for Fuzzy Cognitive Maps (FCMs).
+
+# An FCM consists of:
+# 1. NODES: Concepts that can increase or decrease (quantitatively or qualitatively)
+# 2. EDGES: Directed causal relationships showing how an increase in one concept affects another
+
+# For edges, use these signs:
+# - "+" means an increase in source INCREASES the target
+# - "-" means an increase in source DECREASES the target  
+# - "?" means the relationship is ambiguous or context-dependent
+
+# Examples:
+# - ("rainfall", "crop yield", "+") - more rain increases crop yield
+# - ("pollution", "air quality", "-") - more pollution decreases air quality
+# - ("economic growth", "employment", "+") - growth increases employment
+# - ("food insecurity", "health outcomes", "-") - more food insecurity decreases health
+
+# Analyze the following text and extract all causal relationships (edges) for a Fuzzy Cognitive Map.
+
+# Important:
+# 1. Only include causal relationships that are explicitly or strongly implied in the text. 
+# 2. Focus on substantive causal claims, not mere correlations or associations.
+# 3. Edge confidence should reflect how explicitly the relationship is stated.
+# 4. Include ALL relevant relationships, even if there are many."""
+
+
+
+
 DEFAULT_INTER_CLUSTER_EDGE_PROMPT = (
     "You are an expert analyst building a Fuzzy Cognitive Map. Your task is to analyze the causal relationships "
     "between the following pairs of concept clusters, based on the provided text.\n\n"
-    "Look for words like: causes, leads to, results in, affects, influences, correlates, associated with, depends on, drives, impacts.\n\n"
     "--- TEXT ---\n"
     "{text}\n"
     "--- END TEXT ---\n\n"
-    "For each pair below, analyze the causal relationship.\n"
+    "For each pair below, first provide a one-sentence 'Reasoning' identifying the specific causal link. "
+    "Then, provide the relationship in the required format.\n\n"
     "{pairs}\n"
     "--- RESPONSE FORMAT ---\n"
-    "For each pair, respond with exactly one line using this format:\n"
+    "For each pair, respond with exactly two lines using this format:\n"
+    "Pair X Reasoning: [Specific logic and keywords from the text]\n"
     "Pair X: concept1 -> concept2 (positive/negative, confidence: 0.XX)\n"
     "OR\n"
     "Pair X: no relationship\n\n"
@@ -237,10 +320,39 @@ DEFAULT_INTER_CLUSTER_EDGE_PROMPT = (
     "Text: 'Increased stress at work has negatively impacted team productivity.'\n"
     "Pair 1: 'stress' and 'productivity'\n"
     "Response:\n"
-    "Pair 1: stress -> productivity (negative, confidence: 0.85)\n"
+    "Pair 1 Reasoning: The text explicitly states stress 'negatively impacted' productivity.\n"
+    "Pair 1: stress -> productivity (negative, confidence: 0.95)\n"
     "--- END EXAMPLE ---\n\n"
-    "Begin your response now. Provide one line per pair."
+    "Begin your response now."
 )
+
+# DEFAULT_INTER_CLUSTER_EDGE_PROMPT = (
+#     "You are an expert analyst building a Fuzzy Cognitive Map. Your task is to analyze the causal relationships "
+#     "between the following pairs of concept clusters, based on the provided text.\n\n"
+#     "Look for words like: causes, leads to, results in, affects, influences, correlates, associated with, depends on, drives, impacts.\n\n"
+#     "--- TEXT ---\n"
+#     "{text}\n"
+#     "--- END TEXT ---\n\n"
+#     "For each pair below, analyze the causal relationship.\n"
+#     "{pairs}\n"
+#     "--- RESPONSE FORMAT ---\n"
+#     "For each pair, respond with exactly one line using this format:\n"
+#     "Pair X: concept1 -> concept2 (positive/negative, confidence: 0.XX)\n"
+#     "OR\n"
+#     "Pair X: no relationship\n\n"
+#     "Guidelines:\n"
+#     "- positive: when concept1 increases/improves/enables concept2\n"
+#     "- negative: when concept1 decreases/hinders/prevents concept2\n"
+#     "- confidence: how certain you are (0.0-1.00)\n"
+#     "- Focus on direct causal links mentioned in the text\n\n"
+#     "--- EXAMPLE ---\n"
+#     "Text: 'Increased stress at work has negatively impacted team productivity.'\n"
+#     "Pair 1: 'stress' and 'productivity'\n"
+#     "Response:\n"
+#     "Pair 1: stress -> productivity (negative, confidence: 0.85)\n"
+#     "--- END EXAMPLE ---\n\n"
+#     "Begin your response now. Provide one line per pair."
+# )
 
 DEFAULT_INTRA_CLUSTER_EDGE_PROMPT = (
     "You are an expert analyst building a Fuzzy Cognitive Map from an interview transcript.\n"

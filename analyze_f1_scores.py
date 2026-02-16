@@ -1,4 +1,5 @@
 import os
+import argparse
 import math
 from typing import List, Tuple
 
@@ -88,6 +89,11 @@ def load_all_f1(records: List[Tuple[str, str, str]]) -> pd.DataFrame:
             "gt_edges",
             "gen_nodes",
             "gen_edges",
+            "fcm1_nodes",
+            "fcm1_edges",
+            "fcm2_nodes",
+            "fcm2_edges",
+            "Jaccard",
         ]
         for col in optional_cols:
             if col in df.columns:
@@ -556,9 +562,30 @@ def plot_per_model_all_datasets(df: pd.DataFrame, out_dir: str) -> None:
 
 
 def main() -> None:
-    repo_root = os.path.dirname(os.path.abspath(__file__))
-    outputs_root = os.path.join(repo_root, "fcm_outputs")
-    analysis_out = os.path.join(repo_root, "fcm_outputs_analysis")
+    parser = argparse.ArgumentParser(
+        description="Analyze F1 scores from FCM evaluation results.",
+        epilog="""
+Examples:
+  python analyze_f1_scores.py \\
+      --results-dir results/biodiversity-data/without-clustering/high-quality-data
+        """,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--results-dir",
+        required=True,
+        help="Base results directory (reads from {dir}/evaluation_results, writes to {dir}/fcm_outputs_analysis)",
+    )
+    args = parser.parse_args()
+
+    outputs_root = os.path.join(args.results_dir, "evaluation_results")
+    analysis_out = os.path.join(args.results_dir, "fcm_outputs_analysis")
+
+    if not os.path.isdir(outputs_root):
+        print(f"❌ Input directory not found: {outputs_root}")
+        print(f"   Run run_evaluation.py first to generate scoring results.")
+        return
+
     ensure_dir(analysis_out)
 
     csv_records = find_scoring_csvs(outputs_root)

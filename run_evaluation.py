@@ -118,16 +118,16 @@ Examples:
                         help="Directory containing predicted FCMs (nested or flat)")
     parser.add_argument("--output-dir", default=None,
                         help="Directory to save results (auto-inferred if not provided)")
-    parser.add_argument("--threshold", type=float, default=0.6,
-                        help="Similarity threshold (default: 0.6)")
+    parser.add_argument("--threshold", type=float, default=0.5,
+                        help="Similarity threshold")
     parser.add_argument("--model-name", default="Qwen/Qwen3-Embedding-0.6B",
                         help="Embedding model for scoring (default: Qwen/Qwen3-Embedding-0.6B)")
     parser.add_argument("--tp-scale", type=float, default=1.0,
                         help="True positive scale (default: 1.0)")
-    parser.add_argument("--pp-scale", type=float, default=1.1,
-                        help="Partial positive scale (default: 1.1)")
+    parser.add_argument("--pp-scale", type=float, default=0.6,
+                        help="Partial positive scale")
     parser.add_argument("--batch-size", type=int, default=2,
-                        help="Batch size (default: 2)")
+                        help="Batch size")
     parser.add_argument("--seed", type=int, default=42,
                         help="Random seed (default: 42)")
     parser.add_argument("--output-format", choices=["csv", "json", "both"],

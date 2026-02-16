@@ -184,6 +184,45 @@ python edit_visualizations.py -i fcm_outputs
 python edit_visualizations.py -i results/biodiversity-data/with-clustering/fcm_outputs -b  # with backup
 ```
 
+### Semantic FCM Scoring (`run_evaluation.py`)
+Uses the `soft_measures` library to compare predicted FCMs against ground-truth using
+transformer-based semantic similarity (Qwen3 embeddings + Hungarian matching).
+Computes F1, Jaccard, TP, FP, FN, and partial-positive (sign-mismatch) metrics.
+
+# Evaluate a model's FCM outputs against ground truth
+python run_evaluation.py \
+    --gt-dir results/red-snapper-raw/ground_truth \
+    --pred-dir results/red-snapper-raw/without-clustering/fcm_outputs/test
+
+
+# Results are automatically saved to:
+#   results/biodiversity-data/without-clustering/high-quality-data/evaluation_results/gpt-5/
+
+# Custom output directory and parameters
+python run_evaluation.py \
+    --gt-dir path/to/ground_truth \
+    --pred-dir path/to/fcm_outputs/model-name \
+    --output-dir path/to/save/results \
+    --threshold 0.5 \
+    --model-name "Qwen/Qwen3-Embedding-0.6B"
+```
+
+The script handles nested FCM output structures (e.g., `BD006/BD006_fcm.json`)
+automatically — it creates a temporary flat directory, runs scoring, saves results,
+and cleans up.
+
+### Analyze Scores (`analyze_f1_scores.py`)
+After running `run_evaluation.py`, generate statistical summaries and plots:
+
+```bash
+python analyze_f1_scores.py \
+    --results-dir results/gulf-osw-data/without-clustering
+```
+
+Reads from `{results-dir}/evaluation_results/` and writes plots and CSVs to
+`{results-dir}/fcm_outputs_analysis/`.
+
+
 <!-- ## 🔧 Advanced Usage
 
 ### Programmatic Usage
